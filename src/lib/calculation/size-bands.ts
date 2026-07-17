@@ -7,7 +7,7 @@ export interface TokenRange {
 }
 
 // These are product assumptions per model call, not values returned by GPT.
-// The maximum input stays below the current 272K long-context pricing threshold.
+// A price resolver must reject any band outside an offering's standard-price condition.
 export const INPUT_TOKEN_BANDS: Record<SizeBand, TokenRange> = {
   xs: { low: 500, expected: 1_000, high: 2_000 },
   s: { low: 2_000, expected: 4_000, high: 8_000 },

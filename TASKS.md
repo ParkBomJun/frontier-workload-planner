@@ -193,12 +193,12 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 
 ### Checkpoint 4 — generalized API offering calculation
 
-- [ ] Resolve time- and condition-aware API prices before deterministic estimation
-- [ ] Add labeled user overrides for verified catalog price/tier defaults with one-step restore
-- [ ] Reuse size bands, iterations, feasibility, and micro-USD arithmetic for API offerings
-- [ ] Preserve standard-price assumptions and expose excluded billing conditions
-- [ ] Reject an executable route when its price schedule or token-range conditions do not apply
-- [ ] Keep the reviewed API-only comparison available as a compatibility view
+- [x] Resolve time- and condition-aware API prices before deterministic estimation
+- [x] Add user-supplied override source contracts for verified catalog price/tier defaults with one-step deletion restore; UI remains checkpoint 7
+- [x] Reuse size bands, iterations, feasibility, and integer micro-USD arithmetic for API offerings
+- [x] Preserve standard-price assumptions and expose excluded billing conditions
+- [x] Return no executable cost when a price schedule or token-range condition does not apply
+- [x] Keep the reviewed API-only comparison available as a compatibility view
 
 ### Checkpoint 5 — subscription resource engine
 
@@ -288,9 +288,9 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 - [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
 - [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
 
-## Provider-comparison P2 backlog — frozen during Ver3 checkpoint 1
+## Provider-comparison P2 backlog — compatibility-view follow-up
 
-- [ ] Resolve Sonnet 5 pricing by effective date and expose `pricingAsOf`
+- [ ] Apply date-aware Sonnet 5 pricing to the legacy provider-comparison UI; checkpoint 4 resolves it only in the generalized API seam
 - [ ] Add the independent 922,000-token OpenAI input limit and boundary tests
 - [ ] Improve 320px provider-card header and cost-row readability
 - [ ] Add card-specific comparison summaries to provider radio descriptions

@@ -588,3 +588,25 @@ knowledge as `unknown`. Treat `active` as a cost projection rather than confirme
 eligibility, disclose that boundary in UI and Markdown, and export it as a machine-readable JSON v4
 eligibility basis. Preserve legacy JSON v3 and describe legacy infeasibility using invocation limits
 only because `api-analysis-v1` has no minimum-quality floor.
+
+### Add generalized API pricing without changing the compatibility view
+
+Checkpoint 4 resolves API standard-text prices in a separate pure seam keyed by canonical
+provider/tier lookup and explicit `pricingAsOf`. Sonnet 5 changes at the documented
+`2026-08-31`/`2026-09-01` boundary. Gemini Pro input above 200K produces a conditional result with
+no cost because long-context pricing remains excluded; it is never silently charged at either the
+base or excluded rate. Invocation-limit failure is independently ineligible, while a successfully
+priced candidate still does not claim full Offering eligibility.
+
+Keep the reviewed `estimateTaskCost` / `allocateBudget` / `compareProviderPlans` path unchanged as
+the normalized compatibility view. This intentionally leaves the compatibility-view Sonnet P2
+open while completing date-aware behavior for the new generalized seam. Normalize official or
+user-supplied rates to integer micro-USD-per-million values and round the combined input/output
+scenario once.
+
+Introduce override source operations now, but defer their UI to checkpoint 7 and persistence/export
+to checkpoint 8. An override is bound to one exact versioned registry entry, remains visibly
+`user-supplied`, and may change only planning tier and standard-text input/output rates from an
+explicit date. Official defaults and evidence stay immutable; restoration removes the override
+instead of copying defaults into user state. This supersedes the old release-candidate decision to
+defer all price override work, without exposing an editor in the current checkpoint.

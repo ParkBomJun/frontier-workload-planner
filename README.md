@@ -73,6 +73,19 @@ output을 사용합니다. Google 3종은 1,048,576 max input과 65,536 max outp
 제공자가 공개한 의미에 맞춰 input, output, combined limit를 구분하며 하나의 공통 context
 필드로 추정하지 않습니다.
 
+### 체크포인트 4 개발 경계
+
+현재 화면의 공급자 비교는 검토된 호환성 기준으로 유지됩니다. 별도의 generalized API
+계산 seam은 명시적인 `pricingAsOf`를 받아 Sonnet 5의 기간별 가격과 Gemini Pro의 200K
+표준가격 조건을 먼저 확인합니다. 조건이 적용되지 않으면 제외된 장문 가격이나 오래된
+가격으로 대체하지 않고 비용 없는 `conditional` 결과를 반환합니다. 공식 호출 한도 초과는
+별도의 `ineligible` 결과입니다.
+
+동일 seam은 기존 검증 카탈로그 항목의 planning tier와 표준 텍스트 입력·출력 가격에만
+적용할 수 있는 `user-supplied` override 원본과 삭제 기반 기본값 복원을 제공합니다. 아직
+화면·LocalStorage·Markdown·JSON에는 연결하지 않았습니다. 편집 UI는 체크포인트 7,
+버전된 저장과 내보내기는 체크포인트 8 범위이며, 현재 JSON v3/v4 의미는 바뀌지 않습니다.
+
 ## 로컬 실행
 
 Node.js 20.9 이상이 필요합니다.

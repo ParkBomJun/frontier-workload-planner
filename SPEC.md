@@ -163,9 +163,12 @@ exclusion and must not present the result as an invoice estimate for excluded wo
 | `xl` | 128,000 / 192,000 / 256,000 | 32,000 / 64,000 / 96,000 |
 
 The maximum input for one modeled iteration is 256K. This can exceed Gemini 3.1 Pro's 200K
-standard-price condition; the comparison still applies the catalog's base `$2 / $12` planning rate
-and visibly discloses that the official `$4 / $18` long-context tier is excluded. Multiple iterations
-increase scenario totals without changing the per-request size-band classification.
+standard-price condition. The historical provider-comparison compatibility view still applies the
+catalog's base `$2 / $12` planning rate and visibly discloses that the official `$4 / $18`
+long-context tier is excluded. The checkpoint-4 generalized API evaluator instead returns a
+`standard-price-input-limit-exceeded` conditional result with no cost whenever any Low / Expected /
+High single invocation exceeds 200K; it never substitutes the excluded `$4 / $18` rate. Multiple
+iterations increase scenario totals without changing the per-request price-condition check.
 
 ### Scenario formula
 
@@ -1234,6 +1237,35 @@ offering can become an executable Best-fit route, its effective date, token-rang
 and invocation limits must apply to the workload. An excluded surcharge or expired introductory
 rate cannot be treated as an available execution price merely because it remains useful in the
 historical comparison baseline.
+
+### Checkpoint-4 generalized API pricing and cost seam
+
+Checkpoint 4 adds a separate pure calculation path without changing `estimateTaskCost`,
+`allocateBudget`, or `compareProviderPlans` compatibility semantics. Every generalized evaluation
+receives an explicit ISO `pricingAsOf`; no resolver reads the clock. It resolves the exact current
+versioned catalog entry, selects the applicable official price period, checks each scenario's
+single-invocation input against standard-price token conditions, and only then passes a normalized
+rate into the shared size-band and iteration calculation. Costs use integer micro-USD rates and one
+rounding step per complete scenario.
+
+Claude Sonnet 5 resolves to `$2 / $10` through `2026-08-31` and `$3 / $15` from
+`2026-09-01`. An invalid date, uncovered schedule period, or intentionally excluded price range
+never falls back to the nearest known rate. Gemini 3.1 Pro above its 200K standard-price prompt
+condition remains `conditional`, retains the excluded long-context rate only as diagnostic
+metadata, and receives no executable cost. A published invocation-limit failure remains separately
+`ineligible`. A successful `priced` result still sets `offeringEligibilityApplied: false`; price
+and invocation resolution do not prove work-surface, capability, access-policy, or full Offering
+eligibility.
+
+An `ApiCatalogOverride` may reference only an exact allowlisted catalog ID, version, and existing
+entry. Its provenance is always `user-supplied`; it may override only the planner-authored quality
+tier and the two standard-text rate values from its explicit effective date. It cannot change model
+identity, invocation limits, evidence, schedule coverage, token conditions, exclusions, Preview
+state, or create a provider/model. Resolution returns the official default and provider-published
+evidence beside the effective value. One-step restoration deletes the override source entry rather
+than writing official values back as a user override. Checkpoint 7 owns the localized editor UI and
+checkpoint 8 owns versioned persistence and export; checkpoint 4 does not mutate LocalStorage v4 or
+JSON v3/v4.
 
 ### Future input and result contract
 

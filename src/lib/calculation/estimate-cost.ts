@@ -6,10 +6,19 @@ import type {
   ScenarioEstimate,
   TaskCostEstimate,
 } from "@/types/domain";
+import type {
+  NormalizedStandardTextRate,
+  ResolvedRateTaskCost,
+} from "@/types/pricing";
 
 import { INPUT_TOKEN_BANDS, OUTPUT_TOKEN_BANDS } from "./size-bands";
+import {
+  fromMicroUsd,
+  normalizeStandardTextRate,
+  tokenCostMicroUsd,
+} from "./micro-usd";
 
-export const MICRO_USD_PER_USD = 1_000_000;
+export { MICRO_USD_PER_USD, fromMicroUsd, toMicroUsd } from "./micro-usd";
 
 type Scenario = keyof TaskCostEstimate;
 
@@ -19,34 +28,46 @@ function iterationsForScenario(expectedIterations: number, scenario: Scenario): 
   return expectedIterations;
 }
 
-export function toMicroUsd(valueUsd: number): number {
-  return Math.round(valueUsd * MICRO_USD_PER_USD);
-}
-
-export function fromMicroUsd(valueMicroUsd: number): number {
-  return valueMicroUsd / MICRO_USD_PER_USD;
-}
-
 function estimateScenario(
   analysis: PlannerTaskAnalysis,
-  tier: ModelTier,
   scenario: Scenario,
-  providerId: ProviderId,
-): ScenarioEstimate {
-  const price = PROVIDER_CATALOG[providerId].models[tier];
+  price: NormalizedStandardTextRate,
+): { estimate: ScenarioEstimate; costMicroUsd: number } {
   const iterations = iterationsForScenario(analysis.expectedIterations, scenario);
   const inputTokensPerIteration = INPUT_TOKEN_BANDS[analysis.estimatedInputSize][scenario];
   const inputTokens = inputTokensPerIteration * iterations;
   const outputTokens = OUTPUT_TOKEN_BANDS[analysis.estimatedOutputSize][scenario] * iterations;
-  const costMicroUsd = Math.round(
-    inputTokens * price.inputUsdPerMillion + outputTokens * price.outputUsdPerMillion,
-  );
+  const costMicroUsd = tokenCostMicroUsd(inputTokens, outputTokens, price);
 
   return {
-    inputTokens,
-    outputTokens,
-    iterations,
-    costUsd: fromMicroUsd(costMicroUsd),
+    estimate: {
+      inputTokens,
+      outputTokens,
+      iterations,
+      costUsd: fromMicroUsd(costMicroUsd),
+    },
+    costMicroUsd,
+  };
+}
+
+export function estimateTaskCostFromResolvedRate(
+  analysis: PlannerTaskAnalysis,
+  price: NormalizedStandardTextRate,
+): ResolvedRateTaskCost {
+  const low = estimateScenario(analysis, "low", price);
+  const expected = estimateScenario(analysis, "expected", price);
+  const high = estimateScenario(analysis, "high", price);
+  return {
+    estimate: {
+      low: low.estimate,
+      expected: expected.estimate,
+      high: high.estimate,
+    },
+    scenarioCostMicroUsd: {
+      low: low.costMicroUsd,
+      expected: expected.costMicroUsd,
+      high: high.costMicroUsd,
+    },
   };
 }
 
@@ -55,9 +76,8 @@ export function estimateTaskCost(
   tier: ModelTier,
   providerId: ProviderId = "openai",
 ): TaskCostEstimate {
-  return {
-    low: estimateScenario(analysis, tier, "low", providerId),
-    expected: estimateScenario(analysis, tier, "expected", providerId),
-    high: estimateScenario(analysis, tier, "high", providerId),
-  };
+  const model = PROVIDER_CATALOG[providerId].models[tier];
+  const price = normalizeStandardTextRate(model);
+  if (!price) throw new Error("The provider catalog contains an invalid standard-text price.");
+  return estimateTaskCostFromResolvedRate(analysis, price).estimate;
 }
