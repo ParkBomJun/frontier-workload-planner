@@ -7,12 +7,16 @@ import type {
   AnalysisMode,
   BudgetAllocationPlan,
   ModelTier,
+  PlanExportContext,
   PlanningStrategy,
+  TaskInput,
 } from "@/types/domain";
 
 import { CostChart } from "./cost-chart";
+import { ExportActions } from "./export-actions";
 
 interface AnalysisResultsProps {
+  sourceTasks: TaskInput[];
   plan: BudgetAllocationPlan;
   analysisMode: AnalysisMode;
   analysisModel: string;
@@ -52,19 +56,27 @@ function formatTokens(value: number): string {
 }
 
 export function AnalysisResults({
+  sourceTasks,
   plan,
   analysisMode,
   analysisModel,
   generatedAt,
 }: AnalysisResultsProps) {
   const utilization = Math.min(999, (plan.totals.expectedUsd / plan.settings.budgetUsd) * 100);
+  const exportContext: PlanExportContext = {
+    sourceTasks,
+    plan,
+    analysisMode,
+    analysisModel,
+    generatedAt,
+  };
 
   return (
     <section
       aria-labelledby="analysis-results-title"
       className="overflow-hidden rounded-[1.75rem] border border-[#173f31]/15 bg-[#143e30] text-white shadow-[0_24px_70px_rgba(23,63,49,0.2)]"
     >
-      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-7">
+      <div className="flex flex-col gap-5 border-b border-white/10 px-5 py-6 sm:flex-row sm:items-start sm:justify-between sm:px-7">
         <div>
           <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#9ed0b8]">
             Budget-aware recommended plan
@@ -73,11 +85,16 @@ export function AnalysisResults({
             비용과 모델 배분 결과
           </h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-white/10 px-3 py-1.5 font-bold uppercase text-[#d7e9df]">
-            {analysisMode}
-          </span>
-          <span className="break-all font-mono text-white/60">{analysisModel}</span>
+        <div className="sm:min-w-[250px]">
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:justify-end">
+            <span className="rounded-full bg-white/10 px-3 py-1.5 font-bold uppercase text-[#d7e9df]">
+              {analysisMode}
+            </span>
+            <span className="break-all font-mono text-white/70">{analysisModel}</span>
+          </div>
+          <div className="mt-3">
+            <ExportActions context={exportContext} />
+          </div>
         </div>
       </div>
 
@@ -132,7 +149,7 @@ export function AnalysisResults({
         <div>
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <h3 className="text-lg font-semibold">작업별 배분</h3>
-            <p className="text-xs text-white/55">
+            <p className="text-xs text-white/70">
               Expected 잔여 예산 {formatCurrency(plan.remainingBudgetUsd)}
             </p>
           </div>
@@ -156,17 +173,17 @@ export function AnalysisResults({
                 <div className="mt-4 rounded-xl bg-white/[0.07] p-3.5">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/50">Assigned model</p>
+                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/70">Assigned model</p>
                       <p className="mt-1 text-xl font-semibold">{task.modelId}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-white/50">Assigned tier</p>
+                      <p className="text-xs text-white/70">Assigned tier</p>
                       <p className="font-mono text-sm font-bold text-[#b9ddc9]">
                         {TIER_LABELS[task.assignedTier]}
                       </p>
                     </div>
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-white/55">
+                  <p className="mt-2 text-xs leading-5 text-white/70">
                     GPT 권장 {TIER_LABELS[task.analysis.recommendedModelTier]} · 전략 목표 {TIER_LABELS[task.strategyTargetTier]}
                   </p>
                 </div>
@@ -178,7 +195,7 @@ export function AnalysisResults({
                     ["High", task.cost.high.costUsd],
                   ] as const).map(([label, value]) => (
                     <div key={label} className="min-w-0 bg-[#20513f] p-3">
-                      <dt className="truncate text-xs text-white/45">{label}</dt>
+                      <dt className="truncate text-xs text-white/65">{label}</dt>
                       <dd className="mt-1 break-all font-mono text-sm font-bold text-[#eef7f2]">
                         {formatCurrency(value)}
                       </dd>
@@ -212,7 +229,7 @@ export function AnalysisResults({
                     ],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-lg bg-white/[0.055] px-2.5 py-2">
-                      <dt className="text-white/45">{label}</dt>
+                      <dt className="text-white/65">{label}</dt>
                       <dd className="mt-1 break-words font-mono font-bold text-white/80">{value}</dd>
                     </div>
                   ))}
@@ -221,7 +238,7 @@ export function AnalysisResults({
                 {task.analysis.riskFactors.length ? (
                   <div className="mt-4 rounded-xl border border-[#efb28b]/15 bg-[#efb28b]/[0.07] p-3">
                     <p className="text-xs font-bold text-[#ffd8bd]">위험 요인</p>
-                    <ul className="mt-1.5 space-y-1 text-xs leading-5 text-white/60">
+                    <ul className="mt-1.5 space-y-1 text-xs leading-5 text-white/70">
                       {task.analysis.riskFactors.map((risk, riskIndex) => (
                         <li key={`${task.taskId}-risk-${riskIndex}`} className="flex gap-2">
                           <span aria-hidden="true">•</span>
@@ -242,7 +259,7 @@ export function AnalysisResults({
 
         <PricingAssumptions />
 
-        <p className="border-t border-white/10 pt-4 text-xs leading-5 text-white/50">
+        <p className="border-t border-white/10 pt-4 text-xs leading-5 text-white/65">
           {new Date(generatedAt).toLocaleString("ko-KR")} · 규칙 기반 추천이며 수학적 최적화를 의미하지 않습니다.
         </p>
       </div>
@@ -273,9 +290,9 @@ function SummaryCard({
             : "border-white/10 bg-white/[0.055]"
       }`}
     >
-      <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/50">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/65">{label}</p>
       <p className="mt-1.5 break-all text-2xl font-semibold tracking-[-0.025em]">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-white/55">{detail}</p>
+      <p className="mt-1 text-xs leading-5 text-white/70">{detail}</p>
     </div>
   );
 }
@@ -288,7 +305,7 @@ function PricingAssumptions() {
       </summary>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[560px] text-left text-xs">
-          <thead className="text-white/45">
+          <thead className="text-white/65">
             <tr>
               <th className="pb-2 font-semibold">등급</th>
               <th className="pb-2 font-semibold">모델</th>
@@ -311,7 +328,7 @@ function PricingAssumptions() {
           </tbody>
         </table>
       </div>
-      <ul className="mt-4 space-y-1.5 text-xs leading-5 text-white/55">
+      <ul className="mt-4 space-y-1.5 text-xs leading-5 text-white/70">
         <li>크기 구간은 프로그램의 고정 표이며 GPT가 토큰 숫자를 만들지 않습니다.</li>
         <li>크기 구간은 반복 1회당이며 화면의 토큰은 모든 반복을 합친 시나리오 합계입니다.</li>
         <li>Low / Expected / High는 예상 반복 횟수 −1(최소 1) / 동일 / +1을 적용합니다.</li>

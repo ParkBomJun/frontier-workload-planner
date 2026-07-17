@@ -69,3 +69,33 @@ The 1–90 day deadline is reference-only and cannot change cost or tier. Uncert
 ### Checkpoint boundary
 
 Checkpoint 2 owns multi-task editing, settings, costs, allocation, results, one chart, and core tests. Persistence and export remain checkpoint 3 work; do not mix them into this review unit.
+
+## 2026-07-17 — checkpoint 3 release candidate
+
+### Store source data, recalculate derived plans
+
+Keep exactly one recent successful scenario in a fixed LocalStorage key. Store version, save time, submitted tasks, valid settings, and the sanitized analysis response. Do not store `BudgetAllocationPlan`; validate identity relationships and run the current deterministic engine again on restore so price or rule changes are not hidden by stale derived data.
+
+### Restore never means rerun
+
+Local restore happens only after client hydration and never calls the analysis route. A saved Live response may be displayed again, but it cannot trigger a new paid request. Recalculate settings changes locally and update the recent source record only while settings remain valid.
+
+### Fail closed without blocking the planner
+
+Discard malformed or damaged current-version data, preserve an unknown future version, and contain all browser storage access and quota exceptions. Recompute the next generated task ID after restore. These checks prevent a corrupted record or duplicate ID from throwing inside the render-time allocator.
+
+### Plaintext storage needs user control
+
+State that task descriptions remain as plaintext in the current browser origin and provide an explicit delete action. Treat deletion as persistence opt-out until another analysis succeeds, so a settings-only edit cannot silently recreate the record. Never store an API key, hidden prompt, raw provider error, or deployment configuration.
+
+### Export an allowlisted projection
+
+Markdown and JSON are built from the submitted task snapshot plus the currently displayed recalculated plan. Include original descriptions, analysis provenance, settings, costs, allocations, warnings, and the price snapshot. JSON is versioned; Markdown escapes user delimiters. Do not spread the page state into either output.
+
+### Release-state accessibility
+
+Keep a short live message for copy results, an inline storage status, and separate visible idle and loading panels. Move focus to the first invalid field after submit, keep export and storage actions at least 44px high, and raise low-contrast labels on dark result cards.
+
+### Scope close
+
+Price override UI remains deferred. The configuration file, official source, and visible update date satisfy this release candidate without adding another settings subsystem.

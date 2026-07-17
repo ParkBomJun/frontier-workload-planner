@@ -115,3 +115,11 @@ export interface BudgetAllocationPlan {
   downgradedTaskCount: number;
   warnings: string[];
 }
+
+export interface PlanExportContext {
+  sourceTasks: TaskInput[];
+  plan: BudgetAllocationPlan;
+  analysisMode: AnalysisMode;
+  analysisModel: string;
+  generatedAt: string;
+}

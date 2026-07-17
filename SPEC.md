@@ -30,7 +30,7 @@ The tier mapping for the calculation stage is fixed as follows.
 | `balanced` | `gpt-5.6-terra` |
 | `frontier` | `gpt-5.6-sol` |
 
-## Current implementation — checkpoint 2
+## Current implementation — checkpoint 3 release candidate
 
 This repository currently implements:
 
@@ -40,9 +40,9 @@ This repository currently implements:
 4. Server-side validation and one GPT-5.6 Responses API Structured Output for all tasks.
 5. Fixed size-band conversion, published model prices, and deterministic Low / Expected / High costs.
 6. Expected-cost budget allocation, High-cost warnings, task cards, and one cost chart.
-7. Loading, success, input-error, configuration-error, and upstream-error states.
-
-Checkpoint 3 adds one recent LocalStorage scenario, Markdown copy, JSON export, final responsive polish, and submission-ready documentation. Those features are intentionally absent from checkpoint 2.
+7. One validated recent scenario in LocalStorage, restored without a new API request.
+8. Markdown clipboard copy and versioned JSON export of the currently displayed plan.
+9. Empty, loading, success, input-error, configuration-error, storage-error, and upstream-error states.
 
 ## Responsibility boundary
 
@@ -139,6 +139,31 @@ Uncertainty only protects higher-uncertainty work from earlier budget downgrades
 
 The deadline is reference information. It does not alter token estimates, costs, or assigned tiers, and this MVP does not claim detailed duration prediction.
 
+## Recent scenario contract
+
+The app keeps at most one recent successful scenario under the fixed browser key `frontier-workload-planner:recent-scenario`. A new successful analysis overwrites the previous record. A valid settings change updates the record without another GPT request.
+
+Stored schema version 1 contains only:
+
+- `schemaVersion` and `savedAt`
+- the submitted task names and descriptions
+- valid budget, deadline, and strategy settings
+- the sanitized successful analysis response
+
+The derived `BudgetAllocationPlan` is not stored. Restore validates the full schema, unique task IDs, and exact task/analysis order, then recalculates the plan with the current price table and calculation rules. Restore never calls `/api/analyze` and never triggers Live analysis.
+
+Malformed JSON or a damaged current-version record is ignored and removed on a best-effort basis. An unknown future schema version is preserved but not loaded. Storage access or quota errors remain non-blocking, and the user can explicitly delete the record. After deletion, settings-only edits do not recreate it; only another successful analysis enables recent-scenario persistence again.
+
+Task content is stored as plaintext in the current browser origin. API keys, prompts, raw provider errors, and server configuration are never included.
+
+## Export contract
+
+Markdown copy and JSON export use the currently displayed plan, including any valid settings-only recalculation after analysis. Both include original task descriptions, analysis metadata, Low / Expected / High results, task allocations, warnings, price source, price date, and the non-optimization disclaimer.
+
+JSON uses schema version 1 and an explicit allowlist projection rather than serializing application state wholesale. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
+
+Exports contain task descriptions and leave the app through the clipboard or a local file. They never contain `OPENAI_API_KEY` or another server secret.
+
 ## OpenAI request policy
 
 - API: Responses API
@@ -177,6 +202,8 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 - Live is off by default and never runs automatically.
 - Request count, field lengths, body bytes, output tokens, timeout, and retries are bounded.
 - Provider errors are sanitized before reaching the client.
+- Browser persistence is versioned and validated before it reaches the calculation engine.
+- Local persistence and exports contain no API key, raw provider error, or hidden prompt.
 
 ## Deferred
 
@@ -186,4 +213,4 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 - A second chart
 - Detailed time prediction
 - Exhaustive search or complex optimization
-- Pricing editor UI until the core calculation flow works
+- Pricing editor UI; the release candidate uses the documented configuration file and visible `lastUpdated`

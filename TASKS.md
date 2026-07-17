@@ -11,9 +11,7 @@
 - [x] Add README, SPEC, decision log, environment example, and MIT license
 - [x] Pass unit tests, lint, TypeScript, and production build
 - [x] Verify Mock success, invalid input, disabled-Live failure, and mobile width
-- [ ] Complete one real GPT-5.6 Structured Output call
 - [x] Create the P0 checkpoint commit after local verification
-- [ ] Publish GitHub repository and Vercel deployment
 
 ## Checkpoint 2 — core MVP
 
@@ -32,13 +30,26 @@
 
 ## Checkpoint 3 — release candidate
 
-- One recent scenario in LocalStorage
-- Markdown copy and JSON export
-- Final example data and responsive UI polish
-- Empty, loading, and error-state release review
-- Submission-ready README and deployed user flow
-- Basic pricing override UI only if core release work is complete
-- Public repository, Vercel environment configuration, and Devpost draft
+- [x] Save and restore one versioned recent successful scenario in LocalStorage
+- [x] Revalidate stored task/analysis identities and recalculate with current pricing on restore
+- [x] Keep restore non-blocking and prevent any automatic Live request
+- [x] Add explicit recent-record deletion and plaintext-storage disclosure
+- [x] Add Markdown clipboard copy with escaped task content and feedback states
+- [x] Add versioned JSON export with task descriptions, current plan, and pricing snapshot
+- [x] Move example tasks into the dedicated data module
+- [x] Add visible empty and loading result states plus invalid-field focus
+- [x] Raise result-label contrast and keep new controls at least 44px high
+- [x] Add storage and export unit tests
+- [x] Update README, specification, and decision log for the release candidate
+- [x] Pass full unit tests, lint, TypeScript, production/API, browser, and secret checks
+- [x] Create the checkpoint 3 review commit
+
+## External release operations
+
+- [ ] Complete one real GPT-5.6 Structured Output call with the user's server-side key
+- [ ] Publish the GitHub repository
+- [ ] Configure Vercel environment variables and deploy
+- [ ] Create the Devpost draft
 
 ## Explicitly deferred
 
@@ -48,3 +59,4 @@
 - Second graph
 - Detailed duration prediction
 - Exhaustive or complex optimization
+- Pricing override UI

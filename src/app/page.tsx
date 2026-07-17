@@ -1,11 +1,17 @@
 "use client";
 
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AnalysisResults } from "@/components/analysis-results";
 import { BudgetSettings, type PlanningFormState } from "@/components/budget-settings";
 import { TaskEditor } from "@/components/task-editor";
+import { SAMPLE_TASKS } from "@/data/examples";
 import { allocateBudget } from "@/lib/calculation/allocate-budget";
+import {
+  clearRecentScenario,
+  loadRecentScenario,
+  saveRecentScenario,
+} from "@/lib/storage/scenarios";
 import type {
   AnalysisMode,
   AnalyzeApiResponse,
@@ -15,27 +21,6 @@ import type {
 } from "@/types/domain";
 
 const INITIAL_TASKS: TaskInput[] = [{ id: "task-1", name: "", description: "" }];
-
-const SAMPLE_TASKS: TaskInput[] = [
-  {
-    id: "task-1",
-    name: "고객 지원 대시보드 API 설계",
-    description:
-      "기존 Next.js 앱에 고객 문의를 조회하고 상태를 변경하는 서버 API를 설계한다. 인증 경계, 입력 검증, 오류 응답, 테스트 전략을 포함한 구현 계획이 필요하다.",
-  },
-  {
-    id: "task-2",
-    name: "시장 조사 메모 작성",
-    description:
-      "공개 자료를 바탕으로 AI 업무 자동화 시장의 주요 고객군, 경쟁 범주, 도입 위험을 비교한 간결한 조사 메모를 작성한다.",
-  },
-  {
-    id: "task-3",
-    name: "출시 안내문 초안",
-    description:
-      "새 예산 계획 기능을 처음 사용하는 팀을 위한 500자 내외의 출시 안내문과 핵심 사용 예시를 작성한다.",
-  },
-];
 
 const INITIAL_SETTINGS: PlanningFormState = {
   budgetUsd: "5.00",
@@ -55,12 +40,33 @@ interface CompletedAnalysis {
   tasks: TaskInput[];
 }
 
+interface StorageNotice {
+  tone: "success" | "warning";
+  message: string;
+  canClear: boolean;
+}
+
 function parsePlanningSettings(value: PlanningFormState): PlanningSettings | null {
   const budgetUsd = Number(value.budgetUsd);
   const deadlineDays = Number(value.deadlineDays);
   if (!Number.isFinite(budgetUsd) || budgetUsd < 0.01 || budgetUsd > 10_000) return null;
   if (!Number.isInteger(deadlineDays) || deadlineDays < 1 || deadlineDays > 90) return null;
   return { budgetUsd, deadlineDays, strategy: value.strategy };
+}
+
+function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
+  const taskIds = new Set(tasks.map((task) => task.id));
+  let candidate = Math.max(1, startAt);
+  while (taskIds.has(`task-${candidate}`)) candidate += 1;
+  return candidate;
+}
+
+function planningFormState(settings: PlanningSettings): PlanningFormState {
+  return {
+    budgetUsd: String(settings.budgetUsd),
+    deadlineDays: String(settings.deadlineDays),
+    strategy: settings.strategy,
+  };
 }
 
 export default function Home() {
@@ -71,13 +77,111 @@ export default function Home() {
   const [completed, setCompleted] = useState<CompletedAnalysis | null>(null);
   const [visibleError, setVisibleError] = useState<VisibleError | null>(null);
   const [showValidation, setShowValidation] = useState(false);
+  const [storageChecked, setStorageChecked] = useState(false);
+  const [hasRecentScenario, setHasRecentScenario] = useState(false);
+  const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
   const nextTaskNumber = useRef(2);
+
+  const restoreRecentScenario = useCallback((announceEmpty = true) => {
+    const result = loadRecentScenario();
+
+    if (result.status === "loaded") {
+      const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
+      setTasks(restoredTasks);
+      setSettings(planningFormState(result.scenario.settings));
+      setMode(result.scenario.response.mode);
+      setCompleted({
+        response: result.scenario.response,
+        tasks: restoredTasks.map((task) => ({ ...task })),
+      });
+      setStatus("success");
+      setVisibleError(null);
+      setShowValidation(false);
+      setHasRecentScenario(true);
+      nextTaskNumber.current = nextAvailableTaskNumber(restoredTasks);
+      setStorageNotice({
+        tone: "success",
+        message: `${new Date(result.scenario.savedAt).toLocaleString("ko-KR")}에 저장된 최근 계획을 복원했습니다.`,
+        canClear: true,
+      });
+    } else if (result.status === "discarded") {
+      setHasRecentScenario(false);
+      setStorageNotice({
+        tone: "warning",
+        message: "손상된 최근 저장 기록을 무시했습니다. 가능한 경우 해당 기록도 정리했습니다.",
+        canClear: false,
+      });
+    } else if (result.status === "unsupported") {
+      setHasRecentScenario(false);
+      setStorageNotice({
+        tone: "warning",
+        message: "다른 버전에서 만든 저장 기록은 자동 복원하지 않았습니다.",
+        canClear: true,
+      });
+    } else if (result.status === "unavailable") {
+      setHasRecentScenario(false);
+      setStorageNotice({
+        tone: "warning",
+        message: "이 브라우저에서는 최근 계획 저장소를 사용할 수 없습니다. 분석과 내보내기는 계속 작동합니다.",
+        canClear: false,
+      });
+    } else {
+      setHasRecentScenario(false);
+      if (announceEmpty) {
+        setStorageNotice({
+          tone: "warning",
+          message: "복원할 최근 계획이 아직 없습니다.",
+          canClear: false,
+        });
+      }
+    }
+
+    setStorageChecked(true);
+  }, []);
+
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => restoreRecentScenario(false), 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [restoreRecentScenario]);
 
   const parsedSettings = useMemo(() => parsePlanningSettings(settings), [settings]);
   const plan = useMemo(() => {
     if (!completed || !parsedSettings) return null;
     return allocateBudget(completed.tasks, completed.response.analysis.tasks, parsedSettings);
   }, [completed, parsedSettings]);
+
+  function persistCompletedScenario(
+    snapshot: CompletedAnalysis,
+    planningSettings: PlanningSettings,
+    announceSuccess: boolean,
+  ) {
+    const saved = saveRecentScenario({
+      tasks: snapshot.tasks,
+      settings: planningSettings,
+      response: snapshot.response,
+    });
+
+    if (saved.ok) {
+      setHasRecentScenario(true);
+      if (announceSuccess) {
+        setStorageNotice({
+          tone: "success",
+          message: "이 계획을 최근 시나리오로 브라우저에 저장했습니다.",
+          canClear: true,
+        });
+      }
+      return;
+    }
+
+    setStorageNotice({
+      tone: "warning",
+      message:
+        saved.reason === "invalid"
+          ? "계획 데이터 계약이 맞지 않아 최근 시나리오로 저장하지 못했습니다."
+          : "브라우저 저장소에 최근 계획을 저장하지 못했습니다. 현재 결과와 내보내기는 계속 사용할 수 있습니다.",
+      canClear: hasRecentScenario,
+    });
+  }
 
   function invalidateAnalysis() {
     setCompleted(null);
@@ -95,8 +199,9 @@ export default function Home() {
 
   function addTask() {
     if (tasks.length >= 8) return;
-    const taskId = `task-${nextTaskNumber.current}`;
-    nextTaskNumber.current += 1;
+    const availableNumber = nextAvailableTaskNumber(tasks, nextTaskNumber.current);
+    const taskId = `task-${availableNumber}`;
+    nextTaskNumber.current = availableNumber + 1;
     setTasks((current) => [...current, { id: taskId, name: "", description: "" }]);
     setShowValidation(false);
     invalidateAnalysis();
@@ -130,11 +235,33 @@ export default function Home() {
     setSettings(value);
     setVisibleError(null);
     setShowValidation(false);
+    const nextPlanningSettings = parsePlanningSettings(value);
+    if (completed && hasRecentScenario && nextPlanningSettings) {
+      persistCompletedScenario(completed, nextPlanningSettings, false);
+    }
   }
 
   function updateMode(value: AnalysisMode) {
     setMode(value);
     invalidateAnalysis();
+  }
+
+  function clearStoredScenario() {
+    if (clearRecentScenario()) {
+      setHasRecentScenario(false);
+      setStorageNotice({
+        tone: "success",
+        message: "브라우저의 최근 저장 기록을 삭제했습니다. 현재 화면의 결과는 새로고침 전까지 유지됩니다.",
+        canClear: false,
+      });
+      return;
+    }
+
+    setStorageNotice({
+      tone: "warning",
+      message: "브라우저 저장 기록을 삭제하지 못했습니다.",
+      canClear: hasRecentScenario,
+    });
   }
 
   async function submitAnalysis(event: FormEvent<HTMLFormElement>) {
@@ -152,6 +279,9 @@ export default function Home() {
       setStatus("error");
       setShowValidation(true);
       setVisibleError({ message: "모든 작업과 계획 설정을 확인해 주세요." });
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 
@@ -182,11 +312,13 @@ export default function Home() {
         return;
       }
 
-      setCompleted({
+      const completedSnapshot: CompletedAnalysis = {
         response: payload,
         tasks: normalizedTasks.map((task) => ({ ...task })),
-      });
+      };
+      setCompleted(completedSnapshot);
       setStatus("success");
+      persistCompletedScenario(completedSnapshot, planningSettings, true);
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus("error");
@@ -225,11 +357,11 @@ export default function Home() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-[-0.01em]">Frontier Workload Planner</p>
-              <p className="text-xs text-[#536159]">Checkpoint 2 · budget-aware planning</p>
+              <p className="text-xs text-[#536159]">Checkpoint 3 · release candidate</p>
             </div>
           </div>
           <span className="shrink-0 rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur">
-            Mock first
+            Mock first · local save
           </span>
         </header>
 
@@ -321,6 +453,78 @@ export default function Home() {
           {statusMessage}
         </p>
 
+        {storageNotice ? (
+          <section
+            className={`mt-6 rounded-2xl border p-4 sm:flex sm:items-center sm:justify-between sm:gap-5 ${
+              storageNotice.tone === "success"
+                ? "border-[#2f6c55]/20 bg-[#edf5ef] text-[#274d3d]"
+                : "border-[#c88743]/25 bg-[#fff8ec] text-[#71491f]"
+            }`}
+          >
+            <div>
+              <p className="text-sm font-bold">최근 시나리오</p>
+              <p role="status" className="mt-1 text-sm leading-6">
+                {storageNotice.message}
+              </p>
+              <p className="mt-1 text-xs leading-5 opacity-75">
+                작업 설명은 이 브라우저에 평문으로 저장되며 API 키는 저장하지 않습니다.
+              </p>
+            </div>
+            {hasRecentScenario || storageNotice.canClear ? (
+              <div className="mt-3 flex shrink-0 flex-wrap gap-2 sm:mt-0 sm:justify-end">
+                {hasRecentScenario ? (
+                  <button
+                    type="button"
+                    onClick={() => restoreRecentScenario(true)}
+                    disabled={status === "loading"}
+                    className="min-h-11 rounded-xl border border-current/20 px-3.5 py-2 text-xs font-bold transition hover:bg-white/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+                  >
+                    최근 저장본 복원
+                  </button>
+                ) : null}
+                {storageNotice.canClear ? (
+                  <button
+                    type="button"
+                    onClick={clearStoredScenario}
+                    disabled={status === "loading"}
+                    className="min-h-11 rounded-xl border border-current/20 px-3.5 py-2 text-xs font-bold transition hover:bg-white/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+                  >
+                    저장 기록 삭제
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {storageChecked && status === "idle" && !completed ? (
+          <section className="mt-6 rounded-2xl border border-dashed border-[#173f31]/20 bg-white/55 p-6 text-center sm:p-8">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-[#6b7a72]">
+              Plan preview
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-[#2b4136]">계획 결과가 여기에 표시됩니다.</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#66736b]">
+              작업과 설정을 입력한 뒤 Mock 또는 Live 계획 만들기를 실행해 주세요. Live 분석은 자동으로 호출되지 않습니다.
+            </p>
+          </section>
+        ) : null}
+
+        {status === "loading" ? (
+          <section
+            aria-busy="true"
+            aria-label="작업 분석과 비용 계획 생성 중"
+            className="mt-6 flex items-center gap-4 rounded-2xl border border-[#2f6c55]/15 bg-white/75 p-5"
+          >
+            <span className="size-6 shrink-0 animate-spin rounded-full border-2 border-[#2f6c55]/20 border-t-[#2f6c55]" />
+            <div>
+              <p className="font-bold text-[#294638]">구조화 분석과 비용 계획을 만들고 있습니다.</p>
+              <p className="mt-1 text-sm leading-6 text-[#66736b]">
+                {tasks.length}개 작업을 한 번에 분류한 뒤 고정 계산 규칙을 적용합니다.
+              </p>
+            </div>
+          </section>
+        ) : null}
+
         {visibleError && status === "error" ? (
           <div role="alert" className="mt-6 rounded-2xl border border-[#cf6845]/25 bg-[#fff5ef] p-5 text-[#7c331f]">
             <div className="flex items-start gap-3">
@@ -339,6 +543,7 @@ export default function Home() {
         {completed && plan ? (
           <div className="mt-8">
             <AnalysisResults
+              sourceTasks={completed.tasks}
               plan={plan}
               analysisMode={completed.response.mode}
               analysisModel={completed.response.model}
@@ -355,7 +560,7 @@ export default function Home() {
 
         <footer className="mt-12 flex flex-col gap-2 border-t border-[#17221c]/10 py-5 text-xs text-[#68766e] sm:flex-row sm:items-center sm:justify-between">
           <span>Budget-aware recommended plan · not mathematical optimization</span>
-          <span>GPT judgment ≠ deterministic cost calculation</span>
+          <span>One local scenario · GPT judgment ≠ deterministic calculation</span>
         </footer>
       </div>
     </main>
