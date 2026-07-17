@@ -1,6 +1,6 @@
 # Task board
 
-## P0 — minimum vertical slice
+## Checkpoint 1 — minimum vertical slice
 
 - [x] Initialize Next.js with TypeScript, App Router, Tailwind, `src/`, ESLint, and npm lockfile
 - [x] Define the product boundary and replace “optimal allocation” with “budget-aware recommended plan”
@@ -15,21 +15,29 @@
 - [x] Create the P0 checkpoint commit after local verification
 - [ ] Publish GitHub repository and Vercel deployment
 
-## July 16 first task
+## Checkpoint 2 — core MVP
 
-Define the deterministic size-band mapping and pricing source before adding UI:
+- [x] Add and remove up to eight tasks with stable task IDs
+- [x] Add budget, reference deadline, and strategy inputs
+- [x] Add official Luna / Terra / Sol standard-price configuration and source date
+- [x] Convert GPT size bands through fixed per-iteration token ranges
+- [x] Calculate deterministic Low / Expected / High token totals and costs
+- [x] Compare and sum costs with integer micro-USD boundaries
+- [x] Allocate model tiers against Expected cost with explainable downgrade rules
+- [x] Warn when all-Economy Expected cost or allocated High cost exceeds budget
+- [x] Render result summaries, task details, assumptions, and one Expected-cost chart
+- [x] Test pricing order, size bands, scenarios, strategies, budget boundaries, ID validation, tie-breaking, and deadline independence
+- [x] Pass full unit tests, lint, TypeScript, production build, API checks, and mobile-width smoke check
+- [x] Create the checkpoint 2 review commit
 
-1. Add `src/config/model-pricing.ts` with model IDs, input/output prices, source URL, and `lastUpdated`.
-2. Add fixed `xs / s / m / l / xl` token ranges with documented assumptions.
-3. Implement and test Low / Expected / High estimation without any GPT-provided token numbers.
+## Checkpoint 3 — release candidate
 
-## Later MVP work
-
-- Budget allocation rules and High-cost warning
-- Per-task cost bar chart
 - One recent scenario in LocalStorage
 - Markdown copy and JSON export
-- Basic pricing override UI after the core calculation flow
+- Final example data and responsive UI polish
+- Empty, loading, and error-state release review
+- Submission-ready README and deployed user flow
+- Basic pricing override UI only if core release work is complete
 - Public repository, Vercel environment configuration, and Devpost draft
 
 ## Explicitly deferred

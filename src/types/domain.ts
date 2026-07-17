@@ -14,6 +14,7 @@ export const REASONING_DEPTHS = ["light", "moderate", "deep"] as const;
 export const SIZE_BANDS = ["xs", "s", "m", "l", "xl"] as const;
 export const UNCERTAINTY_LEVELS = ["low", "medium", "high"] as const;
 export const MODEL_TIERS = ["economy", "balanced", "frontier"] as const;
+export const PLANNING_STRATEGIES = ["cost-saver", "balanced", "quality-first"] as const;
 
 export type TaskType = (typeof TASK_TYPES)[number];
 export type Complexity = (typeof COMPLEXITY_LEVELS)[number];
@@ -21,6 +22,7 @@ export type ReasoningDepth = (typeof REASONING_DEPTHS)[number];
 export type SizeBand = (typeof SIZE_BANDS)[number];
 export type Uncertainty = (typeof UNCERTAINTY_LEVELS)[number];
 export type ModelTier = (typeof MODEL_TIERS)[number];
+export type PlanningStrategy = (typeof PLANNING_STRATEGIES)[number];
 export type AnalysisMode = "mock" | "live";
 
 export interface TaskInput {
@@ -65,3 +67,51 @@ export interface AnalyzeErrorResponse {
 }
 
 export type AnalyzeApiResponse = AnalyzeSuccessResponse | AnalyzeErrorResponse;
+
+export interface PlanningSettings {
+  budgetUsd: number;
+  deadlineDays: number;
+  strategy: PlanningStrategy;
+}
+
+export interface ScenarioEstimate {
+  inputTokens: number;
+  outputTokens: number;
+  iterations: number;
+  costUsd: number;
+}
+
+export interface TaskCostEstimate {
+  low: ScenarioEstimate;
+  expected: ScenarioEstimate;
+  high: ScenarioEstimate;
+}
+
+export interface CostTotals {
+  lowUsd: number;
+  expectedUsd: number;
+  highUsd: number;
+}
+
+export interface PlannedTask {
+  taskId: string;
+  taskName: string;
+  analysis: TaskAnalysis;
+  strategyTargetTier: ModelTier;
+  assignedTier: ModelTier;
+  modelId: string;
+  cost: TaskCostEstimate;
+  wasDowngradedForBudget: boolean;
+}
+
+export interface BudgetAllocationPlan {
+  settings: PlanningSettings;
+  tasks: PlannedTask[];
+  totals: CostTotals;
+  minimumExpectedCostUsd: number;
+  remainingBudgetUsd: number;
+  expectedWithinBudget: boolean;
+  highExceedsBudget: boolean;
+  downgradedTaskCount: number;
+  warnings: string[];
+}

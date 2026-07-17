@@ -36,6 +36,12 @@ describe("analyzeRequestSchema", () => {
     }));
     expect(analyzeRequestSchema.safeParse({ mode: "live", tasks }).success).toBe(false);
   });
+
+  it("rejects duplicate task identities", () => {
+    expect(
+      analyzeRequestSchema.safeParse({ mode: "mock", tasks: [validTask, { ...validTask }] }).success,
+    ).toBe(false);
+  });
 });
 
 describe("structured analysis schema", () => {

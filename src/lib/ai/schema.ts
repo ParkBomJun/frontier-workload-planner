@@ -15,7 +15,8 @@ export const MAX_TASK_NAME_LENGTH = 100;
 export const MAX_TASK_DESCRIPTION_LENGTH = 2_000;
 export const MAX_RISK_FACTORS = 3;
 export const MAX_OUTPUT_TOKENS = 3_000;
-export const MAX_REQUEST_BYTES = 20_000;
+// Covers eight maximum-length fields even when most characters use four UTF-8 bytes.
+export const MAX_REQUEST_BYTES = 96 * 1_024;
 
 export const taskInputSchema = z.strictObject({
   id: z.string().trim().min(1).max(MAX_TASK_ID_LENGTH),
@@ -23,10 +24,24 @@ export const taskInputSchema = z.strictObject({
   description: z.string().trim().min(1).max(MAX_TASK_DESCRIPTION_LENGTH),
 });
 
-export const analyzeRequestSchema = z.strictObject({
-  mode: z.enum(["mock", "live"]),
-  tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
-});
+export const analyzeRequestSchema = z
+  .strictObject({
+    mode: z.enum(["mock", "live"]),
+    tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
+  })
+  .superRefine(({ tasks }, context) => {
+    const seenIds = new Set<string>();
+    tasks.forEach((task, index) => {
+      if (seenIds.has(task.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index, "id"],
+          message: "Task IDs must be unique.",
+        });
+      }
+      seenIds.add(task.id);
+    });
+  });
 
 export const taskAnalysisSchema = z.strictObject({
   taskId: z.string().min(1).max(MAX_TASK_ID_LENGTH),
