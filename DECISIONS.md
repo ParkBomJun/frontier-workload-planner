@@ -243,3 +243,124 @@ update `<html lang>`, and render notices from semantic codes so a language chang
 never calls `/api/analyze`. Keep calculation and JSON contracts locale-independent. Localize the
 human-readable Markdown wrapper, while preserving user input, GPT rationale/risk text, model names,
 machine enums, and precise technical terms without automatic translation.
+
+## 2026-07-17 — Ver3 checkpoint 1 Best-fit offering design contract
+
+### Freeze the approved API-only baseline
+
+Tag commit `d3edd98` as `provider-comparison-stable` after P0/P1 review passes, then do design work
+on `feature/best-fit-offerings`. The tag is a regression and rollback point for the reviewed
+provider-comparison behavior; it does not mean that the five accepted P2 findings are fixed.
+
+Checkpoint 1 changes only `SPEC.md`, `TASKS.md`, and `DECISIONS.md`. Do not change runtime types,
+the GPT schema or Mock fixture, calculations, UI, LocalStorage/JSON versions, README, or submission
+copy until this design checkpoint is reviewed.
+
+### Optimize for minimum sufficiency, not maximum tier
+
+The target product chooses a compatible route that meets an explicit minimum planning quality with
+the least avoidable resource use. It does not maximize model tier and does not rank providers by
+objective quality. `Avoided spend` is a disclosed counterfactual over executed compatible work,
+not realized savings, and held work cannot inflate it.
+
+Current `recommendedModelTier` remains a heuristic recommendation. It is not silently redefined as
+the future hard `requiredQualityTier`. Current `frontier` data also remains distinct from future
+`premium` terminology until a versioned adapter and migration exist. Once a quality floor is
+implemented, Cost Saver cannot cross below it. The future treatment of Quality First must be
+the explicit one-tier, trigger-bound policy defined below rather than an inherited unconditional
+upgrade.
+
+### Keep analysis and route selection separate
+
+GPT-5.6 remains the sole analyzer. A future schema may describe work mode, minimum quality,
+capabilities, and upgrade conditions, but GPT still cannot price tokens, translate subscription
+quota, compare providers, or choose the final route. Claude and Gemini APIs remain out of the
+analysis path. The deterministic program owns feasibility, resource accounting, route choice,
+fallbacks, held work, and every cost or selection explanation.
+
+### Separate model identity from access offerings
+
+Adopt `ModelDefinition` and `Offering` as target concepts, not as an immediate rewrite.
+`ModelDefinition` owns model identity, family, planning tier, capabilities, and invocation limits.
+`Offering` owns API/subscription access mode, supported surface, conditions, and provenance. API
+price schedules and subscription quota are separate resource types. A subscription is not an API
+model with a zero input/output price, and `modelId` may be absent when a plan does not publish one.
+
+The current `ProviderModelPrice` and `ProviderCatalog` stay behind an API-offering adapter until
+parity tests prove the new view. Reuse size bands, iteration rules, invocation-feasibility checks,
+micro-USD arithmetic, priority ordering, deterministic tie-breaks, and active/held/infeasible
+states. Keep `compareProviderPlans` as the API-only compatibility view rather than expanding it into
+the subscription allocator.
+
+API provider identity remains separate from extensible subscription provider names. This avoids
+forcing ChatGPT, GitHub, GLM, or Custom subscription values into every current
+`Record<ProviderId, ...>` consumer. The existing `OfferingFeasibilityFailure` name must be reviewed
+before a future general `Offering` type is introduced so two meanings are not conflated.
+
+Permit future user overrides only for the planning tier and standard-text price of an existing
+verified catalog entry. Preserve and display the official default and source beside the labeled
+override, provide a restore action, and persist/export both values. This does not reopen arbitrary
+API provider or model creation. `Custom subscription` describes an access resource and does not add
+a custom API model.
+
+### Keep cash and quota in separate ledgers
+
+Show API spend, subscription usage, and any new subscription commitment separately. Existing
+included subscription use has `$0` incremental cash cost only while a compatible surface and usable
+capacity remain; it still consumes quota with opportunity cost. Charge a newly selected monthly
+subscription once per plan, not per task. Never add requests, credits, a remaining percentage, or
+opportunity cost to USD.
+
+Exact numeric depletion requires provider-published units or user-observed calibration. An opaque
+or private limit produces conditional availability and an API fallback, never an invented task
+count. A chat-only offering cannot satisfy IDE/CLI or batch work.
+
+### Add Best-fit as an orchestrator, not a big-bang rewrite
+
+Introduce adapters and prove current API-plan parity first. Then add subscription candidates and a
+new deterministic route orchestrator above the stable API calculation. It filters incompatible and
+below-minimum routes, evaluates owned quota separately from API cost, selects the minimum-sufficient
+least incremental-cash route, preserves scarce quota for important work, supplies fallbacks, and
+holds lower-priority work when no compatible resource remains.
+
+The normalized standard-price comparison may remain as a historical/reference view, but an
+executable Best-fit API route must resolve effective dates and token-range conditions first. An
+expired introductory rate or an excluded long-context surcharge cannot be presented as the route's
+available execution price.
+
+Task priority remains the first ordering signal. The current single global deadline is
+reference-only and cannot rank tasks against each other. Ver3 therefore adds an optional,
+user-owned task deadline and a bounded GPT `failureRisk` signal. Scarce resources are reserved by
+higher priority, earlier explicit deadline with missing deadlines last, higher failure risk, and
+stable input order; relief uses the inverse business-importance direction. Do not derive either
+signal from the global deadline or free-form risk text.
+
+Map `interactive` to `chat`, `coding-agent` to `ide-cli`, and `batch` to `batch` for the initial
+work-mode/surface contract. Do not infer a substitute surface when an offering lacks the mapped
+one. Cost Saver chooses the least incremental-cash sufficient route; Balanced prefers known
+capacity before cost tie-breaks; Quality First may add one tier only for an explicit upgrade or
+failure-loss trigger. All three remain bounded by the hard minimum, compatibility, budget, quota,
+and no-false-precision rules.
+
+### Version source and result meaning only when implementation changes
+
+Do not bump LocalStorage or JSON during this documentation checkpoint. When resource inputs are
+implemented, migrate v3 source state to a new version with no owned subscriptions and the current
+API choice preserved. Continue storing source data, not derived routes. Keep JSON v3 as the
+historical API-only export and introduce a new version for route, API cash, subscription use,
+alternative, confidence, premium baseline, conditions, and sources.
+
+### Reserve self-hosting for Phase 2 and freeze unrelated P2 work
+
+Ver3 supports API and subscription offerings only. Cloud subscriptions for model families that may
+also run locally are represented as `Custom subscription`; they are not self-hosted execution.
+GPU memory, throughput, electricity, hardware depreciation, and local inference are Phase 2 and
+must not appear as implemented hero claims.
+
+The provider-comparison P2 findings—Sonnet price-date resolution, OpenAI's independent input cap,
+320px card readability, radio comparison descriptions, and locale-bound Markdown feedback—remain
+recorded but unchanged. They are outside Ver3 checkpoint 1 and require a separate approval.
+
+When Ver3 functionality is implemented, use the same minimum-sufficient product definition in the
+localized UI, README, Devpost, and video. Until then, documentation must distinguish a target
+contract from current API-only behavior and must not advertise subscription allocation as live.

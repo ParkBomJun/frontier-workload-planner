@@ -304,13 +304,262 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 - Browser persistence is versioned and validated before it reaches the calculation engine.
 - Local persistence and exports contain no API key, raw provider error, or hidden prompt.
 
+## Ver3 checkpoint 1 — Best-fit offering target (design only)
+
+This section defines the next product contract; it does not describe functionality already shipped
+or implemented on this branch. The reviewed API-only provider comparison remains frozen at tag
+`provider-comparison-stable` (`d3edd98`). Checkpoint 1 changes only `SPEC.md`, `TASKS.md`, and
+`DECISIONS.md`: no runtime type, GPT schema, catalog, calculation, storage, export, or UI contract
+changes in this checkpoint.
+
+> GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
+> that satisfies the required planning quality from the user's available subscription and API
+> options.
+
+The target is not a model performance leaderboard. Quality is a minimum planning requirement, not
+a value to maximize automatically. Tier alignment remains a planning heuristic, never an objective
+benchmark, claim of cross-provider equivalence, or “best model” result. GPT-5.6 remains the only
+analysis engine; Anthropic and Google APIs are not called.
+
+### Resource and accounting contract
+
+Ver3 supports two access modes: API and subscription. It keeps their resources in separate ledgers:
+
+- **Expected API spend:** USD Low / Expected / High, calculated with the existing deterministic
+  token and price engine.
+- **Existing subscription use:** native credits, requests, a user-calibrated percentage, or an
+  explicitly opaque limit. Included use has `$0` incremental cash cost while compatible capacity
+  remains, but it still consumes scarce quota and therefore has opportunity cost.
+- **New subscription commitment:** USD charged once for the plan, never once per task. It is shown
+  separately from API spend and existing-subscription use.
+- **Opportunity cost:** a descriptive non-cash signal. It is never added to API USD or presented as
+  a precise exchange rate between quota and money.
+
+The planner must not divide a monthly fee across tasks, add credits or requests to dollars, or infer
+exact task capacity from a private or variable limit. A chat-only subscription cannot serve an
+`ide-cli` or `batch` task. When a quota is uncertain, the route is conditional and receives an API
+fallback rather than a guaranteed-capacity claim.
+
+The target quota contract is:
+
+```ts
+type SubscriptionQuota =
+  | { kind: "credits"; included: number; remaining: number }
+  | { kind: "requests"; included: number; remaining: number }
+  | {
+      kind: "calibrated";
+      remainingPercent: number;
+      calibrationSource: "user-observed";
+    }
+  | { kind: "opaque"; description: string };
+```
+
+Numeric depletion is allowed only for a provider-published unit or an explicit user observation.
+An opaque quota can be described as available, unavailable, or uncertain, but never converted to
+“N tasks remaining.” Reset cadence, next reset date, supported surfaces, and overage availability
+belong to the subscription resource rather than the model definition.
+
+### Target model and offering separation
+
+The current `ProviderModelPrice` intentionally remains the API-only compatibility source during the
+transition. The future domain separates model identity from the route through which it is used:
+
+```ts
+type PlanningQualityTier = "economy" | "balanced" | "premium";
+
+interface ModelDefinition {
+  id: string;
+  provider: string;
+  family: string;
+  qualityTier: PlanningQualityTier;
+  capabilities: string[];
+}
+
+interface Offering {
+  id: string;
+  modelId?: string;
+  mode: "api" | "subscription";
+  supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
+  sourceUrl: string;
+  verifiedAt: string;
+}
+```
+
+`ModelDefinition` owns identity, family, planning tier, capabilities, and a reference to invocation
+limits. `Offering` owns the access mode, supported surfaces, availability conditions, and source.
+API price schedules and subscription quota/resource state are separate types; neither is embedded
+in calculation code. `modelId` stays optional because some subscription products do not publish a
+fixed underlying model.
+
+The existing machine value `frontier` remains unchanged in GPT output, LocalStorage v3, JSON v3,
+Mock fixtures, and current UI. A future adapter may interpret that legacy planning position as
+`premium`, but the names are not interchangeable until a versioned schema migration is implemented.
+Likewise, the current `recommendedModelTier` is a heuristic recommendation, not the future hard
+minimum `requiredQualityTier`.
+
+Ver3 may let the user override the planning tier and standard text price only for a model already
+present in the verified catalog. An override is source state, is visibly labeled user-supplied,
+does not replace the official source snapshot, and can be restored to the verified default. It must
+be persisted and exported with the default, override, provenance, and effective date needed to
+reproduce the plan. Arbitrary API providers and models remain out of scope.
+
+### Reuse and incremental transition contract
+
+| Existing seam | Ver3 reuse and transition |
+| --- | --- |
+| `TaskInput`, `TaskAnalysis`, size bands, and iterations | Preserve as the stable analysis snapshot until the GPT contract receives its own versioned extension. |
+| `PROVIDER_CATALOG` / `ProviderModelPrice` | Keep as the current API data source and adapt it into model definitions plus resolved API offerings; do not replace it in one rewrite. |
+| `validateInvocationFeasibility` | Reuse the pure Low / Expected / High check, later accepting resolved invocation limits instead of a combined catalog object. |
+| `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
+| `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
+| `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
+| source-only LocalStorage | Continue storing source choices rather than derived routes; migrate v3 only when available resources become runtime input. |
+| allowlisted JSON and localized Markdown | Preserve projection and secret-safety rules; add a new result schema only when the result meaning actually expands. |
+
+The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
+with current provider plans; add subscription offering evaluation; add the combined Best-fit
+orchestrator; then migrate UI, source persistence, and exports. The current API-only calculation and
+`compareProviderPlans` must not be deleted or silently change meaning before parity tests pass.
+
+LocalStorage v3 will later migrate to the next source-state version with no owned subscriptions and
+the existing API selection preserved. JSON v3 remains the historical API-only result contract; a
+new export version will be introduced instead of changing v3 in place. Derived plans and routes
+remain recalculated rather than persisted.
+
+### Future GPT analysis boundary
+
+The existing Structured Output stays unchanged in checkpoint 1. A later version may add:
+
+```ts
+workMode: "interactive" | "coding-agent" | "batch";
+requiredQualityTier: "economy" | "balanced" | "premium";
+requiredCapabilities: string[];
+upgradeConditions: string[];
+failureRisk: "low" | "medium" | "high";
+```
+
+These fields describe workload requirements. GPT may judge reasoning needs, iteration count, size
+bands, risk, work surface, capabilities, and minimum planning quality. It still must not calculate
+token prices, translate subscription quota, compare providers, select an offering, or allocate the
+final route.
+
+The initial surface crosswalk is explicit: `interactive` requires `chat`, `coding-agent` requires
+`ide-cli`, and `batch` requires `batch`. An offering is compatible only when its
+`supportedSurfaces` contains the mapped surface. The planner cannot silently substitute another
+surface; future multi-surface alternatives require an explicit schema and compatibility rule.
+
+Once a hard minimum quality field exists, Cost Saver cannot choose below it. The current
+`recommendedModelTier` and `strategyTargetTier` rules remain the API-only baseline until that
+separate contract is introduced. The current global `deadlineDays` is reference-only and cannot
+order tasks by deadline; task-level urgency must be explicit before a later allocator uses it.
+
+### Future deterministic Best-fit contract
+
+For each analysis snapshot, the future route engine will:
+
+1. Remove surface-, capability-, and invocation-incompatible offerings.
+2. Remove offerings below the explicit minimum planning quality.
+3. Evaluate compatible, user-owned subscription routes without converting quota into USD.
+4. Treat opaque or uncertain quota as conditional, not guaranteed capacity.
+5. Calculate API Low / Expected / High ranges with the existing deterministic token engine.
+6. Choose the minimum sufficient tier, then the least incremental-cash compatible route using a
+   documented deterministic tie-break.
+7. Preserve scarce subscription capacity for higher-priority and higher-loss work.
+8. Provide an API alternative when subscription capacity is exhausted or uncertain.
+9. Hold lower-priority work when neither compatible quota nor API budget is available.
+
+Task priority remains the first allocation signal. Ver3 adds an optional user-owned task deadline;
+the GPT analysis supplies the bounded `failureRisk` signal while the user-owned priority remains
+authoritative. Scarce-resource reservation orders higher priority first, then earlier explicit
+deadline (no deadline last), then higher failure risk, then stable input order. Budget relief and
+holding use the inverse business-importance direction. The planner must not quietly reinterpret the
+current global deadline to rank otherwise identical tasks.
+
+The three target strategies are secondary policies applied only after the hard quality and
+compatibility filters. Cost Saver selects the least incremental-cash sufficient route. Balanced
+prefers a known-capacity route before applying cost tie-breaks. Quality First may add at most one
+tier of headroom only when an explicit upgrade condition or failure-loss trigger applies and budget
+or quota permits it. No strategy may cross below the minimum quality, treat opaque capacity as
+guaranteed, or select premium merely because it is available.
+
+A premium route is eligible only when a lower route misses the minimum requirement, the loss from
+failure is explicitly high, the task requires complex reasoning or a large code change, or retry
+risk threatens an explicit deadline. Results lead with the access route and include deterministic
+`Best-fit route`, `Why this is enough`, `Why not premium`, `Upgrade trigger`, an alternative route,
+and any hold reason. GPT does not generate cost or route-selection explanations.
+
+`Avoided spend` compares executed tasks only against a disclosed, compatible all-premium API
+counterfactual. Held or infeasible work cannot be counted as savings. The result is a planning
+comparison, not realized savings or a claim that premium and lower-tier models perform equally.
+
+The current standard-uncached API comparison remains a normalized reference view. Before an API
+offering can become an executable Best-fit route, its effective date, token-range price conditions,
+and invocation limits must apply to the workload. An excluded surcharge or expired introductory
+rate cannot be treated as an available execution price merely because it remains useful in the
+historical comparison baseline.
+
+### Future input and result contract
+
+The current task, budget, reference deadline, and strategy flow remains. Ver3 adds an optional
+task-level deadline for deterministic ordering. A later `Available AI resources`
+section adds API budget plus owned or candidate subscriptions, their remaining native quota, reset
+information, supported surfaces, and a `Custom subscription` entry. Representative presets may
+illustrate variable/opaque chat access, credit-based coding access, and rolling quota, but presets
+must not invent unpublished capacity.
+
+The result keeps three quantities visibly separate:
+
+- Expected API spend
+- Expected subscription usage in its native unit or honest uncertainty state
+- Avoided spend versus the disclosed compatible all-premium API counterfactual
+
+Any new subscription commitment is shown alongside, but not merged into, those quantities. Each
+task leads with its recommended access route before the model name and includes the deterministic
+explanations defined above.
+
+The eventual Korean hero contract is:
+
+```text
+가장 비싼 모델보다,
+작업에 맞는 선택을.
+
+구독과 API를 함께 비교해 필요한 품질은 지키고
+불필요한 비용과 한도 소모를 줄입니다.
+```
+
+English and Japanese use equivalent complete interface copy rather than mixed-language labels.
+Technical terms and model/product names remain untranslated where precision requires it. The UI
+will use an explicit Korean-capable font and avoid isolated heading line breaks. README, Devpost,
+and video copy adopt this product definition only when the corresponding functionality exists.
+
+### Phase and checkpoint boundary
+
+The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions, credit-based
+coding plans, rolling-quota plans, and `Custom subscription` are future presets or inputs, not
+implemented checkpoint-1 features. A cloud subscription for a model family that can also run
+locally is represented only as `Custom subscription`. This user-defined subscription metadata does
+not authorize an arbitrary API provider, custom model catalog, or local-inference claim.
+
+Self-hosted execution, local inference, GPU memory, throughput, electricity, and hardware
+depreciation are Phase 2. “Local execution” must not appear as an implemented hero claim in Ver3.
+
+The five accepted provider-comparison P2 findings remain a separate frozen backlog: date-aware
+Sonnet 5 pricing, OpenAI's independent input cap, 320px provider-card readability, richer radio
+descriptions, and locale-bound Markdown feedback. This design checkpoint neither fixes them nor
+claims that `provider-comparison-stable` is P2-complete.
+
+Checkpoint 1 is complete only when these three planning documents agree, the current API-only
+behavior is still described accurately, the staged compatibility path is explicit, and no runtime
+file or schema has changed.
+
 ## Deferred
 
-- Arbitrary custom models
+- Arbitrary API providers or custom model catalog entries; `Custom subscription` metadata remains in the Ver3 target
 - Direct Claude or Gemini API analysis
 - Multiple saved scenarios
 - CSV export
 - A second chart
 - Detailed time prediction
 - Exhaustive search or complex optimization
-- Pricing editor UI; the feature branch uses the documented catalog and visible verification date
+- Pricing editor for the current provider-comparison baseline; Ver3 stages limited, labeled overrides for verified catalog entries
+- Self-hosted inference, GPU sizing, electricity, throughput, and hardware-cost calculation (Phase 2)

@@ -105,9 +105,107 @@
 - [x] Verify lint, TypeScript, all tests, production build, API behavior, and mobile layout
 - [x] Create one atomic feature commit and request review before any merge or deployment
 
+## Ver3 checkpoint 1 — product and transition contract
+
+- [x] Freeze the P0/P1-approved API-only baseline at `provider-comparison-stable` (`d3edd98`)
+- [x] Continue on the isolated `feature/best-fit-offerings` branch
+- [x] Define minimum-sufficient planning quality instead of model-tier maximization
+- [x] Keep GPT-5.6 as the only analyzer and prohibit Anthropic or Google API calls
+- [x] Separate API cash, subscription quota, new subscription commitment, and opportunity cost
+- [x] Define honest credits, requests, user-calibrated, and opaque quota behavior
+- [x] Define `ModelDefinition` and `Offering` as future concepts without changing runtime types
+- [x] Inventory reusable catalog, feasibility, estimation, allocation, storage, and export seams
+- [x] Preserve `frontier` and `recommendedModelTier` until explicit versioned adapters exist
+- [x] Define deterministic Best-fit filtering, selection, fallback, explanation, and hold rules
+- [x] Define the source-state and result-export migration boundary without changing v3 schemas
+- [x] Keep the five provider-comparison P2 findings outside this implementation checkpoint
+- [x] Reserve self-hosting, GPU, power, and local-inference calculation for Phase 2
+- [x] Confirm that checkpoint 1 changes only `SPEC.md`, `TASKS.md`, and `DECISIONS.md`
+
+Checkpoint 1 is complete when the three planning documents agree on the target product, current
+API-only behavior remains labeled accurately, the incremental migration sequence and known
+conflicts are explicit, the full regression suite still passes, and no runtime contract changes.
+
+## Ver3 staged implementation — not started
+
+### Checkpoint 2 — model and offering adapters
+
+- [ ] Add target `ModelDefinition`, API `Offering`, resolved-price, and invocation-limit views beside current types
+- [ ] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
+- [ ] Preserve current provider-plan outputs with API-offering parity tests
+- [ ] Keep API provider IDs separate from extensible subscription provider identity
+
+### Checkpoint 3 — workload requirement contract
+
+- [ ] Version the GPT contract for work mode, minimum quality, capabilities, and upgrade conditions
+- [ ] Add an optional user-owned task deadline and bounded GPT `failureRisk` signal
+- [ ] Update prompt, Zod validation, Mock fixtures, and identity checks together
+- [ ] Enforce the documented work-mode to supported-surface compatibility crosswalk
+- [ ] Prevent Cost Saver or another strategy from crossing a hard minimum quality floor
+- [ ] Keep price, quota, provider, and final-route decisions out of GPT output
+
+### Checkpoint 4 — generalized API offering calculation
+
+- [ ] Resolve time- and condition-aware API prices before deterministic estimation
+- [ ] Add labeled user overrides for verified catalog price/tier defaults with one-step restore
+- [ ] Reuse size bands, iterations, feasibility, and micro-USD arithmetic for API offerings
+- [ ] Preserve standard-price assumptions and expose excluded billing conditions
+- [ ] Reject an executable route when its price schedule or token-range conditions do not apply
+- [ ] Keep the reviewed API-only comparison available as a compatibility view
+
+### Checkpoint 5 — subscription resource engine
+
+- [ ] Add owned/new subscription input with provider, fee, remaining quota, reset, surfaces, and overage
+- [ ] Support credits, requests, user-calibrated percentage, and opaque quota without fake precision
+- [ ] Count a new subscription commitment once and existing included use as `$0` incremental cash
+- [ ] Keep subscription consumption and API spend in separate ledgers
+- [ ] Reject surface-incompatible routes and provide an API fallback for uncertain capacity
+- [ ] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
+
+### Checkpoint 6 — deterministic Best-fit allocation
+
+- [ ] Evaluate compatible offerings above the minimum quality floor
+- [ ] Select the minimum-sufficient, least incremental-cash route with deterministic tie-breaks
+- [ ] Apply the documented Cost Saver, Balanced, and Quality First secondary policies
+- [ ] Preserve quota for higher-priority and higher-loss work
+- [ ] Test priority → task deadline → failure risk → stable-order reservation and inverse relief boundaries
+- [ ] Hold lower-priority work when compatible quota and API budget are unavailable
+- [ ] Generate route rationale, premium non-selection, upgrade trigger, alternative, and hold reason by rule
+- [ ] Calculate avoided spend only for executed work against a disclosed compatible premium baseline
+
+### Checkpoint 7 — resource input and route-result UI
+
+- [ ] Add Available AI resources without removing the current task and API-budget flow
+- [ ] Add the optional task-level deadline input without repurposing the global reference deadline
+- [ ] Expose only the limited verified-catalog override controls and default restoration
+- [ ] Show API spend, subscription usage, and new subscription commitment separately
+- [ ] Lead task results with the selected access route rather than only a model name
+- [ ] Keep Korean, English, and Japanese presentation consistent and responsive
+- [ ] Avoid self-hosting or objective model-ranking claims in hero and help copy
+- [ ] Apply the approved Best-fit hero message and an explicit Korean-capable font
+
+### Checkpoint 8 — persistence, export, and release candidate
+
+- [ ] Migrate LocalStorage v3 source state to a new version with default API-only resources
+- [ ] Persist and export user overrides without overwriting the official default/source snapshot
+- [ ] Preserve source-only persistence and recalculate all derived routes on restore
+- [ ] Version JSON instead of changing v3 meaning; update localized Markdown in parallel
+- [ ] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
+- [ ] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
+- [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
+- [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
+
+## Provider-comparison P2 backlog — frozen during Ver3 checkpoint 1
+
+- [ ] Resolve Sonnet 5 pricing by effective date and expose `pricingAsOf`
+- [ ] Add the independent 922,000-token OpenAI input limit and boundary tests
+- [ ] Improve 320px provider-card header and cost-row readability
+- [ ] Add card-specific comparison summaries to provider radio descriptions
+- [ ] Clear or bind Markdown copy feedback when the interface locale changes
+
 ## Explicitly deferred
 
-- User-defined arbitrary providers or models
+- Arbitrary API providers or custom model catalog entries; `Custom subscription` metadata remains planned
 - Direct Claude or Gemini API analysis
 - Cross-provider quality benchmarks or automatic “best model” selection
 - Multiple scenario management
@@ -115,4 +213,5 @@
 - Second graph
 - Detailed duration prediction
 - Exhaustive or complex optimization
-- Pricing override UI
+- Unbounded pricing editor; Ver3's limited verified-catalog override is staged separately
+- Self-hosted inference, GPU sizing, electricity, throughput, and hardware-cost calculation (Phase 2)
