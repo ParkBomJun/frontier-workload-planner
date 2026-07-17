@@ -117,7 +117,13 @@
 - [x] Inventory reusable catalog, feasibility, estimation, allocation, storage, and export seams
 - [x] Preserve `frontier` and `recommendedModelTier` until explicit versioned adapters exist
 - [x] Define deterministic Best-fit filtering, selection, fallback, explanation, and hold rules
-- [x] Define the source-state and result-export migration boundary without changing v3 schemas
+- [x] Move the storage safety gate before the first task/GPT schema change and freeze v1/v2/v3 parsers
+- [x] Define model-bound versus model-opaque subscription eligibility and conditional fallback rules
+- [x] Define machine-readable quota availability, same-unit consumption, validation, and provenance
+- [x] Define plan-level incremental cash, shared subscription fee, and total-cash budget rules
+- [x] Close capability/upgrade signals and complete task, route, and plan tie-breaks
+- [x] Define the conservative premium baseline and signed avoided/additional-spend formulas
+- [x] Keep LocalStorage and result-export versioning independent without changing runtime v3 schemas
 - [x] Keep the five provider-comparison P2 findings outside this implementation checkpoint
 - [x] Reserve self-hosting, GPU, power, and local-inference calculation for Phase 2
 - [x] Confirm that checkpoint 1 changes only `SPEC.md`, `TASKS.md`, and `DECISIONS.md`
@@ -130,19 +136,37 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 
 ### Checkpoint 2 — model and offering adapters
 
-- [ ] Add target `ModelDefinition`, API `Offering`, resolved-price, and invocation-limit views beside current types
+- [ ] Add target `ModelDefinition`, discriminated `Offering`, resolved-price, and invocation-limit views beside current types
+- [ ] Resolve model-bound references and intersect model limits with narrower offering access limits
+- [ ] Distinguish complete/partial/unknown model limits and same/bounded/unknown access policies
+- [ ] Intersect model and access-path capability profiles; never inherit an unknown surface capability set
+- [ ] Gate model-opaque subscriptions on complete sourced eligibility profiles
+- [ ] Return closed eligible/conditional/ineligible results and require API fallback for conditional paths
 - [ ] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
 - [ ] Preserve current provider-plan outputs with API-offering parity tests
 - [ ] Keep API provider IDs separate from extensible subscription provider identity
+- [ ] Test missing model references, sourced/observed/unprofiled opaque offerings, capability subsets, surfaces, and limits
+- [ ] Test same-as-model versus unknown, tighter limit/capability intersections, and partial/user-observed conditional results
 
 ### Checkpoint 3 — workload requirement contract
 
+- [ ] Before changing live task or GPT schemas, define immutable storage parsers and golden fixtures for v1/v2/v3
+- [ ] Remove historical parser dependencies on mutable task, analysis, response, enum, and length-limit schemas
+- [ ] Introduce the next LocalStorage version atomically with the versioned GPT/task contract
+- [ ] Require every later persisted source-shape change to introduce its storage version in the same checkpoint
+- [ ] Implement the sequential v1 → v2 → v3 → next-version adapter chain
+- [ ] Preserve v3 responses as `legacy-api-only` snapshots with no fabricated GPT-derived fields
+- [ ] Keep legacy API-only planning available and require explicit reanalysis before Best-fit allocation
+- [ ] Preserve valid legacy bytes when adaptation, target validation, or rewrite fails
 - [ ] Version the GPT contract for work mode, minimum quality, capabilities, and upgrade conditions
-- [ ] Add an optional user-owned task deadline and bounded GPT `failureRisk` signal
+- [ ] Add optional task deadline, bounded user failure impact, and bounded GPT `failureRisk`
+- [ ] Initialize new failure impact visibly to Medium and migrate legacy impact to `unspecified`
+- [ ] Replace allocation-driving free strings with versioned `CapabilityId` and upgrade code enums
 - [ ] Update prompt, Zod validation, Mock fixtures, and identity checks together
 - [ ] Enforce the documented work-mode to supported-surface compatibility crosswalk
 - [ ] Prevent Cost Saver or another strategy from crossing a hard minimum quality floor
 - [ ] Keep price, quota, provider, and final-route decisions out of GPT output
+- [ ] Test v3 byte preservation, legacy API parity, no automatic analysis, adapter/write failures, future versions, and new round-trip
 
 ### Checkpoint 4 — generalized API offering calculation
 
@@ -156,29 +180,58 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 ### Checkpoint 5 — subscription resource engine
 
 - [ ] Add owned/new subscription input with provider, fee, remaining quota, reset, surfaces, and overage
-- [ ] Support credits, requests, user-calibrated percentage, and opaque quota without fake precision
+- [ ] Require ownership-aligned commitment amount, USD basis, plan period, and evidence
+- [ ] Implement available/unavailable/uncertain state and pure same-unit Low/Expected/High demand estimation
+- [ ] Support metered, user-calibrated, and opaque quota without fake precision
+- [ ] Validate finite bounds, range ordering, sample size, units, dates, evidence, reset, and overage
+- [ ] Require sourced included capacity plus timestamped user/connector remaining-capacity snapshots
+- [ ] Model candidate-new initial capacity separately from owned remaining snapshots
+- [ ] Treat reset as metadata only; never auto-replenish and downgrade post-reset stale snapshots to uncertain
+- [ ] Resolve paid overage by Offering scope, effective dates, same unit, deficit, and optional cap
+- [ ] Reject opaque-quota paid overage and unknown/expired/out-of-scope overage as confirmed capacity
+- [ ] Keep observed/calibrated/opaque paths conditional and require a compatible budgeted API fallback
+- [ ] Reserve only a derived ledger; never mutate saved remaining quota during planning
 - [ ] Count a new subscription commitment once and existing included use as `$0` incremental cash
 - [ ] Keep subscription consumption and API spend in separate ledgers
 - [ ] Reject surface-incompatible routes and provide an API fallback for uncertain capacity
 - [ ] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
+- [ ] Test exact quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
+- [ ] Test valid/oversized/missing initial capacity and ensure activation depletes only a derived ledger
+- [ ] Prove conditional-only routes cannot set active/all-active; fallback budget failure holds and missing fallback is infeasible
 
 ### Checkpoint 6 — deterministic Best-fit allocation
 
 - [ ] Evaluate compatible offerings above the minimum quality floor
-- [ ] Select the minimum-sufficient, least incremental-cash route with deterministic tie-breaks
+- [ ] Migrate `budgetUsd` through an atomic storage-version adapter without silently changing its API-only meaning
+- [ ] Require explicit user confirmation before an imported legacy budget becomes `incrementalCashBudgetUsd`
+- [ ] Calculate scenario cash as API + distinct active new-subscription fees + paid overage
+- [ ] Deduplicate shared fees, omit unused/fallback-only fees, and remove a fee after its last active assignment
+- [ ] Test two $6 API tasks versus one $10 shared subscription and the one-task $6 versus $10 boundary
+- [ ] Test fixed fees in Expected fit and High warning plus source-backed paid-overage boundaries
+- [ ] Compare complete plans for each add-one subscription activation before choosing a route set
+- [ ] Select the minimum-sufficient route with the complete strategy comparator ending in stable Offering ID
+- [ ] Implement exact tier/status/budget/route ranks and lexicographic `qualityKey` vector semantics
 - [ ] Apply the documented Cost Saver, Balanced, and Quality First secondary policies
-- [ ] Preserve quota for higher-priority and higher-loss work
-- [ ] Test priority → task deadline → failure risk → stable-order reservation and inverse relief boundaries
-- [ ] Hold lower-priority work when compatible quota and API budget are unavailable
+- [ ] Emit the Premium compatibility-fallback trigger when no compatible sub-Premium Offering remains
+- [ ] Preserve quota according to the documented priority/deadline/impact/risk task order
+- [ ] Test priority → deadline → impact → risk → stable-index reservation and inverse relief boundaries
+- [ ] Test all failure impact/risk triggers, unknown enum rejection, and free-form risk exclusion
+- [ ] Test route and full-plan comparator ties for every strategy and input/object enumeration order
+- [ ] Test below/above-target quality distance symmetry and Expected API-plus-overage variable cash keys
+- [ ] Test cheaper API versus owned paid overage and route reassignment before any hold
+- [ ] Hold lower-priority work when compatible quota and incremental-cash budget are unavailable
 - [ ] Generate route rationale, premium non-selection, upgrade trigger, alternative, and hold reason by rule
-- [ ] Calculate avoided spend only for executed work against a disclosed compatible premium baseline
+- [ ] Resolve the cheapest compatible Premium API per active task at the same `pricingAsOf`
+- [ ] Calculate selected incremental cash, avoided spend, and additional spend with integer micro-USD
+- [ ] Test missing baseline → null, held/infeasible exclusion, fallback cash, and fee/overage deduction once
 
 ### Checkpoint 7 — resource input and route-result UI
 
-- [ ] Add Available AI resources without removing the current task and API-budget flow
+- [ ] Add Available AI resources while evolving the current budget flow through a versioned contract
 - [ ] Add the optional task-level deadline input without repurposing the global reference deadline
+- [ ] Add bounded failure impact and label the budget as total incremental cash
 - [ ] Expose only the limited verified-catalog override controls and default restoration
-- [ ] Show API spend, subscription usage, and new subscription commitment separately
+- [ ] Show API spend, subscription usage, new subscription commitment, and paid overage separately
 - [ ] Lead task results with the selected access route rather than only a model name
 - [ ] Keep Korean, English, and Japanese presentation consistent and responsive
 - [ ] Avoid self-hosting or objective model-ranking claims in hero and help copy
@@ -186,11 +239,14 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 
 ### Checkpoint 8 — persistence, export, and release candidate
 
-- [ ] Migrate LocalStorage v3 source state to a new version with default API-only resources
+- [ ] Verify that resource/override source versions extended the checkpoint-3 chain when their shapes changed
+- [ ] Preserve the versioned legacy analysis snapshot while adding default API-only resource state
 - [ ] Persist and export user overrides without overwriting the official default/source snapshot
 - [ ] Preserve source-only persistence and recalculate all derived routes on restore
-- [ ] Version JSON instead of changing v3 meaning; update localized Markdown in parallel
+- [ ] Version JSON independently from LocalStorage instead of changing JSON v3 meaning; update Markdown in parallel
 - [ ] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
+- [ ] Export activated fee IDs, paid overage, baseline Offering IDs, `planningAsOf`, `pricingAsOf`, and signed cash difference
+- [ ] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
 - [ ] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
 - [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
 - [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary

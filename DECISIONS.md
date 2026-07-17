@@ -266,9 +266,8 @@ not realized savings, and held work cannot inflate it.
 Current `recommendedModelTier` remains a heuristic recommendation. It is not silently redefined as
 the future hard `requiredQualityTier`. Current `frontier` data also remains distinct from future
 `premium` terminology until a versioned adapter and migration exist. Once a quality floor is
-implemented, Cost Saver cannot cross below it. The future treatment of Quality First must be
-the explicit one-tier, trigger-bound policy defined below rather than an inherited unconditional
-upgrade.
+implemented, Cost Saver cannot cross below it. Quality First follows the explicit one-tier,
+trigger-bound policy defined below rather than an inherited unconditional upgrade.
 
 ### Keep analysis and route selection separate
 
@@ -284,7 +283,20 @@ Adopt `ModelDefinition` and `Offering` as target concepts, not as an immediate r
 `ModelDefinition` owns model identity, family, planning tier, capabilities, and invocation limits.
 `Offering` owns API/subscription access mode, supported surface, conditions, and provenance. API
 price schedules and subscription quota are separate resource types. A subscription is not an API
-model with a zero input/output price, and `modelId` may be absent when a plan does not publish one.
+model with a zero input/output price.
+
+Make `Offering` a discriminated union. A model-bound offering must resolve a catalog model and uses
+the tighter intersection of model and access-path limits. A model-opaque subscription needs a
+complete, sourced quality/capability/limit profile before it can pass normal eligibility. A
+user-observed profile or an unprofiled product remains a conditional alternative, never a confirmed
+primary route, and must carry a compatible API fallback. Do not infer undisclosed facts from tier,
+neighboring products, empty arrays, or free-form text.
+
+Model limits and capabilities use complete/partial/unknown sourced profiles. Access paths separately
+declare same-as-model, a narrower sourced bound, or unknown for both limits and capabilities.
+Intersect constraints only when both sides are complete and provider-published; partial, unknown,
+or user-observed knowledge is conditional. “Complete” means the source covers every constraint
+applicable to that model/surface, not that every optional numeric limit must exist.
 
 The current `ProviderModelPrice` and `ProviderCatalog` stay behind an API-offering adapter until
 parity tests prove the new view. Reuse size bands, iteration rules, invocation-feasibility checks,
@@ -315,6 +327,39 @@ Exact numeric depletion requires provider-published units or user-observed calib
 or private limit produces conditional availability and an API fallback, never an invented task
 count. A chat-only offering cannot satisfy IDE/CLI or batch work.
 
+Keep availability, quota shape, consumption rule, evidence, reset, and overage as separate closed
+fields. A pure resolver returns same-unit Low / Expected / High demand or an unknown reason. Exact
+published demand can reserve confirmed capacity; observed ranges and opaque limits stay
+conditional. Planning uses a derived quota ledger and never mutates saved remaining quota. Missing
+or mismatched units, non-finite values, invalid ranges, and unknown overage cannot become zero use.
+
+Included and remaining capacity each retain provenance; remaining/percentage requires a timestamped
+user or connector snapshot. Reset data never auto-replenishes capacity. Crossing a reset boundary
+after the snapshot makes availability uncertain until refreshed. Paid overage confirms capacity
+only when its Offering scope, effective dates, unit, deficit, optional cap, rate, and evidence all
+apply; opaque quota and unknown applicability cannot use it.
+
+The Ver3 budget is total incremental cash. For each scenario, sum active API spend, each distinct
+new subscription fee used by an active primary route once, and source-backed paid overage. Existing
+owned fees are sunk commitments and stay outside this budget. Unused, fallback-only, held-only, and
+infeasible-only subscriptions do not activate a fee; removing the last active assignment removes
+the fee. Expected determines fit and holds, while High produces the risk warning. Keep each cash
+component and native quota visible in separate ledgers even though incremental cash is compared to
+one `incrementalCashBudgetUsd` boundary.
+
+Do not silently reinterpret a restored legacy `budgetUsd`. The checkpoint that persists the new
+field owns an atomic storage-version adapter, retains the old amount as an API-only legacy draft,
+and requires explicit user confirmation before using it as a total-incremental-cash budget.
+
+Store ownership and commitment explicitly. Owned resources carry an informational existing fee;
+candidate-new resources carry a finite evidenced USD fee for one plan period. Only a valid
+candidate-new commitment used by an active primary route contributes its distinct fee.
+
+Owned quota uses a timestamped remaining snapshot. A not-yet-purchased candidate cannot have that
+snapshot, so it needs provider-published initial capacity for the same plan period; otherwise it is
+conditional. Activating a valid candidate initializes only the derived ledger and never rewrites
+the source allowance.
+
 ### Add Best-fit as an orchestrator, not a big-bang rewrite
 
 Introduce adapters and prove current API-plan parity first. Then add subscription candidates and a
@@ -330,25 +375,61 @@ available execution price.
 
 Task priority remains the first ordering signal. The current single global deadline is
 reference-only and cannot rank tasks against each other. Ver3 therefore adds an optional,
-user-owned task deadline and a bounded GPT `failureRisk` signal. Scarce resources are reserved by
-higher priority, earlier explicit deadline with missing deadlines last, higher failure risk, and
-stable input order; relief uses the inverse business-importance direction. Do not derive either
-signal from the global deadline or free-form risk text.
+user-owned task deadline, user-owned bounded `failureImpact`, and bounded GPT `failureRisk`.
+Reserve scarce resources by priority, earlier deadline, higher impact, higher risk, and stable input
+index; use the inverse business dimensions plus the same stable index for relief. Migrated legacy
+impact is `unspecified`, not fabricated; every new task initializes to visibly selected Medium.
+Free-form risk text never drives selection.
 
 Map `interactive` to `chat`, `coding-agent` to `ide-cli`, and `batch` to `batch` for the initial
 work-mode/surface contract. Do not infer a substitute surface when an offering lacks the mapped
-one. Cost Saver chooses the least incremental-cash sufficient route; Balanced prefers known
-capacity before cost tie-breaks; Quality First may add one tier only for an explicit upgrade or
-failure-loss trigger. All three remain bounded by the hard minimum, compatibility, budget, quota,
-and no-false-precision rules.
+one. Use closed, versioned capability and upgrade codes; required capabilities must be a subset of
+the resolved profile, and unknown codes are rejected. Derive High failure exposure only from High
+user impact plus non-Low GPT risk, and deadline retry risk only from an explicit deadline plus High
+risk. Cost Saver chooses the least-cash sufficient route; Balanced prefers a confirmed owned route;
+Quality First adds at most one tier only for a closed trigger. All remain bounded by minimum quality,
+compatibility, budget, quota, and no-false-precision rules.
+
+When hard filtering leaves no compatible sub-Premium route but does leave Premium, generate the
+closed minimum-sufficient Premium fallback trigger even if no risk trigger exists. This is
+compatibility fallback, not unconditional Quality First headroom.
+
+Separate task, route, and full-plan ordering. Every strategy's confirmed route comparator ends in
+provider ID and stable Offering ID, so object enumeration never breaks a tie; native quota units
+are not converted for ordering. Evaluate a new subscription by rebuilding a complete plan with its
+shared fee, not by assigning the fee to the first task. Starting from owned resources plus APIs,
+repeatedly accept only the best strict add-one full-plan improvement. This bounded deterministic
+heuristic is explainable but does not claim a global optimum or combined-subscription exhaustive
+search.
+
+Rank Economy/Balanced/Premium as 0/1/2. The quality key first penalizes target shortfall and then
+excess above target. Budget fit, task status, quality vectors, cash, activated IDs, and assignment
+IDs all compare lexicographically with explicit ascending ranks. Per-route variable cash includes
+Expected API cash and paid-overage delta, while shared fixed fees remain plan-level only.
+
+Balanced prefers owned capacity only while the work fits included quota. A paid-overage route is a
+cash-bearing candidate and competes with API on Expected variable cash before route-kind tie-breaks.
+Before holding, try the next confirmed compatible route and recalculate shared fees and overage.
+
+Define avoided spend conservatively. For every active guaranteed task, choose the cheapest
+compatible Premium API at the same `pricingAsOf`, with provider and Offering ID tie-breaks. If any
+active task lacks one, the metric is null. Subtract the complete selected Expected incremental cash,
+including each new fee and paid overage once. Exclude held/infeasible work, use API fallback cash for
+conditional suggestions, and report a negative difference as additional spend rather than hiding it
+behind zero savings. Export the baseline task set, Offering IDs, cash components, and pricing date.
 
 ### Version source and result meaning only when implementation changes
 
-Do not bump LocalStorage or JSON during this documentation checkpoint. When resource inputs are
-implemented, migrate v3 source state to a new version with no owned subscriptions and the current
-API choice preserved. Continue storing source data, not derived routes. Keep JSON v3 as the
-historical API-only export and introduce a new version for route, API cash, subscription use,
-alternative, confidence, premium baseline, conditions, and sources.
+Do not bump LocalStorage or JSON during this documentation checkpoint. The first live task/GPT
+schema change in checkpoint 3 is also the first Ver3 LocalStorage version boundary; it cannot wait
+for checkpoint 8. Freeze complete v1/v2/v3 parsers so they do not compose mutable live schemas, and
+migrate through sequential adapters. Preserve a valid v3 response as a legacy API-only snapshot;
+never invent new GPT fields, and require explicit reanalysis before Best-fit allocation.
+
+Delete a historical record only when its own frozen parser proves it malformed. Adapter,
+target-validation, or rewrite failure preserves the original bytes and returns a recoverable state;
+unknown future versions remain untouched. Continue storing source data, not derived routes. Keep
+JSON v3 as the historical API-only export and version result meaning independently from LocalStorage.
 
 ### Reserve self-hosting for Phase 2 and freeze unrelated P2 work
 

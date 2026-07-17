@@ -340,24 +340,203 @@ exact task capacity from a private or variable limit. A chat-only subscription c
 `ide-cli` or `batch` task. When a quota is uncertain, the route is conditional and receives an API
 fallback rather than a guaranteed-capacity claim.
 
-The target quota contract is:
+The target quota contract separates evidence, declared availability, quota shape, and a serializable
+consumption rule:
 
 ```ts
+type EvidenceRef =
+  | { kind: "provider-published"; sourceUrl: string; verifiedAt: string }
+  | { kind: "user-observed"; observedAt: string; note: string }
+  | {
+      kind: "connector-snapshot";
+      connectorId: string;
+      capturedAt: string;
+      sourceUrl?: string;
+    };
+
+type CapacitySnapshotEvidence = Extract<
+  EvidenceRef,
+  { kind: "user-observed" | "connector-snapshot" }
+>;
+
+interface SourcedValue<T, E extends EvidenceRef = EvidenceRef> {
+  value: T;
+  evidence: E;
+}
+
+type Availability = {
+  status: "available" | "unavailable" | "uncertain";
+  evidence: EvidenceRef;
+};
+
+type ObservedRangeConsumptionRule = {
+  kind: "observed-range-per-basis";
+  unit: "request" | "credit" | "percent-point";
+  basis: "task" | "analysis-iteration";
+  low: number;
+  expected: number;
+  high: number;
+  sampleSize: number;
+  evidence: Extract<EvidenceRef, { kind: "user-observed" }>;
+};
+
+type ObservedPercentConsumptionRule = Omit<
+  ObservedRangeConsumptionRule,
+  "unit"
+> & { unit: "percent-point" };
+
+type ConsumptionRule =
+  | {
+      kind: "fixed-per-basis";
+      unit: "request" | "credit";
+      basis: "task" | "analysis-iteration";
+      units: number;
+      evidence: Extract<EvidenceRef, { kind: "provider-published" }>;
+    }
+  | ObservedRangeConsumptionRule;
+
 type SubscriptionQuota =
-  | { kind: "credits"; included: number; remaining: number }
-  | { kind: "requests"; included: number; remaining: number }
+  | {
+      kind: "metered";
+      unit: "request" | "credit";
+      included: SourcedValue<number>;
+      remaining: SourcedValue<number, CapacitySnapshotEvidence>;
+      consumptionRule: ConsumptionRule;
+    }
   | {
       kind: "calibrated";
-      remainingPercent: number;
-      calibrationSource: "user-observed";
+      unit: "percent-point";
+      remainingPercent: SourcedValue<number, CapacitySnapshotEvidence>;
+      consumptionRule: ObservedPercentConsumptionRule;
     }
-  | { kind: "opaque"; description: string };
+  | {
+      kind: "initial-capacity";
+      unit: "request" | "credit";
+      included: SourcedValue<
+        number,
+        Extract<EvidenceRef, { kind: "provider-published" }>
+      >;
+      availableOnActivation: SourcedValue<
+        number,
+        Extract<EvidenceRef, { kind: "provider-published" }>
+      >;
+      appliesFor: "one-plan-period";
+      consumptionRule: Extract<ConsumptionRule, { kind: "fixed-per-basis" }>;
+    }
+  | { kind: "opaque"; description: string; consumptionRule?: never };
+
+type ResetPolicy =
+  | { kind: "none" }
+  | {
+      kind: "fixed";
+      cadenceDays: number;
+      nextResetAt: string;
+      evidence: EvidenceRef;
+    }
+  | { kind: "rolling"; windowHours: number; evidence: EvidenceRef }
+  | { kind: "unknown" };
+
+type OveragePolicy =
+  | { kind: "none" }
+  | {
+      kind: "paid";
+      unit: "request" | "credit" | "percent-point";
+      usdPerUnit: number;
+      appliesTo:
+        | { kind: "whole-resource" }
+        | { kind: "offering-list"; offeringIds: string[] };
+      effectiveFrom: string;
+      effectiveThrough?: string;
+      maxOverageUnits?: number;
+      evidence: Extract<EvidenceRef, { kind: "provider-published" }>;
+    }
+  | { kind: "unknown" };
+
+interface SubscriptionResource {
+  id: string;
+  offeringId: string;
+  ownership: "owned" | "candidate-new";
+  commitment:
+    | {
+        kind: "existing";
+        currentFeeUsd: number;
+        currency: "USD";
+        billingBasis: "current-plan-period";
+        evidence: EvidenceRef;
+      }
+    | {
+        kind: "new";
+        feeUsd: number;
+        currency: "USD";
+        billingBasis: "one-plan-period";
+        evidence: EvidenceRef;
+      };
+  availability: Availability;
+  quota: SubscriptionQuota;
+  reset: ResetPolicy;
+  overage: OveragePolicy;
+}
 ```
 
-Numeric depletion is allowed only for a provider-published unit or an explicit user observation.
-An opaque quota can be described as available, unavailable, or uncertain, but never converted to
-“N tasks remaining.” Reset cadence, next reset date, supported surfaces, and overage availability
-belong to the subscription resource rather than the model definition.
+`ResetPolicy` is a sourced closed union for none, fixed cadence plus next reset, rolling window, or
+unknown. It is display/validity metadata in Ver3: the planner never replenishes quota or predicts a
+future reset. If a known reset boundary passes after the remaining-capacity snapshot, effective
+availability becomes uncertain until the user or connector supplies a new snapshot. For a rolling
+window, a snapshot older than `windowHours` is likewise uncertain.
+
+`OveragePolicy` is none, a source-backed paid rate with explicit resource/offering scope, effective
+dates, and optional cap, or unknown. The resolver checks the selected Offering, `pricingAsOf`,
+native unit, deficit, and cap. Opaque quota plus paid overage is invalid because its threshold is
+unknown. Missing applicability or an exceeded/unknown cap never becomes zero-cost capacity and
+cannot confirm a route.
+
+All numeric values must be finite. Metered included capacity is positive, remaining is between zero
+and included, percent is between 0 and 100, consumption is positive with
+`low <= expected <= high`, sample size is a positive integer, dates and URLs are validated, and
+quota, consumption, and overage units must match. Included and remaining capacity retain separate
+provenance; remaining/percentage always includes an observation or connector timestamp. Missing or
+stale capacity evidence makes availability uncertain. Runtime validation rechecks these invariants
+rather than trusting the TypeScript shape.
+
+Every calculation receives one immutable `planningAsOf` timestamp. Snapshot freshness, reset
+boundaries, and overage effective dates use that value rather than reading the clock during task
+iteration. The timestamp and the separate catalog `pricingAsOf` date are exported so repeating the
+same source state with the same as-of values is deterministic.
+
+Ownership and commitment must agree: `owned` uses `existing`, while `candidate-new` uses a finite,
+non-negative, evidenced USD `new` fee for exactly one plan period. A candidate with missing currency,
+billing basis, fee evidence, or invalid amount is not an executable activation candidate. Existing
+fees are informational sunk commitments; candidate-new fees enter plan cash only after activation.
+
+Owned resources use timestamped metered/calibrated snapshots or opaque state. A candidate-new
+resource can become confirmed only with provider-published `initial-capacity` available immediately
+for the same plan period; `availableOnActivation` must be positive and no greater than included
+capacity. Activation creates only a derived remaining ledger. A candidate with no official initial
+capacity stays opaque/conditional with an API fallback rather than pretending that the full
+published allowance is currently available.
+
+`estimateQuotaDemand(rule, analysis)` is pure and returns either a same-unit Low / Expected / High
+range with provenance or `unknown` with a reason code. A task basis uses multiplier one; an
+analysis-iteration basis uses the scenario iteration count. Missing rules, mismatched units, NaN,
+Infinity, and opaque quotas never become zero demand.
+
+Availability and demand resolve as follows:
+
+- `unavailable` excludes the route.
+- `available` plus provider-published demand that fits the remaining quota, or a deficit covered by
+  source-backed paid overage, can become a confirmed route; Expected demand drives reservation and
+  High drives a risk warning.
+- `uncertain`, user-observed/calibrated demand, or an opaque quota remains a conditional
+  alternative. A numeric observed range may reserve High in a derived planning ledger to prevent
+  duplicate suggestions, but that reservation never promotes the route to confirmed.
+- Opaque quota is never numerically depleted and never becomes “N tasks remaining.”
+
+Planning mutates only a derived ledger, never the saved source quota. Every conditional
+subscription requires a surface/capability/limit-compatible API fallback. The guaranteed plan uses
+the fallback's Expected cash for budget fit and its High cash for warning. If that fallback is over
+budget, the task is held; if no compatible fallback exists, no guaranteed route exists and the task
+is infeasible. Conditional alternatives alone cannot make an active count or all-tasks-active flag
+true.
 
 ### Target model and offering separation
 
@@ -367,29 +546,145 @@ transition. The future domain separates model identity from the route through wh
 ```ts
 type PlanningQualityTier = "economy" | "balanced" | "premium";
 
+type CapabilityId =
+  | "vision-input"
+  | "file-input"
+  | "code-editing"
+  | "structured-output"
+  | "tool-use";
+
+interface InvocationLimits {
+  maxInputTokens?: number;
+  maxOutputTokens?: number;
+  maxCombinedTokens?: number;
+}
+
+type SourcedInvocationLimits =
+  | {
+      knowledge: "complete";
+      limits: InvocationLimits;
+      evidence: EvidenceRef;
+    }
+  | {
+      knowledge: "partial";
+      limits: InvocationLimits;
+      reason: string;
+      evidence: EvidenceRef;
+    }
+  | { knowledge: "unknown"; reason: string; evidence?: EvidenceRef };
+
+type SourcedCapabilityProfile =
+  | {
+      knowledge: "complete";
+      capabilityIds: CapabilityId[];
+      evidence: EvidenceRef;
+    }
+  | {
+      knowledge: "partial";
+      capabilityIds: CapabilityId[];
+      reason: string;
+      evidence: EvidenceRef;
+    }
+  | { knowledge: "unknown"; reason: string; evidence?: EvidenceRef };
+
+type OfferingLimitPolicy =
+  | {
+      kind: "same-as-model";
+      evidence: Extract<EvidenceRef, { kind: "provider-published" }>;
+    }
+  | { kind: "bounded"; invocationLimits: SourcedInvocationLimits }
+  | { kind: "unknown"; evidence?: EvidenceRef };
+
+type OfferingCapabilityPolicy =
+  | {
+      kind: "same-as-model";
+      evidence: Extract<EvidenceRef, { kind: "provider-published" }>;
+    }
+  | {
+      kind: "bounded";
+      capabilityProfile: SourcedCapabilityProfile;
+    }
+  | { kind: "unknown"; evidence?: EvidenceRef };
+
 interface ModelDefinition {
   id: string;
   provider: string;
   family: string;
   qualityTier: PlanningQualityTier;
-  capabilities: string[];
+  capabilityProfile: SourcedCapabilityProfile;
+  invocationLimits: SourcedInvocationLimits;
 }
 
-interface Offering {
-  id: string;
-  modelId?: string;
-  mode: "api" | "subscription";
-  supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
-  sourceUrl: string;
-  verifiedAt: string;
+type Offering =
+  | {
+      kind: "model-bound";
+      id: string;
+      mode: "api" | "subscription";
+      modelId: string;
+      supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
+      limitPolicy: OfferingLimitPolicy;
+      capabilityPolicy: OfferingCapabilityPolicy;
+      evidence: EvidenceRef;
+    }
+  | {
+      kind: "model-opaque-subscription";
+      id: string;
+      mode: "subscription";
+      modelId?: never;
+      supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
+      eligibility:
+        | {
+            kind: "profiled";
+            profile: EligibilityProfile;
+            evidence: EvidenceRef;
+          }
+        | {
+            kind: "unprofiled";
+            reason: ModelOpaqueReasonCode;
+            evidence?: EvidenceRef;
+          };
+      evidence: EvidenceRef;
+    };
+
+interface EligibilityProfile {
+  qualityTier: PlanningQualityTier;
+  capabilityIds: CapabilityId[];
+  invocationLimits: SourcedInvocationLimits;
 }
+
+type ModelOpaqueReasonCode =
+  | "model-undisclosed"
+  | "quality-undocumented"
+  | "capabilities-undocumented"
+  | "limits-undocumented";
 ```
 
 `ModelDefinition` owns identity, family, planning tier, capabilities, and a reference to invocation
 limits. `Offering` owns the access mode, supported surfaces, availability conditions, and source.
 API price schedules and subscription quota/resource state are separate types; neither is embedded
-in calculation code. `modelId` stays optional because some subscription products do not publish a
-fixed underlying model.
+in calculation code.
+
+A model-bound offering must resolve its `modelId`; a missing reference is catalog-invalid and
+ineligible. `same-as-model`, a narrower bounded policy, and unknown access policy are distinct—not
+an optional field. Effective limits use the tighter intersection only when the model and access
+policies both have complete provider-published knowledge. Effective capabilities are the model
+capability set intersected with a complete bounded access-path profile, or the complete model set
+under sourced `same-as-model`.
+
+For limits, `complete` means that the evidence covers the full set of constraints applicable to
+that model/surface; it does not require every optional numeric field to be present. Partial,
+unknown, or user-observed model/access limits and capabilities cannot confirm eligibility. A
+model-opaque subscription can be a confirmed eligibility candidate only when a complete
+provider-published quality/capability/invocation-limit profile exists. A user-observed profile is
+conditional, and an unprofiled product is only a conditional alternative. The planner never fills
+an undisclosed profile from `recommendedModelTier`, a neighboring product, an empty capability
+array, or guessed limits.
+
+Eligibility is a closed union of `eligible`, `conditional` with reason codes and
+`fallbackRequired: true`, or `ineligible` with reason codes. Surface mismatch, a required capability
+missing from a complete profile, or a published invocation-limit failure is ineligible. Undisclosed
+or user-observed eligibility is conditional. Eligibility and quota availability must both be
+confirmed before a subscription can be the primary execution route.
 
 The existing machine value `frontier` remains unchanged in GPT output, LocalStorage v3, JSON v3,
 Mock fixtures, and current UI. A future adapter may interpret that legacy planning position as
@@ -413,28 +708,80 @@ reproduce the plan. Arbitrary API providers and models remain out of scope.
 | `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
 | `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
 | `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
-| source-only LocalStorage | Continue storing source choices rather than derived routes; migrate v3 only when available resources become runtime input. |
+| source-only LocalStorage | Keep source-only storage, but freeze v1/v2/v3 parsers and introduce the next storage version before or atomically with the first task/GPT contract change. |
 | allowlisted JSON and localized Markdown | Preserve projection and secret-safety rules; add a new result schema only when the result meaning actually expands. |
 
 The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
-with current provider plans; add subscription offering evaluation; add the combined Best-fit
-orchestrator; then migrate UI, source persistence, and exports. The current API-only calculation and
+with current provider plans; establish the storage safety gate; version the GPT/task contract and
+storage snapshot atomically; add subscription offering evaluation; add the combined Best-fit
+orchestrator; then migrate UI and exports. The current API-only calculation and
 `compareProviderPlans` must not be deleted or silently change meaning before parity tests pass.
 
-LocalStorage v3 will later migrate to the next source-state version with no owned subscriptions and
-the existing API selection preserved. JSON v3 remains the historical API-only result contract; a
-new export version will be introduced instead of changing v3 in place. Derived plans and routes
-remain recalculated rather than persisted.
+JSON v3 remains the historical API-only result contract; a new export version will be introduced
+instead of changing v3 in place. Derived plans and routes remain recalculated rather than persisted.
+
+### Storage-version safety gate
+
+Checkpoint 3 owns the first Ver3 LocalStorage migration. It must land before or atomically with the
+first `TaskInput` or GPT analysis contract change; persistence migration cannot wait until
+checkpoint 8.
+
+Storage parsers for versions 1, 2, and 3 are immutable historical contracts. Each owns its complete
+task, settings, provider, response, analysis, enum, and length-limit schema. They must not import or
+compose mutable live schemas such as `taskInputSchema`, `taskAnalysisSchema`,
+`analysisDocumentSchema`, current provider/strategy enums, or the current success-response schema.
+
+The next storage version uses an explicit analysis snapshot union:
+
+```ts
+type StoredAnalysisSnapshot =
+  | {
+      contractVersion: "api-analysis-v1";
+      compatibility: "legacy-api-only";
+      response: FrozenAnalyzeSuccessResponseV1;
+    }
+  | {
+      contractVersion: "best-fit-analysis-v2";
+      compatibility: "best-fit";
+      response: AnalyzeSuccessResponseV2;
+    };
+```
+
+Migration is sequential: v1 retains the approved Medium-priority adaptation into v2; v2 retains
+the approved OpenAI selection into v3; v3 wraps its unchanged response as a `legacy-api-only`
+snapshot in the next version. Later source-state versions extend this chain. A legacy snapshot can
+continue through the reviewed API-only planner, but it cannot enter Best-fit allocation until the
+user explicitly requests a new Mock or Live analysis. Restore never triggers analysis itself.
+
+Adapters must not synthesize `workMode`, `requiredQualityTier`, capabilities, upgrade signals,
+`failureRisk`, or another GPT-derived value from a legacy tier, task type, free-form risk text,
+empty array, or default. User-owned fields added later use an explicit legacy/unspecified state when
+needed rather than pretending the user chose a value.
+
+A valid historical record is removed only when its declared version's frozen parser proves that the
+record itself is malformed. If historical parsing succeeds but adaptation, target validation, or
+rewrite fails, the original bytes remain untouched and restore returns a recoverable
+migration/reanalysis state. Unknown future versions also remain untouched. A migrated value replaces
+the old value only after the entire target record validates; a write failure still permits in-memory
+legacy restoration.
 
 ### Future GPT analysis boundary
 
 The existing Structured Output stays unchanged in checkpoint 1. A later version may add:
 
 ```ts
+type UpgradeConditionCode = "deep-reasoning" | "large-code-change";
+
+type AppliedUpgradeTrigger =
+  | "minimum-quality-requires-premium"
+  | "high-failure-exposure"
+  | "deadline-retry-risk"
+  | UpgradeConditionCode;
+
 workMode: "interactive" | "coding-agent" | "batch";
 requiredQualityTier: "economy" | "balanced" | "premium";
-requiredCapabilities: string[];
-upgradeConditions: string[];
+requiredCapabilities: CapabilityId[];
+upgradeConditions: UpgradeConditionCode[];
 failureRisk: "low" | "medium" | "high";
 ```
 
@@ -442,6 +789,18 @@ These fields describe workload requirements. GPT may judge reasoning needs, iter
 bands, risk, work surface, capabilities, and minimum planning quality. It still must not calculate
 token prices, translate subscription quota, compare providers, select an offering, or allocate the
 final route.
+
+Capability and upgrade IDs are closed, versioned schema values. General text is a baseline rather
+than a capability; coding-agent and batch are surfaces; long-context eligibility comes from token
+limits. Required capabilities must be a subset of the resolved eligibility profile. Unknown IDs
+are rejected, and free-form `riskFactors` remain explanation-only.
+
+The user separately owns `failureImpact: low | medium | high | unspecified`, which describes the
+consequence of failure rather than GPT's estimated likelihood. Every new task initializes to a
+visibly selected Medium; migrated legacy tasks use `unspecified` until the user confirms a value.
+The program derives `high-failure-exposure` only from High impact plus non-Low risk, and
+`deadline-retry-risk` only from an explicit task deadline plus High risk. It maps closed trigger
+codes to localized explanations; free-form text never activates premium headroom.
 
 The initial surface crosswalk is explicit: `interactive` requires `chat`, `coding-agent` requires
 `ide-cli`, and `batch` requires `batch`. An offering is compatible only when its
@@ -457,40 +816,163 @@ order tasks by deadline; task-level urgency must be explicit before a later allo
 
 For each analysis snapshot, the future route engine will:
 
-1. Remove surface-, capability-, and invocation-incompatible offerings.
-2. Remove offerings below the explicit minimum planning quality.
-3. Evaluate compatible, user-owned subscription routes without converting quota into USD.
-4. Treat opaque or uncertain quota as conditional, not guaranteed capacity.
-5. Calculate API Low / Expected / High ranges with the existing deterministic token engine.
-6. Choose the minimum sufficient tier, then the least incremental-cash compatible route using a
-   documented deterministic tie-break.
-7. Preserve scarce subscription capacity for higher-priority and higher-loss work.
-8. Provide an API alternative when subscription capacity is exhausted or uncertain.
-9. Hold lower-priority work when neither compatible quota nor API budget is available.
+1. Resolve a model definition or complete model-opaque eligibility profile.
+2. Remove surface-, capability-, invocation-, and minimum-quality-incompatible offerings.
+3. Resolve subscription availability and same-unit Low / Expected / High quota demand.
+4. Keep uncertain, observed, or opaque subscription paths as conditional alternatives only.
+5. Calculate compatible API Low / Expected / High ranges with the existing deterministic engine.
+6. Build complete plans from owned subscriptions, API routes, and explicitly activated new
+   subscriptions; never decide a shared monthly fee from one task in isolation.
+7. Compare complete plans with the closed ordering below and reserve confirmed quota in task order.
+8. Attach a compatible API fallback to every conditional subscription alternative.
+9. Hold lower-priority work when confirmed quota plus incremental-cash budget cannot execute it.
 
 Task priority remains the first allocation signal. Ver3 adds an optional user-owned task deadline;
-the GPT analysis supplies the bounded `failureRisk` signal while the user-owned priority remains
-authoritative. Scarce-resource reservation orders higher priority first, then earlier explicit
-deadline (no deadline last), then higher failure risk, then stable input order. Budget relief and
-holding use the inverse business-importance direction. The planner must not quietly reinterpret the
-current global deadline to rank otherwise identical tasks.
+the user also owns bounded `failureImpact`, while GPT supplies bounded `failureRisk`. Scarce-resource
+reservation orders High / Medium / Low priority, earlier deadline with no deadline last, High /
+Medium / Low / Unspecified impact, High / Medium / Low risk, then original input index ascending.
+Budget relief and holding reverse each business-importance dimension—Unspecified impact and no
+deadline first—but retain original input index ascending as the final stable tie-break. The planner
+must not reinterpret the current global deadline or free-form risk text to rank tasks.
 
 The three target strategies are secondary policies applied only after the hard quality and
 compatibility filters. Cost Saver selects the least incremental-cash sufficient route. Balanced
-prefers a known-capacity route before applying cost tie-breaks. Quality First may add at most one
-tier of headroom only when an explicit upgrade condition or failure-loss trigger applies and budget
-or quota permits it. No strategy may cross below the minimum quality, treat opaque capacity as
-guaranteed, or select premium merely because it is available.
+prefers a confirmed owned route before applying cost tie-breaks. Quality First may add at most one
+tier of headroom only when a closed `AppliedUpgradeTrigger` exists and budget or quota permits it.
+No strategy may cross below the minimum quality, treat conditional capacity as guaranteed, or
+select premium merely because it is available.
 
-A premium route is eligible only when a lower route misses the minimum requirement, the loss from
-failure is explicitly high, the task requires complex reasoning or a large code change, or retry
-risk threatens an explicit deadline. Results lead with the access route and include deterministic
+After hard filtering, if the minimum is below Premium, no compatible sub-Premium Offering remains,
+and a compatible Premium Offering exists, the program emits
+`minimum-quality-requires-premium`. This is the minimum sufficient compatibility fallback, not
+Quality First headroom, and it permits Premium without another risk trigger. Premium is otherwise
+eligible when the minimum itself is Premium or a closed trigger represents High failure exposure,
+deep reasoning, a large code change, or deadline retry risk. Results lead with the access route and
+include deterministic
 `Best-fit route`, `Why this is enough`, `Why not premium`, `Upgrade trigger`, an alternative route,
 and any hold reason. GPT does not generate cost or route-selection explanations.
 
-`Avoided spend` compares executed tasks only against a disclosed, compatible all-premium API
-counterfactual. Held or infeasible work cannot be counted as savings. The result is a planning
-comparison, not realized savings or a claim that premium and lower-tier models perform equally.
+For a fixed activated-subscription set, confirmed task routes use a complete lexicographic
+comparator. Cost Saver sorts by quality distance, Expected variable cash in micro-USD, route-kind
+rank, provider ID, then stable Offering ID. Balanced sorts by quality distance, capacity/cash class,
+Expected variable cash, route-kind rank, provider ID, then Offering ID. Quality First first raises
+its target by at most one tier when triggered, then uses Balanced ordering. Shared activation fees
+are excluded from the per-route variable cash key and handled only at plan level. Different native
+quota units are never converted for a tie-break; stable Offering ID closes every remaining tie.
+Conditional alternatives never enter this confirmed-route comparator.
+
+The shared scalar definitions are:
+
+```text
+tierRank: economy=0, balanced=1, premium=2
+
+qualityKey(route, target) = [
+  max(0, targetRank - routeRank),
+  max(0, routeRank - targetRank)
+]
+
+budgetFitRank: within=0, over=1
+statusRank: active=0, held=1, infeasible=2
+capacityCashClassRank: owned-within-included-quota=0, cash-bearing-route=1
+routeKindRank:
+  owned-within-included-quota=0,
+  api=1,
+  owned-paid-overage=2,
+  new-subscription=3
+
+expectedVariableCashMicroUsd =
+  route Expected API cash + route Expected paid-overage delta
+```
+
+The first quality component penalizes a route below the strategy target; once at or above target,
+the second prefers the smallest excess. The hard minimum-quality filter still runs first. All
+scalar keys sort ascending, and task-status and quality-key vectors compare lexicographically in
+the documented task order. Expected variable cash excludes only the shared subscription fixed fee,
+which belongs to the full-plan comparator.
+
+An owned route that requires paid overage is cash-bearing and cannot outrank a cheaper API merely
+because the base subscription is already owned. Within every complete plan, budget relief tries the
+next confirmed compatible route in comparator order and recalculates all shared fees and overage
+before it holds the task. Holding occurs only after no remaining confirmed assignment fits.
+
+New subscription activation uses a deterministic plan-level heuristic rather than claiming a
+global optimum. Start with owned subscriptions plus APIs. In each round, build a complete plan for
+adding each one inactive subscription, remove unused activations, and accept only the strictly best
+full-plan improvement. Repeat until none improves. Full plans compare: `budgetFitRank`; the
+`statusRank` vector in reservation order; the `qualityKey` vector in that order;
+Expected incremental cash; High incremental cash; sorted activated subscription IDs; then task
+assignment Offering IDs in original input order. This catches a fee shared by several tasks without
+making task traversal decide the fee. It may miss a combination that improves only when several
+subscriptions activate together, which must remain disclosed as a heuristic limitation.
+
+### Plan-level cash and budget contract
+
+Ver3 introduces `incrementalCashBudgetUsd` as the versioned successor to current `budgetUsd`. It is
+the maximum additional cash for the plan, not an API-only cap:
+
+```text
+activatedSubscriptionIds =
+  distinct new subscription resource IDs used by active primary routes
+
+planIncrementalCash[scenario] =
+  active API spend[scenario]
+  + full plan-period fee for each activatedSubscriptionId
+  + source-backed paid overage[scenario]
+
+expectedWithinBudget =
+  planIncrementalCash[Expected] <= incrementalCashBudgetUsd
+```
+
+A legacy `budgetUsd` value keeps its historical API-only meaning after restore. The checkpoint that
+first persists `incrementalCashBudgetUsd` must introduce another atomic storage-version adapter and
+show the restored amount as an unconfirmed legacy draft. Best-fit allocation may use it only after
+the user explicitly confirms the broader total-incremental-cash meaning; cancellation leaves the
+legacy API-only plan usable. Migration must not silently reinterpret or discard the old number.
+
+The full monthly/plan-period fee appears once in Low, Expected, and High; it is not divided by task,
+prorated, or projected across future renewals. A fee is absent when a subscription is unused,
+fallback-only, or used only by held/infeasible tasks, and is removed when its final active primary
+assignment disappears. Existing owned subscription fees are sunk commitments and excluded from
+incremental cash, while their quota use remains visible. A conditional subscription does not
+activate a fee; its guaranteed API fallback supplies the selected cash. Paid overage counts only
+when unit, rate, applicability, and evidence are known.
+
+Expected cash drives allocation and holds; High cash produces the risk warning. API spend, new
+subscription commitment, paid overage, and existing subscription quota remain separate result
+ledgers even though the first three are summed for the cash-budget boundary. Candidate routes and
+subscription activations are compared through completed plans, so two $6 API tasks can correctly
+prefer one applicable $10 subscription while one $6 task does not.
+
+### Avoided-spend contract
+
+Let `E` be exactly the active tasks in the guaranteed selected plan. If `E` is empty, the metric is
+`null`. Otherwise, for each task in `E`, resolve
+the compatible Premium API Offering with the lowest Expected micro-USD cost at the same
+`pricingAsOf`; provider ID then Offering ID breaks a cost tie. Compatibility includes surface,
+capabilities, invocation limits, price date, and token-range conditions. If any task in `E` lacks
+such an Offering, the premium baseline and avoided spend are `null` rather than partial.
+
+```text
+premiumBaselineExpectedUsd =
+  sum of each active task's resolved premium API Expected cost
+
+selectedExpectedIncrementalCashUsd =
+  planIncrementalCash[Expected]
+
+differenceUsd =
+  premiumBaselineExpectedUsd - selectedExpectedIncrementalCashUsd
+
+avoidedSpendUsd = max(0, differenceUsd)
+additionalSpendUsd = max(0, -differenceUsd)
+```
+
+Held and infeasible work is excluded from both sides. Conditional subscription suggestions use the
+selected API fallback cost because they are not confirmed primary routes. Existing subscription
+fees stay excluded as sunk commitments; new subscription fees and paid overage are deducted once
+through selected incremental cash. A negative difference is shown as `additionalSpendUsd`, not
+hidden behind `$0 saved`. Exports record the task set, baseline Offering IDs and costs,
+`pricingAsOf`, selected cash components, and both signed outcomes. The comparison is a planning
+counterfactual, not realized savings or a claim that Premium objectively performs better.
 
 The current standard-uncached API comparison remains a normalized reference view. Before an API
 offering can become an executable Best-fit route, its effective date, token-range price conditions,
@@ -501,21 +983,22 @@ historical comparison baseline.
 ### Future input and result contract
 
 The current task, budget, reference deadline, and strategy flow remains. Ver3 adds an optional
-task-level deadline for deterministic ordering. A later `Available AI resources`
-section adds API budget plus owned or candidate subscriptions, their remaining native quota, reset
-information, supported surfaces, and a `Custom subscription` entry. Representative presets may
-illustrate variable/opaque chat access, credit-based coding access, and rolling quota, but presets
-must not invent unpublished capacity.
+task-level deadline, bounded failure impact, and the versioned incremental-cash budget. A later
+`Available AI resources` section adds owned or candidate subscriptions, their remaining native
+quota, reset information, supported surfaces, and a `Custom subscription` entry. Representative
+presets may illustrate variable/opaque chat access, credit-based coding access, and rolling quota,
+but presets must not invent unpublished capacity.
 
-The result keeps three quantities visibly separate:
+The result keeps four quantities visibly separate:
 
 - Expected API spend
 - Expected subscription usage in its native unit or honest uncertainty state
+- New subscription commitment and paid overage
 - Avoided spend versus the disclosed compatible all-premium API counterfactual
 
-Any new subscription commitment is shown alongside, but not merged into, those quantities. Each
-task leads with its recommended access route before the model name and includes the deterministic
-explanations defined above.
+These remain separate line items. Only the explicitly labeled incremental-cash total combines API,
+new-subscription, and paid-overage cash for the budget boundary. Each task leads with its
+recommended access route before the model name and includes the deterministic explanations above.
 
 The eventual Korean hero contract is:
 
