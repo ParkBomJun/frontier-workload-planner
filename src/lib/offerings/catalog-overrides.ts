@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import {
   API_CATALOG_REGISTRY_ID,
   API_CATALOG_REGISTRY_VERSION,
@@ -23,6 +25,7 @@ const OVERRIDE_KEYS = [
 ] as const;
 const TARGET_KEYS = ["registryId", "registryVersion", "entryId"] as const;
 const RATE_KEYS = ["inputUsdPerMillion", "outputUsdPerMillion"] as const;
+const UTC_ISO_DATE_TIME_SCHEMA = z.iso.datetime();
 
 type OverrideValidationResult =
   | { ok: true; override: ApiCatalogOverride }
@@ -49,9 +52,7 @@ export function isIsoDate(value: unknown): value is string {
 }
 
 function isIsoDateTime(value: unknown): value is string {
-  if (typeof value !== "string" || !value.endsWith("Z")) return false;
-  const parsed = new Date(value);
-  return !Number.isNaN(parsed.getTime());
+  return UTC_ISO_DATE_TIME_SCHEMA.safeParse(value).success;
 }
 
 function sameTarget(

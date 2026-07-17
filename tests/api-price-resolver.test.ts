@@ -261,6 +261,9 @@ describe("resolveApiStandardTextPrice", () => {
     { standardTextPrice: { inputUsdPerMillion: 1.1234567, outputUsdPerMillion: 2 } },
     { planningTier: "unknown" },
     { modelId: "invented-model", planningTier: "economy" },
+    { recordedAt: "2026-02-30T09:00:00.000Z" },
+    { recordedAt: "2026-07-17Z" },
+    { recordedAt: "2026-07-17 09:00:00.000Z" },
   ])("rejects invalid or expanded override input %#", (patch) => {
     const source = {
       kind: "api-catalog-override",
