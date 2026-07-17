@@ -171,23 +171,23 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 
 ### Checkpoint 3 — workload requirement contract
 
-- [ ] Before changing live task or GPT schemas, define immutable storage parsers and golden fixtures for v1/v2/v3
-- [ ] Remove historical parser dependencies on mutable task, analysis, response, enum, and length-limit schemas
-- [ ] Introduce the next LocalStorage version atomically with the versioned GPT/task contract
-- [ ] Require every later persisted source-shape change to introduce its storage version in the same checkpoint
-- [ ] Implement the sequential v1 → v2 → v3 → next-version adapter chain
-- [ ] Preserve v3 responses as `legacy-api-only` snapshots with no fabricated GPT-derived fields
-- [ ] Keep legacy API-only planning available and require explicit reanalysis before Best-fit allocation
-- [ ] Preserve valid legacy bytes when adaptation, target validation, or rewrite fails
-- [ ] Version the GPT contract for work mode, minimum quality, capabilities, and upgrade conditions
-- [ ] Add optional task deadline, bounded user failure impact, and bounded GPT `failureRisk`
-- [ ] Initialize new failure impact visibly to Medium and migrate legacy impact to `unspecified`
-- [ ] Replace allocation-driving free strings with versioned `CapabilityId` and upgrade code enums
-- [ ] Update prompt, Zod validation, Mock fixtures, and identity checks together
-- [ ] Enforce the documented work-mode to supported-surface compatibility crosswalk
-- [ ] Prevent Cost Saver or another strategy from crossing a hard minimum quality floor
-- [ ] Keep price, quota, provider, and final-route decisions out of GPT output
-- [ ] Test v3 byte preservation, legacy API parity, no automatic analysis, adapter/write failures, future versions, and new round-trip
+- [x] Before changing live task or GPT schemas, define immutable storage parsers and golden fixtures for v1/v2/v3
+- [x] Remove historical parser dependencies on mutable task, analysis, response, enum, and length-limit schemas
+- [x] Introduce LocalStorage v4 atomically with the versioned GPT/task contract
+- [x] Require every later persisted source-shape change to introduce its storage version in the same checkpoint
+- [x] Implement the sequential v1 → v2 → v3 → v4 adapter chain
+- [x] Preserve v3 responses as `legacy-api-only` snapshots with no fabricated GPT-derived fields
+- [x] Keep legacy API-only planning available and require explicit reanalysis before Best-fit allocation
+- [x] Preserve valid legacy bytes when adaptation, target validation, or rewrite fails
+- [x] Version the GPT contract for work mode, minimum quality, capabilities, and upgrade conditions
+- [x] Add optional date-only task deadline, bounded user failure impact, and bounded GPT `failureRisk`
+- [x] Initialize new failure impact visibly to Medium and migrate legacy impact to `unspecified`
+- [x] Replace allocation-driving free strings with versioned `CapabilityId` and upgrade code enums
+- [x] Update prompt, Zod validation, Mock fixtures, and identity checks together
+- [x] Enforce the documented work-mode to supported-surface compatibility crosswalk
+- [x] Prevent Cost Saver or another strategy from crossing a hard minimum quality floor
+- [x] Keep price, quota, provider, and final-route decisions out of GPT output
+- [x] Test v3 byte preservation, legacy API parity, no automatic analysis, adapter/write failures, future versions, and new round-trip
 
 ### Checkpoint 4 — generalized API offering calculation
 
@@ -259,8 +259,8 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 ### Checkpoint 7 — resource input and route-result UI
 
 - [ ] Add Available AI resources while evolving the current budget flow through a versioned contract
-- [ ] Add the optional task-level deadline input without repurposing the global reference deadline
-- [ ] Add bounded failure impact and label the budget as total incremental cash
+- [ ] Integrate the existing task-level deadline input into resource planning without repurposing the global reference deadline
+- [ ] Integrate bounded failure impact into resource planning and label the budget as total incremental cash
 - [ ] Expose only the limited verified-catalog override controls and default restoration
 - [ ] Show API spend, subscription usage, new subscription commitment, and paid overage separately
 - [ ] Lead task results with the selected access route rather than only a model name
@@ -276,7 +276,7 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 - [ ] Preserve source-only persistence and recalculate all derived routes on restore
 - [ ] Persist only evidence references and user observations; re-resolve authority on every restore
 - [ ] Treat exported resolved evidence as audit-only and never as import or restore authority
-- [ ] Version JSON independently from LocalStorage instead of changing JSON v3 meaning; update Markdown in parallel
+- [ ] Preserve historical JSON v3 and workload JSON v4; introduce the next result version for route/resource meaning and update Markdown in parallel
 - [ ] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
 - [ ] Export structured route identities for tasks, fallbacks, activated resources, and Premium baselines
 - [ ] Export paid overage, `planningAsOf`, `pricingAsOf`, and signed cash difference

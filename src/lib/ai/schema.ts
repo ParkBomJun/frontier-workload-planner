@@ -9,6 +9,15 @@ import {
   TASK_TYPES,
   UNCERTAINTY_LEVELS,
 } from "@/types/domain";
+import {
+  CAPABILITY_IDS,
+  FAILURE_IMPACTS,
+  FAILURE_RISKS,
+  PLANNING_QUALITY_TIERS,
+  UPGRADE_CONDITION_CODES,
+  WORKLOAD_ANALYSIS_CONTRACT_VERSION,
+  WORK_MODES,
+} from "@/types/workload";
 
 export const MAX_TASKS = 8;
 export const MAX_TASK_ID_LENGTH = 64;
@@ -24,6 +33,8 @@ export const taskInputSchema = z.strictObject({
   name: z.string().trim().min(1).max(MAX_TASK_NAME_LENGTH),
   description: z.string().trim().min(1).max(MAX_TASK_DESCRIPTION_LENGTH),
   priority: z.enum(TASK_PRIORITIES),
+  deadlineDate: z.iso.date().nullable(),
+  failureImpact: z.enum(FAILURE_IMPACTS),
 });
 
 export const analyzeRequestSchema = z
@@ -55,11 +66,19 @@ export const taskAnalysisSchema = z.strictObject({
   estimatedOutputSize: z.enum(SIZE_BANDS),
   uncertainty: z.enum(UNCERTAINTY_LEVELS),
   recommendedModelTier: z.enum(MODEL_TIERS),
+  workMode: z.enum(WORK_MODES),
+  requiredQualityTier: z.enum(PLANNING_QUALITY_TIERS),
+  requiredCapabilities: z.array(z.enum(CAPABILITY_IDS)).max(CAPABILITY_IDS.length),
+  upgradeConditions: z
+    .array(z.enum(UPGRADE_CONDITION_CODES))
+    .max(UPGRADE_CONDITION_CODES.length),
+  failureRisk: z.enum(FAILURE_RISKS),
   riskFactors: z.array(z.string().min(1).max(120)).max(MAX_RISK_FACTORS),
   rationale: z.string().min(1).max(400),
 });
 
 export const analysisDocumentSchema = z.strictObject({
+  contractVersion: z.literal(WORKLOAD_ANALYSIS_CONTRACT_VERSION),
   tasks: z.array(taskAnalysisSchema).min(1).max(MAX_TASKS),
 });
 

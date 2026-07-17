@@ -14,6 +14,8 @@ const validRequest = {
       name: "API 설계",
       description: "검증 가능한 API를 설계한다.",
       priority: "high",
+      deadlineDate: null,
+      failureImpact: "medium",
     },
   ],
 };
@@ -45,7 +47,12 @@ describe("POST /api/analyze request body limits", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toMatchObject({ ok: true, mode: "mock" });
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      mode: "mock",
+      model: "mock-fixture-v2",
+      analysis: { contractVersion: "best-fit-analysis-v2" },
+    });
   });
 
   it("rejects a declared oversized body before pulling its stream", async () => {

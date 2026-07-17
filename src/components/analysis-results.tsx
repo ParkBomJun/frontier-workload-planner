@@ -1,6 +1,8 @@
 "use client";
 
+import { isBestFitTaskAnalysis } from "@/lib/planning/workload-requirements";
 import type {
+  AnalysisContractIdentity,
   AnalysisMode,
   BudgetAllocationPlan,
   PlanExportContext,
@@ -23,6 +25,7 @@ interface AnalysisResultsProps {
   onProviderChange: (providerId: ProviderId) => void;
   analysisMode: AnalysisMode;
   analysisModel: string;
+  analysisContract: AnalysisContractIdentity;
   generatedAt: string;
 }
 
@@ -34,6 +37,7 @@ export function AnalysisResults({
   onProviderChange,
   analysisMode,
   analysisModel,
+  analysisContract,
   generatedAt,
 }: AnalysisResultsProps) {
   const { copy, localeMeta } = useLanguage();
@@ -75,6 +79,7 @@ export function AnalysisResults({
     providerComparisons,
     analysisMode,
     analysisModel,
+    analysisContract,
     generatedAt,
   };
 
@@ -386,6 +391,22 @@ export function AnalysisResults({
                         copy.analysisResults.sizeBand,
                         `${copy.enums.sizeBand[task.analysis.estimatedInputSize]} → ${copy.enums.sizeBand[task.analysis.estimatedOutputSize]}`,
                       ],
+                      ...(isBestFitTaskAnalysis(task.analysis)
+                        ? [
+                            [copy.analysisResults.workMode, task.analysis.workMode],
+                            [
+                              copy.analysisResults.minimumQuality,
+                              task.analysis.requiredQualityTier,
+                            ],
+                            [copy.analysisResults.failureRisk, task.analysis.failureRisk],
+                            [
+                              copy.analysisResults.requiredCapabilities,
+                              task.analysis.requiredCapabilities.length
+                                ? task.analysis.requiredCapabilities.join(", ")
+                                : copy.common.none,
+                            ],
+                          ]
+                        : []),
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-lg bg-white/[0.055] px-2.5 py-2">
                         <dt className="text-white/65">{label}</dt>

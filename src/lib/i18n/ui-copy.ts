@@ -1,6 +1,7 @@
 import type {
   AnalysisMode,
   Complexity,
+  InvocationLimitFailureCode,
   ModelTier,
   PlanningStrategy,
   ProviderId,
@@ -9,8 +10,8 @@ import type {
   TaskPriority,
   TaskType,
   Uncertainty,
-  InvocationLimitFailureCode,
 } from "@/types/domain";
+import type { FailureImpact } from "@/types/workload";
 
 export const UI_LOCALES = ["ko", "en", "ja"] as const;
 export type UiLocale = (typeof UI_LOCALES)[number];
@@ -57,6 +58,7 @@ export interface UiEnumLabels {
   provider: Record<ProviderId, string>;
   strategy: Record<PlanningStrategy, string>;
   priority: Record<TaskPriority, string>;
+  failureImpact: Record<FailureImpact, string>;
   allocationStatus: Record<"active" | "held" | "infeasible", string>;
   invocationFailure: Record<InvocationLimitFailureCode, string>;
 }
@@ -108,6 +110,8 @@ export interface UiCopy {
     networkError: string;
     storageTitle: string;
     storageRestored: (date: string) => string;
+    storageLegacyRestored: (date: string) => string;
+    storageMigrationRequired: string;
     storageCorrupt: string;
     storageFutureVersion: string;
     storageUnavailable: string;
@@ -147,6 +151,10 @@ export interface UiCopy {
     namePlaceholder: string;
     nameRequired: string;
     priorityLabel: string;
+    deadlineLabel: string;
+    deadlineHelp: string;
+    failureImpactLabel: string;
+    failureImpactHelp: string;
     descriptionLabel: string;
     descriptionPlaceholder: string;
     descriptionRequired: string;
@@ -220,6 +228,10 @@ export interface UiCopy {
     complexity: string;
     reasoning: string;
     sizeBand: string;
+    workMode: string;
+    minimumQuality: string;
+    requiredCapabilities: string;
+    failureRisk: string;
     risks: string;
     generatedRuleBased: (date: string) => string;
   };
@@ -340,6 +352,10 @@ const ko: UiCopy = {
     networkError: "서버에 연결하지 못했습니다. 개발 서버와 네트워크 상태를 확인해 주세요.",
     storageTitle: "최근 시나리오",
     storageRestored: (date) => `${date}에 저장된 최근 계획을 복원했습니다.`,
+    storageLegacyRestored: (date) =>
+      `${date}의 기존 API 계획을 복원했습니다. Best-fit 요구사항을 사용하려면 Mock 또는 Live 분석을 다시 실행하세요.`,
+    storageMigrationRequired:
+      "기존 저장 기록은 보존했지만 자동 변환하지 못했습니다. 기록을 삭제하거나 새 분석을 실행할 수 있습니다.",
     storageCorrupt: "손상된 최근 저장 기록을 무시했습니다.",
     storageFutureVersion: "다른 버전에서 만든 저장 기록은 자동 복원하지 않았습니다.",
     storageUnavailable: "이 브라우저에서는 최근 계획 저장소를 사용할 수 없습니다.",
@@ -382,6 +398,10 @@ const ko: UiCopy = {
     namePlaceholder: "예: 고객 지원 대시보드 API 설계",
     nameRequired: "작업명을 입력해 주세요.",
     priorityLabel: "우선순위",
+    deadlineLabel: "작업 기한 (선택)",
+    deadlineHelp: "날짜만 저장하며 전역 검토 기한과 별개입니다.",
+    failureImpactLabel: "실패 영향",
+    failureImpactHelp: "실패했을 때의 결과를 사용자가 정합니다. GPT의 실패 가능성과는 별개입니다.",
     descriptionLabel: "작업 설명",
     descriptionPlaceholder: "목표, 산출물, 제약, 품질 기준을 구체적으로 적어 주세요.",
     descriptionRequired: "작업 설명을 입력해 주세요.",
@@ -441,7 +461,7 @@ const ko: UiCopy = {
       `전체 작업의 호환 가능한 Expected 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다. 이 작업의 호환 가능한 Expected 최소 필요액은 ${minimum}입니다.`,
     infeasibleTitle: "호환되는 모델 제품이 없음",
     infeasibleReason: (reasons) =>
-      `어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 자동 분할이나 토큰 자르기는 적용하지 않았습니다. 실패 이유: ${reasons}`,
+      `최소 품질을 충족하는 어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 자동 분할이나 토큰 자르기는 적용하지 않았습니다. 실패 이유: ${reasons}`,
     excludedOfferingsTitle: "호출 한도로 제외된 모델",
     excludedOfferingsReason: (reasons) =>
       `아래 모델은 Low / Expected / High 중 하나 이상을 지원하지 않아 배분 후보에서 제외했습니다. 실패 이유: ${reasons}`,
@@ -456,6 +476,10 @@ const ko: UiCopy = {
     complexity: "복잡도",
     reasoning: "추론",
     sizeBand: "크기 구간",
+    workMode: "작업 모드",
+    minimumQuality: "최소 품질",
+    requiredCapabilities: "필수 기능",
+    failureRisk: "실패 가능성",
     risks: "위험 요인",
     generatedRuleBased: (date) => `${date} · 규칙 기반 추천이며 수학적 최적화를 의미하지 않습니다.`,
   },
@@ -553,6 +577,7 @@ const ko: UiCopy = {
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
     strategy: { "cost-saver": "비용 절감", balanced: "균형", "quality-first": "상위 tier 우선" },
     priority: { high: "높음", medium: "보통", low: "낮음" },
+    failureImpact: { high: "높음", medium: "보통", low: "낮음", unspecified: "미지정" },
     allocationStatus: { active: "실행", held: "보류", infeasible: "실행 불가" },
     invocationFailure: {
       "input-limit-exceeded": "입력 한도 초과",
@@ -611,6 +636,10 @@ const en: UiCopy = {
     networkError: "Could not reach the server. Check the development server and network connection.",
     storageTitle: "Recent scenario",
     storageRestored: (date) => `Restored the recent plan saved at ${date}.`,
+    storageLegacyRestored: (date) =>
+      `Restored the legacy API plan saved at ${date}. Run Mock or Live analysis again to use Best-fit requirements.`,
+    storageMigrationRequired:
+      "The legacy record was preserved but could not be migrated automatically. You can delete it or run a new analysis.",
     storageCorrupt: "Ignored a damaged recent scenario.",
     storageFutureVersion: "A scenario from another version was not restored automatically.",
     storageUnavailable: "Recent-scenario storage is unavailable in this browser.",
@@ -654,6 +683,10 @@ const en: UiCopy = {
     namePlaceholder: "Example: Design a customer support dashboard API",
     nameRequired: "Enter a task name.",
     priorityLabel: "Priority",
+    deadlineLabel: "Task deadline (optional)",
+    deadlineHelp: "Stored as a date only and separate from the global review deadline.",
+    failureImpactLabel: "Failure impact",
+    failureImpactHelp: "You set the consequence of failure; it is separate from GPT's failure likelihood.",
     descriptionLabel: "Task description",
     descriptionPlaceholder: "Describe the goal, deliverable, constraints, and quality bar.",
     descriptionRequired: "Enter a task description.",
@@ -713,7 +746,7 @@ const en: UiCopy = {
       `The lowest compatible Expected total exceeded the budget, so lower-priority work was held first. This task needs at least ${minimum} on a compatible offering at Expected.`,
     infeasibleTitle: "No compatible model offering",
     infeasibleReason: (reasons) =>
-      `No tier supports all Low / Expected / High invocations. The planner did not truncate tokens or split the task. Failures: ${reasons}`,
+      `No tier at or above the minimum quality supports all Low / Expected / High invocations. The planner did not truncate tokens or split the task. Failures: ${reasons}`,
     excludedOfferingsTitle: "Models excluded by invocation limits",
     excludedOfferingsReason: (reasons) =>
       `The models below fail at least one Low / Expected / High invocation and were excluded from allocation. Failures: ${reasons}`,
@@ -728,6 +761,10 @@ const en: UiCopy = {
     complexity: "Complexity",
     reasoning: "Reasoning",
     sizeBand: "Size bands",
+    workMode: "Work mode",
+    minimumQuality: "Minimum quality",
+    requiredCapabilities: "Required capabilities",
+    failureRisk: "Failure risk",
     risks: "Risk factors",
     generatedRuleBased: (date) => `${date} · Rule-based recommendation, not mathematical optimization.`,
   },
@@ -825,6 +862,7 @@ const en: UiCopy = {
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
     strategy: { "cost-saver": "Cost saver", balanced: "Balanced", "quality-first": "Upper-tier preference" },
     priority: { high: "High", medium: "Medium", low: "Low" },
+    failureImpact: { high: "High", medium: "Medium", low: "Low", unspecified: "Unspecified" },
     allocationStatus: { active: "Active", held: "On hold", infeasible: "Infeasible" },
     invocationFailure: {
       "input-limit-exceeded": "input limit exceeded",
@@ -883,6 +921,10 @@ const ja: UiCopy = {
     networkError: "サーバーに接続できません。開発サーバーとネットワークを確認してください。",
     storageTitle: "最近のシナリオ",
     storageRestored: (date) => `${date}に保存された最近の計画を復元しました。`,
+    storageLegacyRestored: (date) =>
+      `${date}の旧API計画を復元しました。Best-fit要件を使うにはMockまたはLive分析を再実行してください。`,
+    storageMigrationRequired:
+      "旧保存データは保持しましたが、自動移行できませんでした。削除するか新しい分析を実行できます。",
     storageCorrupt: "破損した最近の保存データを無視しました。",
     storageFutureVersion: "別バージョンの保存データは自動復元しませんでした。",
     storageUnavailable: "このブラウザでは最近の計画を保存できません。",
@@ -925,6 +967,10 @@ const ja: UiCopy = {
     namePlaceholder: "例：カスタマーサポートダッシュボードAPIの設計",
     nameRequired: "タスク名を入力してください。",
     priorityLabel: "優先度",
+    deadlineLabel: "タスク期限（任意）",
+    deadlineHelp: "日付のみを保存し、全体の確認期限とは別に扱います。",
+    failureImpactLabel: "失敗時の影響",
+    failureImpactHelp: "失敗した場合の影響をユーザーが設定します。GPTの失敗確率とは別です。",
     descriptionLabel: "タスク説明",
     descriptionPlaceholder: "目的、成果物、制約、品質基準を具体的に記載してください。",
     descriptionRequired: "タスク説明を入力してください。",
@@ -984,7 +1030,7 @@ const ja: UiCopy = {
       `全タスクの互換可能なExpected最小コストが予算を超えたため、優先度の低い順に保留しました。このタスクの互換可能なExpected最小必要額は${minimum}です。`,
     infeasibleTitle: "互換モデル製品なし",
     infeasibleReason: (reasons) =>
-      `すべてのLow / Expected / High呼び出しを処理できるtierがありません。トークンの切り捨てや自動分割は行っていません。失敗理由: ${reasons}`,
+      `最低品質以上で、すべてのLow / Expected / High呼び出しを処理できるtierがありません。トークンの切り捨てや自動分割は行っていません。失敗理由: ${reasons}`,
     excludedOfferingsTitle: "呼び出し上限により除外したモデル",
     excludedOfferingsReason: (reasons) =>
       `以下のモデルはLow / Expected / Highのいずれかを処理できないため、配分候補から除外しました。失敗理由: ${reasons}`,
@@ -999,6 +1045,10 @@ const ja: UiCopy = {
     complexity: "複雑度",
     reasoning: "推論",
     sizeBand: "サイズ帯",
+    workMode: "作業モード",
+    minimumQuality: "最低品質",
+    requiredCapabilities: "必須機能",
+    failureRisk: "失敗確率",
     risks: "リスク要因",
     generatedRuleBased: (date) => `${date}・ルールベースの推奨であり、数学的最適化ではありません。`,
   },
@@ -1096,6 +1146,7 @@ const ja: UiCopy = {
     provider: { openai: "OpenAI・GPT-5.6", anthropic: "Anthropic・Claude", google: "Google・Gemini 3" },
     strategy: { "cost-saver": "コスト優先", balanced: "バランス", "quality-first": "上位tier優先" },
     priority: { high: "高", medium: "中", low: "低" },
+    failureImpact: { high: "高", medium: "中", low: "低", unspecified: "未指定" },
     allocationStatus: { active: "実行", held: "保留", infeasible: "実行不可" },
     invocationFailure: {
       "input-limit-exceeded": "入力上限超過",

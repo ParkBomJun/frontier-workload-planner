@@ -532,3 +532,49 @@ while replacing its model, price, or limits.
 Keep the closed conditional-reason list in SPEC and `CONDITIONAL_REASON_CODES` identical and in the
 same order. A contract test reads the documented union so future parser/export work cannot drift
 from runtime values.
+
+## 2026-07-17 — Ver3 checkpoint 3 workload and storage contract
+
+### Put the storage safety gate before the live schema change
+
+Freeze complete v1, v2, and v3 scenario parsers in a historical module whose only runtime
+dependency is Zod. Pin static JSON fixture bytes with SHA-256 digests. LocalStorage v4 is the first
+Ver3 source-state version and stores an explicit `api-analysis-v1` / `legacy-api-only` or
+`best-fit-analysis-v2` / `best-fit` snapshot. Migration runs v1 → v2 → v3 → v4 and adds only the
+previously approved priority/provider adaptations plus user-owned `deadlineDate: null` and
+`failureImpact: unspecified`. It never synthesizes a GPT-derived v2 field.
+
+Delete only data rejected by its own declared-version parser. If adaptation or target validation
+fails, return a recoverable migration state and leave the original bytes untouched. Validate the
+entire v4 candidate before replacing storage. A rewrite failure leaves the source bytes intact but
+still permits the validated in-memory legacy plan to load.
+
+### Separate the versioned workload contract from route choice
+
+`AnalyzeSuccessResponseV2` retains the existing response envelope and adds the exact analysis
+document discriminator `best-fit-analysis-v2`. Each task keeps the legacy heuristic
+`recommendedModelTier` and separately adds work mode, hard minimum planning quality, closed
+capability IDs, closed upgrade-condition codes, and bounded failure risk. The prompt and strict
+schema prohibit price, quota, provider, Offering, and final-route decisions. GPT-5.6 remains the
+only analyzer.
+
+Use `deadlineDate: YYYY-MM-DD | null` as a time-zone-free user date. New tasks visibly start with
+Medium failure impact; migrated tasks remain `unspecified`. The existing task editor exposes these
+two source fields now because otherwise the v4 contract would contain a hidden default. Checkpoint
+7 still owns their integration with subscription resources and the total-incremental-cash UI.
+
+Map `interactive` to `chat`, `coding-agent` to `ide-cli`, and `batch` to `batch` in one pure
+crosswalk. Free-form risk text is explanatory only. Closed trigger derivation uses High user impact
+plus non-Low GPT risk, an explicit task deadline plus High risk, or an explicit upgrade code.
+
+### Preserve legacy planning while enforcing the new floor
+
+The reviewed API-only allocator accepts either frozen v1 or v2 analysis. Legacy data retains its
+historical strategy behavior. For v2 only, map `premium` to the legacy catalog's `frontier`
+position and prevent initial selection or budget relief from crossing below the hard minimum.
+This does not activate checkpoint-2 Offering adapters or implement subscription/Best-fit routing.
+
+Keep historical API-only exports on JSON v3. Because the v2 floor can change a plan, use JSON v4
+for `best-fit-analysis-v2` and include the new source and workload fields rather than silently
+changing or under-specifying v3. Markdown carries the same fields with localized labels. Future
+route/resource result meaning receives another independently versioned export contract.

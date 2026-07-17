@@ -4,8 +4,8 @@ import type {
   InvocationFeasibilityResult,
   InvocationLimitFailure,
   InvocationTokenScenario,
+  PlannerTaskAnalysis,
   ScenarioInvocationFeasibility,
-  TaskAnalysis,
 } from "@/types/domain";
 import type { InvocationLimits } from "@/types/offerings";
 
@@ -74,7 +74,7 @@ export function validateInvocationFeasibility(
 }
 
 export function invocationTokensForScenario(
-  analysis: TaskAnalysis,
+  analysis: PlannerTaskAnalysis,
   scenario: CostScenario,
 ): InvocationTokenScenario {
   return {
@@ -85,7 +85,7 @@ export function invocationTokensForScenario(
 
 export function validateTaskModelFeasibility(
   model: ProviderModelPrice,
-  analysis: TaskAnalysis,
+  analysis: PlannerTaskAnalysis,
 ): {
   feasible: boolean;
   scenarios: ScenarioInvocationFeasibility[];

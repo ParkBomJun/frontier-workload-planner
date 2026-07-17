@@ -3,14 +3,18 @@ import {
   PROVIDER_PRICING_BASIS,
   PROVIDER_PRICING_EXCLUSIONS,
 } from "@/config/provider-catalog";
+import { resolveExportAnalysisContract } from "@/lib/export/analysis-contract";
+import { isBestFitTaskAnalysis } from "@/lib/planning/workload-requirements";
 import { MODEL_TIERS, PROVIDER_IDS, type PlanExportContext } from "@/types/domain";
 
-export const PLAN_JSON_SCHEMA_VERSION = 3;
+export const LEGACY_PLAN_JSON_SCHEMA_VERSION = 3;
+export const PLAN_JSON_SCHEMA_VERSION = 4;
 
 export function createPlanJson(
   context: PlanExportContext,
   exportedAt = new Date().toISOString(),
 ): string {
+  const { identity: analysisContract, isBestFit } = resolveExportAnalysisContract(context);
   const catalog = Object.fromEntries(
     PROVIDER_IDS.map((providerId) => {
       const provider = PROVIDER_CATALOG[providerId];
@@ -54,31 +58,54 @@ export function createPlanJson(
       ];
     }),
   );
-  const inputTasks = context.sourceTasks.map((task) => ({
-    id: task.id,
-    name: task.name,
-    description: task.description,
-    priority: task.priority,
-  }));
+  const inputTasks = context.sourceTasks.map((task) =>
+    isBestFit
+      ? {
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          priority: task.priority,
+          deadlineDate: task.deadlineDate,
+          failureImpact: task.failureImpact,
+        }
+      : {
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          priority: task.priority,
+        },
+  );
   const resultTasks = context.plan.tasks.map((task) => {
+    const bestFitAnalysis = isBestFitTaskAnalysis(task.analysis) ? task.analysis : null;
+    const legacyAnalysis = {
+      taskId: task.analysis.taskId,
+      taskType: task.analysis.taskType,
+      complexity: task.analysis.complexity,
+      reasoningDepth: task.analysis.reasoningDepth,
+      expectedIterations: task.analysis.expectedIterations,
+      estimatedInputSize: task.analysis.estimatedInputSize,
+      estimatedOutputSize: task.analysis.estimatedOutputSize,
+      uncertainty: task.analysis.uncertainty,
+      recommendedModelTier: task.analysis.recommendedModelTier,
+      riskFactors: task.analysis.riskFactors,
+      rationale: task.analysis.rationale,
+    };
     const base = {
       taskId: task.taskId,
       taskName: task.taskName,
       priority: task.priority,
       status: task.status,
-      analysis: {
-        taskId: task.analysis.taskId,
-        taskType: task.analysis.taskType,
-        complexity: task.analysis.complexity,
-        reasoningDepth: task.analysis.reasoningDepth,
-        expectedIterations: task.analysis.expectedIterations,
-        estimatedInputSize: task.analysis.estimatedInputSize,
-        estimatedOutputSize: task.analysis.estimatedOutputSize,
-        uncertainty: task.analysis.uncertainty,
-        recommendedModelTier: task.analysis.recommendedModelTier,
-        riskFactors: task.analysis.riskFactors,
-        rationale: task.analysis.rationale,
-      },
+      analysis:
+        isBestFit && bestFitAnalysis
+          ? {
+              ...legacyAnalysis,
+              workMode: bestFitAnalysis.workMode,
+              requiredQualityTier: bestFitAnalysis.requiredQualityTier,
+              requiredCapabilities: bestFitAnalysis.requiredCapabilities,
+              upgradeConditions: bestFitAnalysis.upgradeConditions,
+              failureRisk: bestFitAnalysis.failureRisk,
+            }
+          : legacyAnalysis,
       strategyTargetTier: task.strategyTargetTier,
       minimumExpectedCostUsd: task.minimumExpectedCostUsd,
     };
@@ -124,7 +151,9 @@ export function createPlanJson(
 
   return JSON.stringify(
     {
-      schemaVersion: PLAN_JSON_SCHEMA_VERSION,
+      schemaVersion: isBestFit
+        ? PLAN_JSON_SCHEMA_VERSION
+        : LEGACY_PLAN_JSON_SCHEMA_VERSION,
       exportedAt,
       product: "Frontier Workload Planner",
       claim: "Budget-aware recommended plan; not mathematical optimization.",
@@ -132,6 +161,12 @@ export function createPlanJson(
         mode: context.analysisMode,
         model: context.analysisModel,
         generatedAt: context.generatedAt,
+        ...(isBestFit
+          ? {
+              contractVersion: analysisContract.contractVersion,
+              compatibility: analysisContract.compatibility,
+            }
+          : {}),
       },
       input: {
         tasks: inputTasks,

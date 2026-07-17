@@ -7,13 +7,18 @@ import type {
   OfferingFeasibilityFailure,
   PlannedTask,
   PlanningSettings,
+  PlannerTaskAnalysis,
   ProviderId,
   ReasoningDepth,
-  TaskAnalysis,
   TaskInput,
   TaskPriority,
   Uncertainty,
 } from "@/types/domain";
+
+import {
+  clampTierToAnalysisMinimum,
+  minimumLegacyTierForAnalysis,
+} from "@/lib/planning/workload-requirements";
 
 import { estimateTaskCost, fromMicroUsd, toMicroUsd } from "./estimate-cost";
 import { validateTaskModelFeasibility } from "./invocation-feasibility";
@@ -44,7 +49,7 @@ const PRIORITY_ORDER: Record<TaskPriority, number> = {
 interface WorkingTask {
   index: number;
   task: TaskInput;
-  analysis: TaskAnalysis;
+  analysis: PlannerTaskAnalysis;
   strategyTargetTier: ModelTier;
   compatibleTiers: ModelTier[];
   initialTier: ModelTier | null;
@@ -254,7 +259,11 @@ function resetActiveTiers(working: WorkingTask[]): void {
   });
 }
 
-function assertInputs(tasks: TaskInput[], analyses: TaskAnalysis[], settings: PlanningSettings): void {
+function assertInputs(
+  tasks: TaskInput[],
+  analyses: PlannerTaskAnalysis[],
+  settings: PlanningSettings,
+): void {
   if (!Number.isFinite(settings.budgetUsd) || settings.budgetUsd < 0.01 || settings.budgetUsd > 10_000) {
     throw new Error("Budget must be at least 0.01 and at most 10,000 USD.");
   }
@@ -278,7 +287,7 @@ function assertInputs(tasks: TaskInput[], analyses: TaskAnalysis[], settings: Pl
 
 export function allocateBudget(
   tasks: TaskInput[],
-  analyses: TaskAnalysis[],
+  analyses: PlannerTaskAnalysis[],
   settings: PlanningSettings,
   providerId: ProviderId = "openai",
 ): BudgetAllocationPlan {
@@ -291,14 +300,21 @@ export function allocateBudget(
   const working: WorkingTask[] = tasks.map((task, index) => {
     const analysis = analysisById.get(task.id);
     if (!analysis) throw new Error(`Missing analysis for task ${task.id}.`);
-    const target = strategyTargetTier(analysis.recommendedModelTier, settings.strategy);
+    const target = clampTierToAnalysisMinimum(
+      strategyTargetTier(analysis.recommendedModelTier, settings.strategy),
+      analysis,
+    );
+    const minimumTier = minimumLegacyTierForAnalysis(analysis);
+    const minimumTierIndex = minimumTier === null ? 0 : TIER_ORDER.indexOf(minimumTier);
     const offeringResults = TIER_ORDER.map((tier) => {
       const model = PROVIDER_CATALOG[providerId].models[tier];
       const result = validateTaskModelFeasibility(model, analysis);
       return { tier, model, result };
     });
     const compatibleTiers = offeringResults
-      .filter(({ result }) => result.feasible)
+      .filter(
+        ({ tier, result }) => result.feasible && TIER_ORDER.indexOf(tier) >= minimumTierIndex,
+      )
       .map(({ tier }) => tier);
     const initialTier = initialCompatibleTier(target, compatibleTiers);
     const offeringFailures = offeringResults
@@ -370,7 +386,7 @@ export function allocateBudget(
   }
   if (infeasibleTaskCount > 0) {
     warnings.push(
-      `${infeasibleTaskCount}개 작업은 모든 카탈로그 모델의 호출 한도를 벗어나 실행 불가로 표시했습니다.`,
+      `${infeasibleTaskCount}개 작업은 최소 품질과 호출 한도를 함께 만족하는 모델이 없어 실행 불가로 표시했습니다.`,
     );
   }
   if (limitReassignedTaskCount > 0) {

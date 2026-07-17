@@ -14,6 +14,8 @@ const largeTask: TaskInput = {
   name: "Large generation",
   description: "A single large prompt and response.",
   priority: "high",
+  deadlineDate: null,
+  failureImpact: "medium",
 };
 
 const largeAnalysis: TaskAnalysis = {
@@ -26,6 +28,11 @@ const largeAnalysis: TaskAnalysis = {
   estimatedOutputSize: "xl",
   uncertainty: "medium",
   recommendedModelTier: "economy",
+  workMode: "interactive",
+  requiredQualityTier: "economy",
+  requiredCapabilities: [],
+  upgradeConditions: [],
+  failureRisk: "medium",
   riskFactors: [],
   rationale: "Limit regression fixture",
 };

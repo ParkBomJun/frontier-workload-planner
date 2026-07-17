@@ -1,9 +1,9 @@
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import type {
   ModelTier,
+  PlannerTaskAnalysis,
   ProviderId,
   ScenarioEstimate,
-  TaskAnalysis,
   TaskCostEstimate,
 } from "@/types/domain";
 
@@ -28,7 +28,7 @@ export function fromMicroUsd(valueMicroUsd: number): number {
 }
 
 function estimateScenario(
-  analysis: TaskAnalysis,
+  analysis: PlannerTaskAnalysis,
   tier: ModelTier,
   scenario: Scenario,
   providerId: ProviderId,
@@ -51,7 +51,7 @@ function estimateScenario(
 }
 
 export function estimateTaskCost(
-  analysis: TaskAnalysis,
+  analysis: PlannerTaskAnalysis,
   tier: ModelTier,
   providerId: ProviderId = "openai",
 ): TaskCostEstimate {

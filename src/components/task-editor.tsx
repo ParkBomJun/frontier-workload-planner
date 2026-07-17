@@ -7,6 +7,7 @@ import {
   MAX_TASKS,
 } from "@/lib/ai/schema";
 import type { TaskInput, TaskPriority } from "@/types/domain";
+import type { FailureImpact } from "@/types/workload";
 
 interface TaskEditorProps {
   tasks: TaskInput[];
@@ -16,6 +17,8 @@ interface TaskEditorProps {
   onRemove: (taskId: string) => void;
   onChange: (taskId: string, field: "name" | "description", value: string) => void;
   onPriorityChange: (taskId: string, priority: TaskPriority) => void;
+  onDeadlineChange: (taskId: string, deadlineDate: string | null) => void;
+  onFailureImpactChange: (taskId: string, failureImpact: FailureImpact) => void;
   onLoadSample: () => void;
 }
 
@@ -27,6 +30,8 @@ export function TaskEditor({
   onRemove,
   onChange,
   onPriorityChange,
+  onDeadlineChange,
+  onFailureImpactChange,
   onLoadSample,
 }: TaskEditorProps) {
   const { copy } = useLanguage();
@@ -114,23 +119,71 @@ export function TaskEditor({
                   ) : null}
                 </label>
 
-                <label htmlFor={`task-priority-${task.id}`} className="block min-w-0 sm:max-w-56">
-                  <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.priorityLabel}</span>
-                  <select
-                    id={`task-priority-${task.id}`}
-                    value={task.priority}
-                    onChange={(event) =>
-                      onPriorityChange(task.id, event.target.value as TaskPriority)
-                    }
-                    disabled={disabled}
-                    aria-describedby="task-priority-help"
-                    className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base font-semibold text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="high">{copy.enums.priority.high}</option>
-                    <option value="medium">{copy.enums.priority.medium}</option>
-                    <option value="low">{copy.enums.priority.low}</option>
-                  </select>
-                </label>
+                <div className="grid min-w-0 gap-4 sm:grid-cols-3">
+                  <label htmlFor={`task-priority-${task.id}`} className="block min-w-0">
+                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.priorityLabel}</span>
+                    <select
+                      id={`task-priority-${task.id}`}
+                      value={task.priority}
+                      onChange={(event) =>
+                        onPriorityChange(task.id, event.target.value as TaskPriority)
+                      }
+                      disabled={disabled}
+                      aria-describedby="task-priority-help"
+                      className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base font-semibold text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="high">{copy.enums.priority.high}</option>
+                      <option value="medium">{copy.enums.priority.medium}</option>
+                      <option value="low">{copy.enums.priority.low}</option>
+                    </select>
+                  </label>
+
+                  <label htmlFor={`task-deadline-${task.id}`} className="block min-w-0">
+                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.deadlineLabel}</span>
+                    <input
+                      id={`task-deadline-${task.id}`}
+                      type="date"
+                      value={task.deadlineDate ?? ""}
+                      onChange={(event) =>
+                        onDeadlineChange(task.id, event.target.value || null)
+                      }
+                      disabled={disabled}
+                      aria-describedby={`task-deadline-help-${task.id}`}
+                      className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                    <span
+                      id={`task-deadline-help-${task.id}`}
+                      className="mt-1.5 block text-xs leading-5 text-[#68766e]"
+                    >
+                      {taskCopy.deadlineHelp}
+                    </span>
+                  </label>
+
+                  <label htmlFor={`task-failure-impact-${task.id}`} className="block min-w-0">
+                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.failureImpactLabel}</span>
+                    <select
+                      id={`task-failure-impact-${task.id}`}
+                      value={task.failureImpact}
+                      onChange={(event) =>
+                        onFailureImpactChange(task.id, event.target.value as FailureImpact)
+                      }
+                      disabled={disabled}
+                      aria-describedby={`task-failure-impact-help-${task.id}`}
+                      className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base font-semibold text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="high">{copy.enums.failureImpact.high}</option>
+                      <option value="medium">{copy.enums.failureImpact.medium}</option>
+                      <option value="low">{copy.enums.failureImpact.low}</option>
+                      <option value="unspecified">{copy.enums.failureImpact.unspecified}</option>
+                    </select>
+                    <span
+                      id={`task-failure-impact-help-${task.id}`}
+                      className="mt-1.5 block text-xs leading-5 text-[#68766e]"
+                    >
+                      {taskCopy.failureImpactHelp}
+                    </span>
+                  </label>
+                </div>
 
                 <label htmlFor={descriptionId} className="block min-w-0">
                   <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-[#34443b]">

@@ -5,20 +5,20 @@ import type {
   ModelTier,
   ProviderId,
 } from "./domain";
+import type {
+  CapabilityId,
+  PlanningQualityTier,
+  WorkSurface,
+} from "./workload";
 
-export const PLANNING_QUALITY_TIERS = ["economy", "balanced", "premium"] as const;
-export const CAPABILITY_IDS = [
-  "vision-input",
-  "file-input",
-  "code-editing",
-  "structured-output",
-  "tool-use",
-] as const;
-export const WORK_SURFACES = ["chat", "ide-cli", "batch"] as const;
-
-export type PlanningQualityTier = (typeof PLANNING_QUALITY_TIERS)[number];
-export type CapabilityId = (typeof CAPABILITY_IDS)[number];
-export type WorkSurface = (typeof WORK_SURFACES)[number];
+export {
+  CAPABILITY_IDS,
+  PLANNING_QUALITY_TIERS,
+  WORK_SURFACES,
+  type CapabilityId,
+  type PlanningQualityTier,
+  type WorkSurface,
+} from "./workload";
 
 declare const accessProviderIdBrand: unique symbol;
 export type AccessProviderId = string & {

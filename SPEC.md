@@ -14,7 +14,7 @@ heuristic, not a quality ranking, benchmark, quote, or mathematically optimal al
 ## Fixed MVP scope
 
 - One-page workflow with up to eight tasks
-- User-owned High / Medium / Low priority for every task
+- User-owned High / Medium / Low priority, optional date-only deadline, and bounded failure impact for every task
 - One GPT-5.6 request for all tasks
 - GPT recommends a model tier, never a concrete model or price
 - Program maps the same tier to one model in each supported provider catalog
@@ -40,10 +40,11 @@ an objective order between vendors.
 ## Feature branch target — not production yet
 
 Stable `main` remains the production release at <https://frontier-workload-planner.vercel.app>.
-The following provider-comparison extension belongs to `feature/provider-comparison` and must not
-be described as deployed until it is verified, merged, and redeployed:
+The following provider-comparison and workload-contract extension belongs to
+`feature/best-fit-offerings` and must not be described as deployed until it is verified, merged,
+and redeployed:
 
-1. One to eight task names, descriptions, and user priorities in a single-page UI.
+1. One to eight task names, descriptions, user priorities, optional date-only deadlines, and bounded failure impacts in a single-page UI.
 2. Budget, reference deadline, and planning-strategy controls.
 3. Explicit Mock or Live submission to `POST /api/analyze`.
 4. Server-side validation and one GPT-5.6 Responses API Structured Output for all tasks.
@@ -64,8 +65,9 @@ be described as deployed until it is verified, merged, and redeployed:
 | Reasoning depth | Provider catalog and standard-text pricing lookup |
 | Expected iterations (1–5) | Low / Expected / High cost |
 | Input and output size bands | Budget-aware allocation rules |
-| Uncertainty and risk factors | Budget warnings and chart values |
-| Recommended model tier | Currency formatting and totals |
+| Uncertainty, failure risk, and risk factors | Budget warnings and chart values |
+| Recommended model tier and hard minimum planning quality | Currency formatting and totals |
+| Work mode, required capabilities, and closed upgrade conditions | Work-mode/surface compatibility and deterministic trigger rules |
 | — | Per-provider totals, budget fit, and active/held/infeasible counts |
 | — | Invocation feasibility, user priority, tier downgrades, and held-work selection |
 
@@ -83,11 +85,17 @@ re-analysis.
 - `tasks[].name`: 1–100 characters
 - `tasks[].description`: 1–2,000 characters
 - `tasks[].priority`: `high | medium | low`
+- `tasks[].deadlineDate`: nullable ISO calendar date (`YYYY-MM-DD`), with no time-zone conversion
+- `tasks[].failureImpact`: `low | medium | high | unspecified`; new tasks start visibly at `medium`
 - Entire JSON request: at most 96 KiB in UTF-8
 
 Unknown keys are rejected.
 
-### Structured GPT output per task
+### Structured GPT output v2
+
+- `contractVersion`: exact document discriminator `best-fit-analysis-v2`
+
+Per task:
 
 - `taskId`: exact input ID
 - `taskType`: `software-development | research | writing | data-analysis | planning | creative | multimodal | other`
@@ -98,6 +106,11 @@ Unknown keys are rejected.
 - `estimatedOutputSize`: `xs | s | m | l | xl`
 - `uncertainty`: `low | medium | high`
 - `recommendedModelTier`: `economy | balanced | frontier`
+- `workMode`: `interactive | coding-agent | batch`
+- `requiredQualityTier`: `economy | balanced | premium`
+- `requiredCapabilities`: closed `CapabilityId[]`
+- `upgradeConditions`: `deep-reasoning | large-code-change` values only
+- `failureRisk`: `low | medium | high`
 - `riskFactors`: 0–3 short strings
 - `rationale`: at most two short sentences
 
@@ -206,6 +219,13 @@ Planning controls accept a budget from $0.01 through $10,000, a reference deadli
 - `balanced`: begin at GPT's recommendation
 - `quality-first`: begin one tier above GPT's recommendation, clamped at Frontier
 
+For `best-fit-analysis-v2`, all three targets are additionally clamped at the hard
+`requiredQualityTier` floor (`premium` maps to the legacy `frontier` catalog position). Neither
+initial selection nor budget relief may cross below that floor. A restored `api-analysis-v1`
+snapshot has no fabricated floor and retains the reviewed historical strategy behavior. The
+trigger-bound final Quality First route policy remains checkpoint 6 work; this checkpoint only
+protects the newly explicit minimum.
+
 The engine builds a complete independent allocation for every provider from the same task and GPT
 analysis snapshots. Selecting a product family only chooses which existing plan is displayed; it
 does not call `/api/analyze` or a vendor API.
@@ -222,19 +242,28 @@ The deadline is reference information. It does not alter token estimates, costs,
 
 The app keeps at most one recent successful scenario under the fixed browser key `frontier-workload-planner:recent-scenario`. A new successful analysis overwrites the previous record. A valid settings or provider-selection change updates the record without another GPT request.
 
-Stored schema version 3 contains only:
+Stored schema version 4 contains only:
 
 - `schemaVersion` and `savedAt`
 - `selectedProvider`: `openai | anthropic | google`
-- the submitted task names, descriptions, and priorities
+- submitted task names, descriptions, priorities, nullable `deadlineDate`, and bounded `failureImpact`
 - valid budget, deadline, and strategy settings
-- the sanitized successful analysis response
+- one discriminated `analysisSnapshot`: either unchanged `api-analysis-v1` / `legacy-api-only` data or a validated `best-fit-analysis-v2` / `best-fit` response
 
 Derived provider comparisons and `BudgetAllocationPlan` objects are not stored. Restore validates the full schema, unique task IDs, and exact task/analysis order, then recalculates all provider plans with the current catalog and calculation rules. Restore never calls `/api/analyze` and never triggers Live analysis.
 
-Valid schema version 1 records are migrated by assigning `medium` priority and selecting OpenAI.
-Valid schema version 2 records retain their priorities and select OpenAI. Both are rewritten as v3
-on a best-effort basis. Malformed JSON or a damaged current-version record is ignored and removed. An unknown future schema version is preserved but not loaded. Storage access or quota errors remain non-blocking, and the user can explicitly delete the record. After deletion, settings-only or provider-selection edits do not recreate it; only another successful analysis enables recent-scenario persistence again.
+Historical v1/v2/v3 parsers are frozen and own their literal enums, limits, task, settings, response,
+and analysis shapes without importing live schemas. Migration is sequential: v1 adds only the
+approved `medium` priority, v2 adds only the approved OpenAI selection, and v3 wraps its response
+unchanged as `legacy-api-only` while adding `deadlineDate: null` and `failureImpact: unspecified`.
+No GPT-derived v2 field is invented. A legacy snapshot remains on the reviewed API-only planner
+until the user explicitly runs Mock or Live analysis; restore itself never calls the API.
+
+Malformed JSON or a record rejected by its own declared-version parser is removed. If historical
+parsing succeeds but adaptation, target validation, or rewrite fails, the original bytes remain
+untouched and the app returns a recoverable migration state; a validated in-memory migration still
+loads when storage rewriting is blocked. An unknown future version is preserved but not loaded.
+Storage access or quota errors remain non-blocking, and the user can explicitly delete the record.
 
 Task content is stored as plaintext in the current browser origin. API keys, prompts, raw provider errors, and server configuration are never included.
 The form discloses this automatic plaintext save before its submit button, while the result notice reports save success or failure and provides deletion.
@@ -243,7 +272,7 @@ The form discloses this automatic plaintext save before its submit button, while
 
 The single-page interface supports `ko`, `en`, and `ja`, with Korean as the server-rendered default.
 The selected locale is stored independently under `frontier-workload-planner:locale`; it is not part
-of recent-scenario schema v3 and does not trigger analysis, pricing, or allocation work. A valid
+of recent-scenario schema v4 and does not trigger analysis, pricing, or allocation work. A valid
 stored locale updates the interface and `<html lang>` after hydration. Invalid values and storage
 failures are ignored without blocking the planner.
 
@@ -258,7 +287,19 @@ locale only when the user explicitly loads them.
 
 Markdown copy and JSON export use the currently selected provider plan, including any valid local recalculation after analysis. Both include original task descriptions, analysis metadata, selected-provider Low / Expected / High results, task allocations, all three provider summaries, warnings, source URLs, verification date, price conditions, exclusions, and the heuristic/non-optimization disclaimer. Human-readable Markdown labels and explanations follow the current UI locale; user and GPT content remains unchanged.
 
-JSON uses schema version 3 and an explicit allowlist projection rather than serializing application state wholesale. JSON keys, enums, and schema values are locale-independent. Its pricing snapshot records the three catalogs, provider-native invocation limits, limit sources, and verification dates used for the comparison, not a promise that those APIs were called. Both formats include selected provider, priority and active/held/infeasible status. Held and infeasible allocations use explicit `null` model/cost values; infeasible entries also preserve `no-compatible-offering` and the structured per-model scenario failures. Markdown uses em dashes instead of inventing a model or cost and prints the localized failure reasons. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
+JSON uses an explicit allowlist projection rather than serializing application state wholesale.
+Historical `api-analysis-v1` plans retain unchanged JSON schema version 3. A
+`best-fit-analysis-v2` workload uses JSON schema version 4 so its task deadline, failure impact,
+work mode, hard minimum quality, required capabilities, upgrade conditions, and failure risk are
+not silently omitted. Markdown adds the same workload contract fields with localized labels.
+JSON keys, enums, and schema values are locale-independent. Its pricing snapshot records the three
+catalogs, provider-native invocation limits, limit sources, and verification dates used for the
+comparison, not a promise that those APIs were called. Both formats include selected provider,
+priority and active/held/infeasible status. Held and infeasible allocations use explicit `null`
+model/cost values; infeasible entries also preserve `no-compatible-offering` and structured
+per-model scenario failures. The filename uses only a UTC timestamp. Markdown escapes table
+delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation
+errors are isolated to the export controls.
 
 Exports contain task descriptions and leave the app through the clipboard or a local file. They never contain `OPENAI_API_KEY` or another server secret.
 
@@ -843,19 +884,20 @@ fallback that exceeds the incremental-cash budget becomes held with
 task, plan, Markdown, and JSON results so enumeration order cannot choose a resource or rewrite an
 explanation.
 
-The existing machine value `frontier` remains unchanged in GPT output, LocalStorage v3, JSON v3,
-Mock fixtures, and current UI. A future adapter may interpret that legacy planning position as
-`premium`, but the names are not interchangeable until a versioned schema migration is implemented.
-Likewise, the current `recommendedModelTier` is a heuristic recommendation, not the future hard
-minimum `requiredQualityTier`.
+The legacy machine value `frontier` remains unchanged in `recommendedModelTier`, frozen
+LocalStorage v1/v2/v3 responses, legacy JSON v3, Mock v2 fixtures, and current UI labels.
+`requiredQualityTier` is a separate v2 hard floor using `premium`; it does not rename or reinterpret
+the heuristic recommendation field. The deterministic compatibility mapping uses
+`premium` → legacy catalog position `frontier` only where a floor must be enforced.
 
-Checkpoint 2 keeps that adapter passive. It preserves immutable, reference-independent v1 and v2
+The checkpoint-2 Offering adapter remains passive. It preserves immutable, reference-independent v1 and v2
 snapshots behind exact `(catalogId, catalogVersion)` lookup. The v1 canonical manifest has a fixed
 SHA-256 golden; changing catalog facts requires a new snapshot version rather than editing a
 published version. Evidence authority includes its exact catalog ID, version, entry, claim, subject,
 field, and value, so equal values in two versions are not interchangeable. Legacy projection accepts
-only a canonical provider/tier lookup and never caller-supplied resolved values. The live allocator,
-UI, LocalStorage, and exports continue to use the reviewed API-only path. The provider-published
+only a canonical provider/tier lookup and never caller-supplied resolved values. Checkpoint 3 adds
+the workload contract and floor to the reviewed API-only allocator without promoting those adapted
+Offerings into Best-fit routes. The provider-published
 model identity claim does not contain the planner-authored
 quality tier; a separately named resolver verifies the versioned `frontier` → `premium` heuristic
 adapter. Because the current catalog contains no versioned capability claims, adapted
@@ -873,13 +915,13 @@ reproduce the plan. Arbitrary API providers and models remain out of scope.
 
 | Existing seam | Ver3 reuse and transition |
 | --- | --- |
-| `TaskInput`, `TaskAnalysis`, size bands, and iterations | Preserve as the stable analysis snapshot until the GPT contract receives its own versioned extension. |
+| `TaskInput`, `TaskAnalysis`, size bands, and iterations | Checkpoint 3 adds the versioned workload extension while preserving the frozen v1 analysis shape for legacy API-only snapshots. |
 | `PROVIDER_CATALOG` / `ProviderModelPrice` | Keep as the current API data source and adapt it into model definitions plus resolved API offerings; do not replace it in one rewrite. |
 | `validateInvocationFeasibility` | Reuse the pure Low / Expected / High check, later accepting resolved invocation limits instead of a combined catalog object. |
 | `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
 | `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
 | `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
-| source-only LocalStorage | Keep source-only storage, but freeze v1/v2/v3 parsers and introduce the next storage version before or atomically with the first task/GPT contract change. |
+| source-only LocalStorage | Version 4 freezes v1/v2/v3 parsers and atomically stores either the legacy or v2 workload analysis snapshot. |
 | allowlisted JSON and localized Markdown | Preserve projection and secret-safety rules; add a new result schema only when the result meaning actually expands. |
 
 The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
@@ -888,8 +930,9 @@ storage snapshot atomically; add subscription offering evaluation; add the combi
 orchestrator; then migrate UI and exports. The current API-only calculation and
 `compareProviderPlans` must not be deleted or silently change meaning before parity tests pass.
 
-JSON v3 remains the historical API-only result contract; a new export version will be introduced
-instead of changing v3 in place. Derived plans and routes remain recalculated rather than persisted.
+JSON v3 remains the historical API-only result contract. JSON v4 carries the expanded v2 workload
+meaning without changing v3 in place. Derived plans and routes remain recalculated rather than
+persisted.
 
 ### Storage-version safety gate
 
@@ -902,7 +945,7 @@ task, settings, provider, response, analysis, enum, and length-limit schema. The
 compose mutable live schemas such as `taskInputSchema`, `taskAnalysisSchema`,
 `analysisDocumentSchema`, current provider/strategy enums, or the current success-response schema.
 
-The next storage version uses an explicit analysis snapshot union:
+Storage version 4 uses an explicit analysis snapshot union:
 
 ```ts
 type StoredAnalysisSnapshot =
@@ -920,7 +963,7 @@ type StoredAnalysisSnapshot =
 
 Migration is sequential: v1 retains the approved Medium-priority adaptation into v2; v2 retains
 the approved OpenAI selection into v3; v3 wraps its unchanged response as a `legacy-api-only`
-snapshot in the next version. Later source-state versions extend this chain. A legacy snapshot can
+snapshot in v4. Later source-state versions extend this chain. A legacy snapshot can
 continue through the reviewed API-only planner, but it cannot enter Best-fit allocation until the
 user explicitly requests a new Mock or Live analysis. Restore never triggers analysis itself.
 
@@ -942,9 +985,11 @@ migration/reanalysis state. Unknown future versions also remain untouched. A mig
 the old value only after the entire target record validates; a write failure still permits in-memory
 legacy restoration.
 
-### Future GPT analysis boundary
+### Versioned GPT analysis boundary — checkpoint 3
 
-The existing Structured Output stays unchanged in checkpoint 1. A later version may add:
+Checkpoint 3 introduces `best-fit-analysis-v2` while retaining the frozen v1 response only inside
+legacy snapshots. `AnalyzeSuccessResponseV2` keeps `ok`, `mode`, `model`, `generatedAt`, and an
+analysis document containing the exact `contractVersion` plus the task array. Each v2 task adds:
 
 ```ts
 type UpgradeConditionCode = "deep-reasoning" | "large-code-change";
@@ -968,16 +1013,21 @@ token prices, translate subscription quota, compare providers, select an offerin
 final route.
 
 Capability and upgrade IDs are closed, versioned schema values. General text is a baseline rather
-than a capability; coding-agent and batch are surfaces; long-context eligibility comes from token
+than a capability; coding-agent and batch are work modes; long-context eligibility comes from token
 limits. Required capabilities must be a subset of the resolved eligibility profile. Unknown IDs
 are rejected, and free-form `riskFactors` remain explanation-only.
 
 The user separately owns `failureImpact: low | medium | high | unspecified`, which describes the
 consequence of failure rather than GPT's estimated likelihood. Every new task initializes to a
 visibly selected Medium; migrated legacy tasks use `unspecified` until the user confirms a value.
+`deadlineDate` is either `null` or an ISO calendar date in `YYYY-MM-DD` form. It intentionally has
+no time-of-day or time-zone conversion; new and migrated tasks begin with `null`. Checkpoint 3
+exposes these two source fields in the existing task editor so the Medium default is visible, while
+checkpoint 7 still owns their integration with the broader resource-input UI.
 The program derives `high-failure-exposure` only from High impact plus non-Low risk, and
 `deadline-retry-risk` only from an explicit task deadline plus High risk. It maps closed trigger
-codes to localized explanations; free-form text never activates premium headroom.
+codes to stable program-owned meaning; later route explanations may localize those codes, while
+free-form text never activates premium headroom.
 
 The initial surface crosswalk is explicit: `interactive` requires `chat`, `coding-agent` requires
 `ide-cli`, and `batch` requires `batch`. An offering is compatible only when its

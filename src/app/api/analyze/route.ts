@@ -141,7 +141,7 @@ export async function POST(request: Request) {
 
   const { mode, tasks } = parsedRequest;
   if (mode === "mock") {
-    return successResponse("mock", "mock-fixture-v1", createMockAnalysis(tasks));
+    return successResponse("mock", "mock-fixture-v2", createMockAnalysis(tasks));
   }
 
   if (process.env.ENABLE_LIVE_ANALYSIS !== "true") {

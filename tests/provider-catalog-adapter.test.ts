@@ -202,6 +202,8 @@ describe("provider catalog offering adapter", () => {
       name: "Adapter parity",
       description: "Current planner remains on its legacy catalog path.",
       priority: "high",
+      deadlineDate: null,
+      failureImpact: "medium",
     };
     const analysis: TaskAnalysis = {
       taskId: task.id,
@@ -213,6 +215,11 @@ describe("provider catalog offering adapter", () => {
       estimatedOutputSize: "m",
       uncertainty: "medium",
       recommendedModelTier: "balanced",
+      workMode: "interactive",
+      requiredQualityTier: "economy",
+      requiredCapabilities: [],
+      upgradeConditions: [],
+      failureRisk: "medium",
       riskFactors: [],
       rationale: "Parity fixture",
     };

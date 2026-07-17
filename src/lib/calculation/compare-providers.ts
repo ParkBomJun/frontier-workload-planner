@@ -2,9 +2,9 @@ import {
   PROVIDER_IDS,
   type BudgetAllocationPlan,
   type PlanningSettings,
+  type PlannerTaskAnalysis,
   type ProviderComparisonSummary,
   type ProviderId,
-  type TaskAnalysis,
   type TaskInput,
 } from "@/types/domain";
 
@@ -17,7 +17,7 @@ export interface ProviderPlanningResult {
 
 export function compareProviderPlans(
   tasks: TaskInput[],
-  analyses: TaskAnalysis[],
+  analyses: PlannerTaskAnalysis[],
   settings: PlanningSettings,
 ): ProviderPlanningResult {
   const plans = Object.fromEntries(

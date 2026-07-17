@@ -14,6 +14,8 @@ const validTask = {
   name: "API 오류 처리 구현",
   description: "서버 요청의 오류 상태를 사용자에게 명확하게 표시한다.",
   priority: "medium" as const,
+  deadlineDate: null,
+  failureImpact: "medium" as const,
 };
 
 describe("analyzeRequestSchema", () => {
@@ -35,6 +37,8 @@ describe("analyzeRequestSchema", () => {
       id: validTask.id,
       name: validTask.name,
       description: validTask.description,
+      deadlineDate: validTask.deadlineDate,
+      failureImpact: validTask.failureImpact,
     };
     expect(
       analyzeRequestSchema.safeParse({ mode: "mock", tasks: [withoutPriority] }).success,
@@ -47,11 +51,41 @@ describe("analyzeRequestSchema", () => {
     ).toBe(false);
   });
 
-  it("keeps user priority out of the GPT classification input", () => {
-    const input = buildAnalysisInput([{ ...validTask, priority: "high" }]);
+  it("keeps user-owned planning metadata out of the GPT classification input", () => {
+    const input = buildAnalysisInput([
+      {
+        ...validTask,
+        priority: "high",
+        deadlineDate: "2026-07-21",
+        failureImpact: "high",
+      },
+    ]);
 
     expect(input).toContain('"id": "task-1"');
     expect(input).not.toContain('"priority"');
+    expect(input).not.toContain('"deadlineDate"');
+    expect(input).not.toContain('"failureImpact"');
+  });
+
+  it("accepts a nullable date-only deadline and bounded failure impact", () => {
+    expect(
+      analyzeRequestSchema.safeParse({
+        mode: "mock",
+        tasks: [{ ...validTask, deadlineDate: "2026-07-21", failureImpact: "high" }],
+      }).success,
+    ).toBe(true);
+    expect(
+      analyzeRequestSchema.safeParse({
+        mode: "mock",
+        tasks: [{ ...validTask, deadlineDate: "2026-07-21T12:00:00Z" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      analyzeRequestSchema.safeParse({
+        mode: "mock",
+        tasks: [{ ...validTask, failureImpact: "critical" }],
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects empty and oversized task input", () => {
@@ -82,6 +116,7 @@ describe("analyzeRequestSchema", () => {
 describe("structured analysis schema", () => {
   it("accepts the mock fixture and preserves task identity", () => {
     const analysis = createMockAnalysis([validTask]);
+    expect(analysis.contractVersion).toBe("best-fit-analysis-v2");
     expect(analysisDocumentSchema.parse(analysis).tasks[0].taskId).toBe(validTask.id);
   });
 
@@ -93,6 +128,34 @@ describe("structured analysis schema", () => {
         estimatedInputSize: 4_000,
         riskFactors: ["one", "two", "three", "four"],
       }).success,
+    ).toBe(false);
+  });
+
+  it("rejects missing versions, unknown workload codes, and route or price decisions", () => {
+    const validDocument = createMockAnalysis([validTask]);
+    const valid = validDocument.tasks[0];
+
+    expect(
+      analysisDocumentSchema.safeParse({ tasks: validDocument.tasks }).success,
+    ).toBe(false);
+    expect(
+      taskAnalysisSchema.safeParse({ ...valid, requiredCapabilities: ["web-search"] }).success,
+    ).toBe(false);
+    expect(taskAnalysisSchema.safeParse({ ...valid, workMode: "agent" }).success).toBe(false);
+    expect(
+      taskAnalysisSchema.safeParse({ ...valid, requiredQualityTier: "frontier" }).success,
+    ).toBe(false);
+    expect(
+      taskAnalysisSchema.safeParse({ ...valid, upgradeConditions: ["use-premium"] }).success,
+    ).toBe(false);
+    expect(taskAnalysisSchema.safeParse({ ...valid, failureRisk: "critical" }).success).toBe(
+      false,
+    );
+    expect(
+      taskAnalysisSchema.safeParse({ ...valid, providerId: "openai" }).success,
+    ).toBe(false);
+    expect(
+      taskAnalysisSchema.safeParse({ ...valid, expectedCostUsd: 1 }).success,
     ).toBe(false);
   });
 });

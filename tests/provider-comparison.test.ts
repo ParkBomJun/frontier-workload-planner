@@ -14,12 +14,16 @@ const tasks: TaskInput[] = [
     name: "낮은 우선순위 작업",
     description: "비교 테스트 작업",
     priority: "low",
+    deadlineDate: null,
+    failureImpact: "medium",
   },
   {
     id: "task-high",
     name: "높은 우선순위 작업",
     description: "비교 테스트 작업",
     priority: "high",
+    deadlineDate: null,
+    failureImpact: "medium",
   },
 ];
 
@@ -33,6 +37,11 @@ const analyses: TaskAnalysis[] = tasks.map((task) => ({
   estimatedOutputSize: "m",
   uncertainty: "medium",
   recommendedModelTier: "balanced",
+  workMode: "interactive",
+  requiredQualityTier: "economy",
+  requiredCapabilities: [],
+  upgradeConditions: [],
+  failureRisk: "medium",
   riskFactors: [],
   rationale: "Shared GPT fixture",
 }));

@@ -21,6 +21,11 @@ const mediumTask: TaskAnalysis = {
   estimatedOutputSize: "m",
   uncertainty: "medium",
   recommendedModelTier: "balanced",
+  workMode: "interactive",
+  requiredQualityTier: "economy",
+  requiredCapabilities: [],
+  upgradeConditions: [],
+  failureRisk: "medium",
   riskFactors: [],
   rationale: "Fixture",
 };

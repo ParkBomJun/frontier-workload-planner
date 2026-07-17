@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { allocateBudget, strategyTargetTier } from "@/lib/calculation/allocate-budget";
 import {
   PROVIDER_IDS,
+  type LegacyTaskAnalysis,
   type PlanningSettings,
   type ProviderId,
   type TaskAnalysis,
@@ -15,12 +16,16 @@ const tasks: TaskInput[] = [
     name: "간단한 초안",
     description: "짧은 초안을 작성한다.",
     priority: "low",
+    deadlineDate: null,
+    failureImpact: "medium",
   },
   {
     id: "task-high",
     name: "핵심 설계",
     description: "중요한 시스템을 설계한다.",
     priority: "high",
+    deadlineDate: null,
+    failureImpact: "medium",
   },
 ];
 
@@ -34,6 +39,11 @@ const baseAnalysis: TaskAnalysis = {
   estimatedOutputSize: "m",
   uncertainty: "low",
   recommendedModelTier: "balanced",
+  workMode: "interactive",
+  requiredQualityTier: "economy",
+  requiredCapabilities: [],
+  upgradeConditions: [],
+  failureRisk: "medium",
   riskFactors: [],
   rationale: "Fixture",
 };
@@ -120,6 +130,8 @@ describe("allocateBudget", () => {
       name: `작업 ${index + 1}`,
       description: "Fixture",
       priority: "medium" as const,
+      deadlineDate: null,
+      failureImpact: "medium" as const,
     }));
     const threeAnalyses = threeTasks.map((task) => ({
       ...baseAnalysis,
@@ -337,6 +349,50 @@ describe("allocateBudget", () => {
     PROVIDER_IDS.forEach((providerId) => allocateBudget(tasks, analyses, settings, providerId));
 
     expect(analyses).toEqual(snapshot);
+  });
+
+  it("never lets Cost Saver cross a v2 hard minimum quality floor", () => {
+    const minimumBalanced = {
+      ...baseAnalysis,
+      requiredQualityTier: "balanced" as const,
+    };
+    const fitting = allocateBudget(
+      [tasks[0]],
+      [minimumBalanced],
+      { ...settings, budgetUsd: 0.2, strategy: "cost-saver" },
+    );
+    const constrained = allocateBudget(
+      [tasks[0]],
+      [minimumBalanced],
+      { ...settings, budgetUsd: 0.08, strategy: "cost-saver" },
+    );
+
+    expect(fitting.tasks[0]).toMatchObject({ status: "active", assignedTier: "balanced" });
+    expect(constrained.tasks[0]).toMatchObject({ status: "held", assignedTier: null });
+    expect(constrained.minimumExpectedCostUsd).toBe(0.2);
+  });
+
+  it("keeps the historical API-only strategy behavior for legacy analysis", () => {
+    const legacyAnalysis: LegacyTaskAnalysis = {
+      taskId: baseAnalysis.taskId,
+      taskType: baseAnalysis.taskType,
+      complexity: baseAnalysis.complexity,
+      reasoningDepth: baseAnalysis.reasoningDepth,
+      expectedIterations: baseAnalysis.expectedIterations,
+      estimatedInputSize: baseAnalysis.estimatedInputSize,
+      estimatedOutputSize: baseAnalysis.estimatedOutputSize,
+      uncertainty: baseAnalysis.uncertainty,
+      recommendedModelTier: baseAnalysis.recommendedModelTier,
+      riskFactors: baseAnalysis.riskFactors,
+      rationale: baseAnalysis.rationale,
+    };
+    const plan = allocateBudget(
+      [tasks[0]],
+      [legacyAnalysis],
+      { ...settings, budgetUsd: 0.08, strategy: "cost-saver" },
+    );
+
+    expect(plan.tasks[0]).toMatchObject({ status: "active", assignedTier: "economy" });
   });
 
   it("rejects duplicate task and analysis identities", () => {

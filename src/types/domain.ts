@@ -1,3 +1,12 @@
+import type {
+  CapabilityId,
+  FailureImpact,
+  FailureRisk,
+  PlanningQualityTier,
+  UpgradeConditionCode,
+  WorkMode,
+} from "./workload";
+
 export const TASK_TYPES = [
   "software-development",
   "research",
@@ -39,9 +48,11 @@ export interface TaskInput {
   name: string;
   description: string;
   priority: TaskPriority;
+  deadlineDate: string | null;
+  failureImpact: FailureImpact;
 }
 
-export interface TaskAnalysis {
+export interface LegacyTaskAnalysis {
   taskId: string;
   taskType: TaskType;
   complexity: Complexity;
@@ -55,8 +66,24 @@ export interface TaskAnalysis {
   rationale: string;
 }
 
+export interface TaskAnalysis extends LegacyTaskAnalysis {
+  workMode: WorkMode;
+  requiredQualityTier: PlanningQualityTier;
+  requiredCapabilities: CapabilityId[];
+  upgradeConditions: UpgradeConditionCode[];
+  failureRisk: FailureRisk;
+}
+
+export type PlannerTaskAnalysis = LegacyTaskAnalysis | TaskAnalysis;
+
 export interface AnalysisDocument {
+  contractVersion: "best-fit-analysis-v2";
   tasks: TaskAnalysis[];
+}
+export type AnalysisDocumentV2 = AnalysisDocument;
+
+export interface LegacyAnalysisDocument {
+  tasks: LegacyTaskAnalysis[];
 }
 
 export interface AnalyzeSuccessResponse {
@@ -66,6 +93,34 @@ export interface AnalyzeSuccessResponse {
   generatedAt: string;
   analysis: AnalysisDocument;
 }
+export type AnalyzeSuccessResponseV2 = AnalyzeSuccessResponse;
+
+export interface LegacyAnalyzeSuccessResponse {
+  ok: true;
+  mode: AnalysisMode;
+  model: string;
+  generatedAt: string;
+  analysis: LegacyAnalysisDocument;
+}
+
+export type StoredAnalysisSnapshot =
+  | {
+      contractVersion: "api-analysis-v1";
+      compatibility: "legacy-api-only";
+      response: LegacyAnalyzeSuccessResponse;
+    }
+  | {
+      contractVersion: "best-fit-analysis-v2";
+      compatibility: "best-fit";
+      response: AnalyzeSuccessResponse;
+    };
+
+type SnapshotContractIdentity<Snapshot extends StoredAnalysisSnapshot> =
+  Snapshot extends StoredAnalysisSnapshot
+    ? Pick<Snapshot, "contractVersion" | "compatibility">
+    : never;
+
+export type AnalysisContractIdentity = SnapshotContractIdentity<StoredAnalysisSnapshot>;
 
 export interface AnalyzeErrorResponse {
   ok: false;
@@ -134,7 +189,7 @@ interface PlannedTaskBase {
   taskId: string;
   taskName: string;
   priority: TaskPriority;
-  analysis: TaskAnalysis;
+  analysis: PlannerTaskAnalysis;
   strategyTargetTier: ModelTier;
   offeringFailures: OfferingFeasibilityFailure[];
 }
@@ -209,5 +264,6 @@ export interface PlanExportContext {
   providerComparisons: ProviderComparisonSummary[];
   analysisMode: AnalysisMode;
   analysisModel: string;
+  analysisContract: AnalysisContractIdentity;
   generatedAt: string;
 }

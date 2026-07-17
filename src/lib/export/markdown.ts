@@ -9,6 +9,8 @@ import {
   type UiCopy,
   type UiLocale,
 } from "@/lib/i18n/ui-copy";
+import { resolveExportAnalysisContract } from "@/lib/export/analysis-contract";
+import { isBestFitTaskAnalysis } from "@/lib/planning/workload-requirements";
 import { MODEL_TIERS, PROVIDER_IDS, type PlanExportContext } from "@/types/domain";
 
 interface MarkdownLocaleCopy {
@@ -16,6 +18,7 @@ interface MarkdownLocaleCopy {
   analysisInformation: string;
   analysisMode: string;
   analysisModel: string;
+  analysisContract: string;
   analyzedAt: string;
   totalBudget: string;
   referenceDeadline: string;
@@ -44,6 +47,13 @@ interface MarkdownLocaleCopy {
   description: string;
   missingDescription: string;
   userPriority: string;
+  taskDeadline: string;
+  failureImpact: string;
+  workMode: string;
+  minimumQuality: string;
+  requiredCapabilities: string;
+  upgradeConditions: string;
+  failureRisk: string;
   allocationStatus: string;
   classification: string;
   complexity: string;
@@ -84,6 +94,7 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     analysisInformation: "분석 정보",
     analysisMode: "분석 모드",
     analysisModel: "분석 모델",
+    analysisContract: "분석 계약",
     analyzedAt: "분석 시각",
     totalBudget: "전체 예산",
     referenceDeadline: "참고 기한",
@@ -112,6 +123,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     description: "설명",
     missingDescription: "저장된 설명 없음",
     userPriority: "사용자 우선순위",
+    taskDeadline: "작업 기한",
+    failureImpact: "실패 영향",
+    workMode: "작업 모드",
+    minimumQuality: "최소 품질",
+    requiredCapabilities: "필수 기능",
+    upgradeConditions: "상향 조건",
+    failureRisk: "실패 가능성",
     allocationStatus: "배분 상태",
     classification: "분류",
     complexity: "복잡도",
@@ -153,6 +171,7 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     analysisInformation: "Analysis information",
     analysisMode: "Analysis mode",
     analysisModel: "Analysis model",
+    analysisContract: "Analysis contract",
     analyzedAt: "Analyzed at",
     totalBudget: "Total budget",
     referenceDeadline: "Reference deadline",
@@ -181,6 +200,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     description: "Description",
     missingDescription: "No saved description",
     userPriority: "User priority",
+    taskDeadline: "Task deadline",
+    failureImpact: "Failure impact",
+    workMode: "Work mode",
+    minimumQuality: "Minimum quality",
+    requiredCapabilities: "Required capabilities",
+    upgradeConditions: "Upgrade conditions",
+    failureRisk: "Failure risk",
     allocationStatus: "Allocation status",
     classification: "Classification",
     complexity: "complexity",
@@ -222,6 +248,7 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     analysisInformation: "分析情報",
     analysisMode: "分析モード",
     analysisModel: "分析モデル",
+    analysisContract: "分析契約",
     analyzedAt: "分析日時",
     totalBudget: "総予算",
     referenceDeadline: "参考期限",
@@ -250,6 +277,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     description: "説明",
     missingDescription: "保存済みの説明なし",
     userPriority: "ユーザー優先度",
+    taskDeadline: "タスク期限",
+    failureImpact: "失敗時の影響",
+    workMode: "作業モード",
+    minimumQuality: "最低品質",
+    requiredCapabilities: "必須機能",
+    upgradeConditions: "上位化条件",
+    failureRisk: "失敗確率",
     allocationStatus: "配分状態",
     classification: "分類",
     complexity: "複雑度",
@@ -339,6 +373,7 @@ export function createPlanMarkdown(
   context: PlanExportContext,
   locale: UiLocale = "ko",
 ): string {
+  const { identity: analysisContract, isBestFit } = resolveExportAnalysisContract(context);
   const { sourceTasks, plan, analysisMode, analysisModel, generatedAt } = context;
   const ui = UI_COPY[locale];
   const copy = MARKDOWN_COPY[locale];
@@ -353,6 +388,11 @@ export function createPlanMarkdown(
     "",
     `- ${copy.analysisMode}: ${labelWithEnum(ui.enums.analysisMode[analysisMode], analysisMode)}`,
     `- ${copy.analysisModel}: \`${analysisModel}\``,
+    ...(isBestFit
+      ? [
+          `- ${copy.analysisContract}: \`${analysisContract.contractVersion}\` / \`${analysisContract.compatibility}\``,
+        ]
+      : []),
     `- ${copy.analyzedAt}: ${formatTimestamp(generatedAt)}`,
     `- ${copy.totalBudget}: ${formatUsd(plan.settings.budgetUsd)}`,
     `- ${copy.referenceDeadline}: ${copy.days(plan.settings.deadlineDays)}`,
@@ -449,6 +489,18 @@ export function createPlanMarkdown(
       `- ${copy.uncertainty}: ${labelWithEnum(ui.enums.uncertainty[task.analysis.uncertainty], task.analysis.uncertainty)}`,
       `- ${copy.rationale}: ${escapeMarkdownCell(task.analysis.rationale)}`,
     );
+
+    if (isBestFitTaskAnalysis(task.analysis)) {
+      lines.push(
+        `- ${copy.taskDeadline}: ${sourceTask?.deadlineDate ?? ui.common.none}`,
+        `- ${copy.failureImpact}: ${sourceTask ? labelWithEnum(ui.enums.failureImpact[sourceTask.failureImpact], sourceTask.failureImpact) : ui.common.none}`,
+        `- ${copy.workMode}: \`${task.analysis.workMode}\``,
+        `- ${copy.minimumQuality}: \`${task.analysis.requiredQualityTier}\``,
+        `- ${copy.requiredCapabilities}: ${task.analysis.requiredCapabilities.length ? task.analysis.requiredCapabilities.map((capability) => `\`${capability}\``).join(", ") : ui.common.none}`,
+        `- ${copy.upgradeConditions}: ${task.analysis.upgradeConditions.length ? task.analysis.upgradeConditions.map((condition) => `\`${condition}\``).join(", ") : ui.common.none}`,
+        `- ${copy.failureRisk}: \`${task.analysis.failureRisk}\``,
+      );
+    }
 
     if (task.status === "infeasible") {
       lines.push(

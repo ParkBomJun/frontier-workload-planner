@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "savedAt": "2026-07-16T09:01:00.000Z",
+  "tasks": [
+    {
+      "id": "legacy-task-1",
+      "name": "Legacy API design",
+      "description": "Design a small validated API.",
+      "priority": "high"
+    }
+  ],
+  "settings": {
+    "budgetUsd": 5,
+    "deadlineDays": 7,
+    "strategy": "balanced"
+  },
+  "response": {
+    "ok": true,
+    "mode": "mock",
+    "model": "mock-fixture-v1",
+    "generatedAt": "2026-07-16T09:00:00.000Z",
+    "analysis": {
+      "tasks": [
+        {
+          "taskId": "legacy-task-1",
+          "taskType": "software-development",
+          "complexity": "medium",
+          "reasoningDepth": "moderate",
+          "expectedIterations": 2,
+          "estimatedInputSize": "m",
+          "estimatedOutputSize": "m",
+          "uncertainty": "medium",
+          "recommendedModelTier": "balanced",
+          "riskFactors": ["Acceptance criteria may change."],
+          "rationale": "A balanced tier fits this scoped legacy fixture."
+        }
+      ]
+    }
+  }
+}

@@ -18,16 +18,24 @@ import {
 import type {
   AnalysisMode,
   AnalyzeApiResponse,
-  AnalyzeSuccessResponse,
   PlanningSettings,
   PlanningStrategy,
   ProviderId,
+  StoredAnalysisSnapshot,
   TaskInput,
   TaskPriority,
 } from "@/types/domain";
+import type { FailureImpact } from "@/types/workload";
 
 const INITIAL_TASKS: TaskInput[] = [
-  { id: "task-1", name: "", description: "", priority: "medium" },
+  {
+    id: "task-1",
+    name: "",
+    description: "",
+    priority: "medium",
+    deadlineDate: null,
+    failureImpact: "medium",
+  },
 ];
 
 const INITIAL_SETTINGS: PlanningFormState = {
@@ -51,7 +59,7 @@ interface VisibleError {
 }
 
 interface CompletedAnalysis {
-  response: AnalyzeSuccessResponse;
+  analysisSnapshot: StoredAnalysisSnapshot;
   tasks: TaskInput[];
 }
 
@@ -59,6 +67,8 @@ interface StorageNotice {
   tone: "success" | "warning";
   kind:
     | "restored"
+    | "legacy-restored"
+    | "migration-required"
     | "corrupt"
     | "future-version"
     | "unavailable"
@@ -118,6 +128,12 @@ function storageNoticeMessage(
       return copy.page.storageRestored(
         new Date(notice.savedAt ?? 0).toLocaleString(dateLocale),
       );
+    case "legacy-restored":
+      return copy.page.storageLegacyRestored(
+        new Date(notice.savedAt ?? 0).toLocaleString(dateLocale),
+      );
+    case "migration-required":
+      return copy.page.storageMigrationRequired;
     case "corrupt":
       return copy.page.storageCorrupt;
     case "future-version":
@@ -201,12 +217,13 @@ export default function Home() {
 
     if (result.status === "loaded") {
       const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
+      const restoredSnapshot = result.scenario.analysisSnapshot;
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
       setSelectedProvider(result.scenario.selectedProvider);
-      setMode(result.scenario.response.mode);
+      setMode(restoredSnapshot.response.mode);
       setCompleted({
-        response: result.scenario.response,
+        analysisSnapshot: restoredSnapshot,
         tasks: restoredTasks.map((task) => ({ ...task })),
       });
       setStatus("success");
@@ -215,8 +232,12 @@ export default function Home() {
       setHasRecentScenario(true);
       nextTaskNumber.current = nextAvailableTaskNumber(restoredTasks);
       setStorageNotice({
-        tone: "success",
-        kind: "restored",
+        tone:
+          restoredSnapshot.compatibility === "legacy-api-only" ? "warning" : "success",
+        kind:
+          restoredSnapshot.compatibility === "legacy-api-only"
+            ? "legacy-restored"
+            : "restored",
         canClear: true,
         savedAt: result.scenario.savedAt,
       });
@@ -232,6 +253,13 @@ export default function Home() {
       setStorageNotice({
         tone: "warning",
         kind: "future-version",
+        canClear: true,
+      });
+    } else if (result.status === "migration-required") {
+      setHasRecentScenario(false);
+      setStorageNotice({
+        tone: "warning",
+        kind: "migration-required",
         canClear: true,
       });
     } else if (result.status === "unavailable") {
@@ -265,7 +293,7 @@ export default function Home() {
     if (!completed || !parsedSettings) return null;
     return compareProviderPlans(
       completed.tasks,
-      completed.response.analysis.tasks,
+      completed.analysisSnapshot.response.analysis.tasks,
       parsedSettings,
     );
   }, [completed, parsedSettings]);
@@ -281,7 +309,7 @@ export default function Home() {
       tasks: snapshot.tasks,
       settings: planningSettings,
       selectedProvider: providerId,
-      response: snapshot.response,
+      analysisSnapshot: snapshot.analysisSnapshot,
     });
 
     if (saved.ok) {
@@ -348,6 +376,42 @@ export default function Home() {
     }
   }
 
+  function updateTaskDeadline(taskId: string, deadlineDate: string | null) {
+    updateTaskPlanningMetadata(taskId, { deadlineDate });
+  }
+
+  function updateTaskFailureImpact(taskId: string, failureImpact: FailureImpact) {
+    updateTaskPlanningMetadata(taskId, { failureImpact });
+  }
+
+  function updateTaskPlanningMetadata(
+    taskId: string,
+    patch: Partial<Pick<TaskInput, "deadlineDate" | "failureImpact">>,
+  ) {
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId ? { ...task, ...patch } : task,
+    );
+    setTasks(updatedTasks);
+    setShowValidation(false);
+    setVisibleError(null);
+    setAllocationNotice(null);
+
+    if (!completed) return;
+
+    const updatedCompleted = {
+      ...completed,
+      tasks: completed.tasks.map((task) =>
+        task.id === taskId ? { ...task, ...patch } : task,
+      ),
+    };
+    setCompleted(updatedCompleted);
+    setStatus("success");
+
+    if (hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(updatedCompleted, parsedSettings, selectedProvider, false);
+    }
+  }
+
   function addTask() {
     if (tasks.length >= MAX_TASKS) return;
     const availableNumber = nextAvailableTaskNumber(tasks, nextTaskNumber.current);
@@ -355,7 +419,14 @@ export default function Home() {
     nextTaskNumber.current = availableNumber + 1;
     setTasks((current) => [
       ...current,
-      { id: taskId, name: "", description: "", priority: "medium" },
+      {
+        id: taskId,
+        name: "",
+        description: "",
+        priority: "medium",
+        deadlineDate: null,
+        failureImpact: "medium",
+      },
     ]);
     setShowValidation(false);
     invalidateAnalysis();
@@ -490,7 +561,11 @@ export default function Home() {
       }
 
       const completedSnapshot: CompletedAnalysis = {
-        response: payload,
+        analysisSnapshot: {
+          contractVersion: "best-fit-analysis-v2",
+          compatibility: "best-fit",
+          response: payload,
+        },
         tasks: normalizedTasks.map((task) => ({ ...task })),
       };
       setCompleted(completedSnapshot);
@@ -565,6 +640,8 @@ export default function Home() {
             onRemove={removeTask}
             onChange={updateTask}
             onPriorityChange={updateTaskPriority}
+            onDeadlineChange={updateTaskDeadline}
+            onFailureImpactChange={updateTaskFailureImpact}
             onLoadSample={loadSample}
           />
 
@@ -731,9 +808,10 @@ export default function Home() {
               providerComparisons={providerPlanning?.comparisons ?? []}
               selectedProvider={selectedProvider}
               onProviderChange={updateProvider}
-              analysisMode={completed.response.mode}
-              analysisModel={completed.response.model}
-              generatedAt={completed.response.generatedAt}
+              analysisMode={completed.analysisSnapshot.response.mode}
+              analysisModel={completed.analysisSnapshot.response.model}
+              analysisContract={completed.analysisSnapshot}
+              generatedAt={completed.analysisSnapshot.response.generatedAt}
             />
           </div>
         ) : null}

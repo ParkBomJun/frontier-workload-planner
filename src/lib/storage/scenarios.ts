@@ -2,20 +2,26 @@ import { z } from "zod";
 
 import {
   analysisDocumentSchema,
-  MAX_TASK_DESCRIPTION_LENGTH,
-  MAX_TASK_ID_LENGTH,
-  MAX_TASK_NAME_LENGTH,
   MAX_TASKS,
   taskInputSchema,
 } from "@/lib/ai/schema";
 import {
+  frozenAnalyzeSuccessResponseV1Schema,
+  historicalRecentScenarioV1Schema,
+  historicalRecentScenarioV2Schema,
+  historicalRecentScenarioV3Schema,
+  type HistoricalRecentScenarioV1,
+  type HistoricalRecentScenarioV2,
+  type HistoricalRecentScenarioV3,
+} from "@/lib/storage/historical-schemas";
+import {
   PLANNING_STRATEGIES,
   PROVIDER_IDS,
-  type AnalyzeSuccessResponse,
+  type StoredAnalysisSnapshot,
 } from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 3;
+export const RECENT_SCENARIO_VERSION = 4;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -29,7 +35,7 @@ const planningSettingsSchema = z.strictObject({
   strategy: z.enum(PLANNING_STRATEGIES),
 });
 
-const successResponseSchema = z.strictObject({
+const analyzeSuccessResponseV2Schema = z.strictObject({
   ok: z.literal(true),
   mode: z.enum(["mock", "live"]),
   model: z.string().min(1).max(200),
@@ -37,77 +43,18 @@ const successResponseSchema = z.strictObject({
   analysis: analysisDocumentSchema,
 });
 
-const legacyTaskInputSchemaV1 = z.strictObject({
-  id: z.string().trim().min(1).max(MAX_TASK_ID_LENGTH),
-  name: z.string().trim().min(1).max(MAX_TASK_NAME_LENGTH),
-  description: z.string().trim().min(1).max(MAX_TASK_DESCRIPTION_LENGTH),
-});
-
-const recentScenarioV1Schema = z
-  .strictObject({
-    schemaVersion: z.literal(1),
-    savedAt: z.iso.datetime(),
-    tasks: z.array(legacyTaskInputSchemaV1).min(1).max(MAX_TASKS),
-    settings: planningSettingsSchema,
-    response: successResponseSchema,
-  })
-  .superRefine(({ tasks, response }, context) => {
-    const taskIds = new Set<string>();
-    tasks.forEach((task, index) => {
-      if (taskIds.has(task.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["tasks", index, "id"],
-          message: "Stored task IDs must be unique.",
-        });
-      }
-      taskIds.add(task.id);
-    });
-
-    const identitiesMatch =
-      response.analysis.tasks.length === tasks.length &&
-      response.analysis.tasks.every((analysis, index) => analysis.taskId === tasks[index].id);
-    if (!identitiesMatch) {
-      context.addIssue({
-        code: "custom",
-        path: ["response", "analysis", "tasks"],
-        message: "Stored analyses must preserve task order and identity.",
-      });
-    }
-  });
-
-const recentScenarioV2Schema = z
-  .strictObject({
-    schemaVersion: z.literal(2),
-    savedAt: z.iso.datetime(),
-    tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
-    settings: planningSettingsSchema,
-    response: successResponseSchema,
-  })
-  .superRefine(({ tasks, response }, context) => {
-    const taskIds = new Set<string>();
-    tasks.forEach((task, index) => {
-      if (taskIds.has(task.id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["tasks", index, "id"],
-          message: "Stored task IDs must be unique.",
-        });
-      }
-      taskIds.add(task.id);
-    });
-
-    const identitiesMatch =
-      response.analysis.tasks.length === tasks.length &&
-      response.analysis.tasks.every((analysis, index) => analysis.taskId === tasks[index].id);
-    if (!identitiesMatch) {
-      context.addIssue({
-        code: "custom",
-        path: ["response", "analysis", "tasks"],
-        message: "Stored analyses must preserve task order and identity.",
-      });
-    }
-  });
+export const storedAnalysisSnapshotSchema = z.discriminatedUnion("contractVersion", [
+  z.strictObject({
+    contractVersion: z.literal("api-analysis-v1"),
+    compatibility: z.literal("legacy-api-only"),
+    response: frozenAnalyzeSuccessResponseV1Schema,
+  }),
+  z.strictObject({
+    contractVersion: z.literal("best-fit-analysis-v2"),
+    compatibility: z.literal("best-fit"),
+    response: analyzeSuccessResponseV2Schema,
+  }),
+]);
 
 export const recentScenarioSchema = z
   .strictObject({
@@ -116,9 +63,9 @@ export const recentScenarioSchema = z
     selectedProvider: z.enum(PROVIDER_IDS),
     tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
     settings: planningSettingsSchema,
-    response: successResponseSchema,
+    analysisSnapshot: storedAnalysisSnapshotSchema,
   })
-  .superRefine(({ tasks, response }, context) => {
+  .superRefine(({ tasks, analysisSnapshot }, context) => {
     const taskIds = new Set<string>();
     tasks.forEach((task, index) => {
       if (taskIds.has(task.id)) {
@@ -131,13 +78,14 @@ export const recentScenarioSchema = z
       taskIds.add(task.id);
     });
 
+    const analyses = analysisSnapshot.response.analysis.tasks;
     const identitiesMatch =
-      response.analysis.tasks.length === tasks.length &&
-      response.analysis.tasks.every((analysis, index) => analysis.taskId === tasks[index].id);
+      analyses.length === tasks.length &&
+      analyses.every((analysis, index) => analysis.taskId === tasks[index].id);
     if (!identitiesMatch) {
       context.addIssue({
         code: "custom",
-        path: ["response", "analysis", "tasks"],
+        path: ["analysisSnapshot", "response", "analysis", "tasks"],
         message: "Stored analyses must preserve task order and identity.",
       });
     }
@@ -149,7 +97,7 @@ export interface RecentScenarioInput {
   selectedProvider: RecentScenario["selectedProvider"];
   tasks: RecentScenario["tasks"];
   settings: RecentScenario["settings"];
-  response: AnalyzeSuccessResponse;
+  analysisSnapshot: StoredAnalysisSnapshot;
 }
 
 export type LoadRecentScenarioResult =
@@ -157,11 +105,25 @@ export type LoadRecentScenarioResult =
   | { status: "empty" }
   | { status: "discarded" }
   | { status: "unsupported" }
+  | { status: "migration-required"; reason: "adaptation-failed" | "target-validation-failed" }
   | { status: "unavailable" };
 
 export type SaveRecentScenarioResult =
   | { ok: true; scenario: RecentScenario }
   | { ok: false; reason: "invalid" | "unavailable" | "write-failed" };
+
+type HistoricalScenario =
+  | HistoricalRecentScenarioV1
+  | HistoricalRecentScenarioV2
+  | HistoricalRecentScenarioV3;
+
+type HistoricalMigrationResult =
+  | { ok: true; scenario: RecentScenario }
+  | { ok: false; reason: "adaptation-failed" | "target-validation-failed" };
+
+interface ScenarioLoadDependencies {
+  migrateHistoricalScenario?: (scenario: HistoricalScenario) => HistoricalMigrationResult;
+}
 
 function resolveStorage(storage?: KeyValueStorage): KeyValueStorage | null {
   if (storage) return storage;
@@ -178,12 +140,96 @@ function discardStoredScenario(storage: KeyValueStorage): LoadRecentScenarioResu
   try {
     storage.removeItem(RECENT_SCENARIO_STORAGE_KEY);
   } catch {
-    // The invalid value is ignored even if storage cleanup is blocked.
+    // The malformed value is ignored even if storage cleanup is blocked.
   }
   return { status: "discarded" };
 }
 
-export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenarioResult {
+function adaptV1ToV2(
+  scenario: HistoricalRecentScenarioV1,
+): HistoricalRecentScenarioV2 | null {
+  const parsed = historicalRecentScenarioV2Schema.safeParse({
+    schemaVersion: 2,
+    savedAt: scenario.savedAt,
+    tasks: scenario.tasks.map((task) => ({ ...task, priority: "medium" as const })),
+    settings: scenario.settings,
+    response: scenario.response,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function adaptV2ToV3(
+  scenario: HistoricalRecentScenarioV2,
+): HistoricalRecentScenarioV3 | null {
+  const parsed = historicalRecentScenarioV3Schema.safeParse({
+    schemaVersion: 3,
+    savedAt: scenario.savedAt,
+    selectedProvider: "openai",
+    tasks: scenario.tasks,
+    settings: scenario.settings,
+    response: scenario.response,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function adaptV3ToV4Candidate(scenario: HistoricalRecentScenarioV3): unknown {
+  return {
+    schemaVersion: RECENT_SCENARIO_VERSION,
+    savedAt: scenario.savedAt,
+    selectedProvider: scenario.selectedProvider,
+    tasks: scenario.tasks.map((task) => ({
+      ...task,
+      deadlineDate: null,
+      failureImpact: "unspecified" as const,
+    })),
+    settings: scenario.settings,
+    analysisSnapshot: {
+      contractVersion: "api-analysis-v1" as const,
+      compatibility: "legacy-api-only" as const,
+      response: scenario.response,
+    },
+  };
+}
+
+export function migrateHistoricalScenarioToCurrent(
+  source: HistoricalScenario,
+): HistoricalMigrationResult {
+  let v3: HistoricalRecentScenarioV3 | null;
+
+  if (source.schemaVersion === 1) {
+    const v2 = adaptV1ToV2(source);
+    if (!v2) return { ok: false, reason: "adaptation-failed" };
+    v3 = adaptV2ToV3(v2);
+  } else if (source.schemaVersion === 2) {
+    v3 = adaptV2ToV3(source);
+  } else {
+    v3 = source;
+  }
+
+  if (!v3) return { ok: false, reason: "adaptation-failed" };
+  const parsed = recentScenarioSchema.safeParse(adaptV3ToV4Candidate(v3));
+  return parsed.success
+    ? { ok: true, scenario: parsed.data }
+    : { ok: false, reason: "target-validation-failed" };
+}
+
+function parseHistoricalScenario(
+  version: 1 | 2 | 3,
+  value: unknown,
+): HistoricalScenario | null {
+  const parsed =
+    version === 1
+      ? historicalRecentScenarioV1Schema.safeParse(value)
+      : version === 2
+        ? historicalRecentScenarioV2Schema.safeParse(value)
+        : historicalRecentScenarioV3Schema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function loadRecentScenario(
+  storage?: KeyValueStorage,
+  dependencies: ScenarioLoadDependencies = {},
+): LoadRecentScenarioResult {
   const resolvedStorage = resolveStorage(storage);
   if (!resolvedStorage) return { status: "unavailable" };
 
@@ -202,88 +248,54 @@ export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenari
     return discardStoredScenario(resolvedStorage);
   }
 
-  if (
-    typeof parsedJson === "object" &&
-    parsedJson !== null &&
-    "schemaVersion" in parsedJson &&
-    parsedJson.schemaVersion === 1
-  ) {
-    const legacyScenario = recentScenarioV1Schema.safeParse(parsedJson);
-    if (!legacyScenario.success) return discardStoredScenario(resolvedStorage);
-
-    const migratedScenario = recentScenarioSchema.safeParse({
-      schemaVersion: RECENT_SCENARIO_VERSION,
-      savedAt: legacyScenario.data.savedAt,
-      selectedProvider: "openai",
-      tasks: legacyScenario.data.tasks.map((task) => ({ ...task, priority: "medium" as const })),
-      settings: legacyScenario.data.settings,
-      response: legacyScenario.data.response,
-    });
-    if (!migratedScenario.success) return discardStoredScenario(resolvedStorage);
-
-    try {
-      resolvedStorage.setItem(
-        RECENT_SCENARIO_STORAGE_KEY,
-        JSON.stringify(migratedScenario.data),
-      );
-    } catch {
-      // A validated migration can still be restored when persistence is blocked.
-    }
-    return { status: "loaded", scenario: migratedScenario.data };
-  }
+  const declaredVersion =
+    typeof parsedJson === "object" && parsedJson !== null && "schemaVersion" in parsedJson
+      ? parsedJson.schemaVersion
+      : undefined;
 
   if (
-    typeof parsedJson === "object" &&
-    parsedJson !== null &&
-    "schemaVersion" in parsedJson &&
-    parsedJson.schemaVersion === 2
-  ) {
-    const legacyScenario = recentScenarioV2Schema.safeParse(parsedJson);
-    if (!legacyScenario.success) return discardStoredScenario(resolvedStorage);
-
-    const migratedScenario = recentScenarioSchema.safeParse({
-      schemaVersion: RECENT_SCENARIO_VERSION,
-      savedAt: legacyScenario.data.savedAt,
-      selectedProvider: "openai",
-      tasks: legacyScenario.data.tasks,
-      settings: legacyScenario.data.settings,
-      response: legacyScenario.data.response,
-    });
-    if (!migratedScenario.success) return discardStoredScenario(resolvedStorage);
-
-    try {
-      resolvedStorage.setItem(
-        RECENT_SCENARIO_STORAGE_KEY,
-        JSON.stringify(migratedScenario.data),
-      );
-    } catch {
-      // A validated migration can still be restored when persistence is blocked.
-    }
-    return { status: "loaded", scenario: migratedScenario.data };
-  }
-
-  if (
-    typeof parsedJson === "object" &&
-    parsedJson !== null &&
-    "schemaVersion" in parsedJson &&
-    typeof parsedJson.schemaVersion === "number" &&
-    Number.isInteger(parsedJson.schemaVersion) &&
-    parsedJson.schemaVersion > RECENT_SCENARIO_VERSION
+    typeof declaredVersion === "number" &&
+    Number.isInteger(declaredVersion) &&
+    declaredVersion > RECENT_SCENARIO_VERSION
   ) {
     return { status: "unsupported" };
   }
 
-  if (
-    typeof parsedJson === "object" &&
-    parsedJson !== null &&
-    "schemaVersion" in parsedJson &&
-    parsedJson.schemaVersion !== RECENT_SCENARIO_VERSION
-  ) {
-    return discardStoredScenario(resolvedStorage);
+  if (declaredVersion === RECENT_SCENARIO_VERSION) {
+    const parsedScenario = recentScenarioSchema.safeParse(parsedJson);
+    return parsedScenario.success
+      ? { status: "loaded", scenario: parsedScenario.data }
+      : discardStoredScenario(resolvedStorage);
   }
 
-  const parsedScenario = recentScenarioSchema.safeParse(parsedJson);
-  if (parsedScenario.success) return { status: "loaded", scenario: parsedScenario.data };
+  if (declaredVersion === 1 || declaredVersion === 2 || declaredVersion === 3) {
+    const historicalScenario = parseHistoricalScenario(declaredVersion, parsedJson);
+    if (!historicalScenario) return discardStoredScenario(resolvedStorage);
+
+    const migrate = dependencies.migrateHistoricalScenario ?? migrateHistoricalScenarioToCurrent;
+    const migrated = migrate(historicalScenario);
+    if (!migrated.ok) {
+      return { status: "migration-required", reason: migrated.reason };
+    }
+
+    // The loader owns the persistence boundary. Revalidate even injected adapter
+    // results so no successful-looking dependency can overwrite valid legacy bytes
+    // with an invalid current record.
+    const validatedMigration = recentScenarioSchema.safeParse(migrated.scenario);
+    if (!validatedMigration.success) {
+      return { status: "migration-required", reason: "target-validation-failed" };
+    }
+
+    try {
+      resolvedStorage.setItem(
+        RECENT_SCENARIO_STORAGE_KEY,
+        JSON.stringify(validatedMigration.data),
+      );
+    } catch {
+      // A fully validated migration can still be restored in memory. The original bytes remain.
+    }
+    return { status: "loaded", scenario: validatedMigration.data };
+  }
 
   return discardStoredScenario(resolvedStorage);
 }
@@ -299,7 +311,7 @@ export function saveRecentScenario(
     selectedProvider: input.selectedProvider,
     tasks: input.tasks,
     settings: input.settings,
-    response: input.response,
+    analysisSnapshot: input.analysisSnapshot,
   });
   if (!parsedScenario.success) return { ok: false, reason: "invalid" };
 

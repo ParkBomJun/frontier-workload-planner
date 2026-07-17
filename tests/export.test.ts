@@ -2,9 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
-import { PLAN_JSON_SCHEMA_VERSION, createPlanJson } from "@/lib/export/json";
+import {
+  LEGACY_PLAN_JSON_SCHEMA_VERSION,
+  PLAN_JSON_SCHEMA_VERSION,
+  createPlanJson,
+} from "@/lib/export/json";
 import { createPlanMarkdown } from "@/lib/export/markdown";
-import type { PlanExportContext, TaskInput } from "@/types/domain";
+import type {
+  LegacyTaskAnalysis,
+  PlanExportContext,
+  TaskInput,
+} from "@/types/domain";
 
 const tasks: TaskInput[] = [
   {
@@ -12,12 +20,16 @@ const tasks: TaskInput[] = [
     name: "API | 설계\\검토",
     description: "첫 줄\n둘째 | 줄",
     priority: "high",
+    deadlineDate: "2026-07-21",
+    failureImpact: "high",
   },
   {
     id: "task-2",
     name: "출시 안내문",
     description: "사용자를 위한 안내문을 작성한다.",
     priority: "low",
+    deadlineDate: null,
+    failureImpact: "medium",
   },
 ];
 const analyses = createMockAnalysis(tasks).tasks;
@@ -32,7 +44,11 @@ const context: PlanExportContext = {
   plan,
   providerComparisons: planning.comparisons,
   analysisMode: "mock",
-  analysisModel: "mock-fixture-v1",
+  analysisModel: "mock-fixture-v2",
+  analysisContract: {
+    contractVersion: "best-fit-analysis-v2",
+    compatibility: "best-fit",
+  },
   generatedAt: "2026-07-17T01:00:00.000Z",
 };
 const firstMinimumExpectedCostUsd = plan.tasks[0].minimumExpectedCostUsd;
@@ -61,6 +77,11 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain(plan.tasks[0].modelId);
     expect(markdown).toContain("| 높음 (`high`) | 실행 |");
     expect(markdown).toContain("Low | Expected | High");
+    expect(markdown).toContain("분석 계약: `best-fit-analysis-v2` / `best-fit`");
+    expect(markdown).toContain("작업 기한: 2026-07-21");
+    expect(markdown).toContain("실패 영향: 높음 (`high`)");
+    expect(markdown).toContain("작업 모드: `coding-agent`");
+    expect(markdown).toContain("최소 품질: `balanced`");
     expect(markdown).toContain("## 공급자별 비교");
     expect(markdown).toContain("OpenAI · GPT-5.6");
     expect(markdown).toContain("Anthropic · Claude");
@@ -156,7 +177,7 @@ describe("plan Markdown export", () => {
 });
 
 describe("plan JSON export", () => {
-  it("produces a parseable v3 projection with comparisons and pricing assumptions", () => {
+  it("produces a parseable v4 workload projection with comparisons and pricing assumptions", () => {
     const exportedAt = "2026-07-17T01:02:00.000Z";
     const json = createPlanJson(context, exportedAt);
     const parsed = JSON.parse(json) as {
@@ -171,8 +192,10 @@ describe("plan JSON export", () => {
       product: "Frontier Workload Planner",
       analysis: {
         mode: "mock",
-        model: "mock-fixture-v1",
+        model: "mock-fixture-v2",
         generatedAt: context.generatedAt,
+        contractVersion: "best-fit-analysis-v2",
+        compatibility: "best-fit",
       },
       input: {
         tasks,
@@ -201,6 +224,10 @@ describe("plan JSON export", () => {
         longContextSurchargesApplied: false,
       },
     });
+    expect(json).toContain('"deadlineDate"');
+    expect(json).toContain('"failureImpact"');
+    expect(json).toContain('"requiredQualityTier"');
+    expect(json).toContain('"workMode"');
     expect(parsed.comparison.providers.map(({ providerId }) => providerId)).toEqual([
       "openai",
       "anthropic",
@@ -254,7 +281,7 @@ describe("plan JSON export", () => {
     expect(json).not.toContain("cacheWriteInputUsdPerMillion");
   });
 
-  it("exports held work as an explicit null allocation in schema v3", () => {
+  it("exports held work as an explicit null allocation in schema v4", () => {
     const parsed = JSON.parse(createPlanJson(constrainedContext)) as {
       schemaVersion: number;
       result: {
@@ -272,7 +299,7 @@ describe("plan JSON export", () => {
     };
     const held = parsed.result.tasks.find((task) => task.status === "held");
 
-    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.schemaVersion).toBe(PLAN_JSON_SCHEMA_VERSION);
     expect(parsed.result).toMatchObject({ activeTaskCount: 1, heldTaskCount: 1 });
     expect(held).toMatchObject({
       priority: "low",
@@ -323,6 +350,84 @@ describe("plan JSON export", () => {
       modelId: "claude-sonnet-5",
       offeringFailures: [{ modelId: "claude-haiku-4-5" }],
     });
+  });
+
+  it("keeps api-analysis-v1 exports on the unchanged JSON v3 projection", () => {
+    const legacyAnalyses: LegacyTaskAnalysis[] = analyses.map((analysis) => ({
+      taskId: analysis.taskId,
+      taskType: analysis.taskType,
+      complexity: analysis.complexity,
+      reasoningDepth: analysis.reasoningDepth,
+      expectedIterations: analysis.expectedIterations,
+      estimatedInputSize: analysis.estimatedInputSize,
+      estimatedOutputSize: analysis.estimatedOutputSize,
+      uncertainty: analysis.uncertainty,
+      recommendedModelTier: analysis.recommendedModelTier,
+      riskFactors: analysis.riskFactors,
+      rationale: analysis.rationale,
+    }));
+    const legacyPlanning = compareProviderPlans(tasks, legacyAnalyses, plan.settings);
+    const legacyContext: PlanExportContext = {
+      ...context,
+      plan: legacyPlanning.plans.openai,
+      providerComparisons: legacyPlanning.comparisons,
+      analysisContract: {
+        contractVersion: "api-analysis-v1",
+        compatibility: "legacy-api-only",
+      },
+      analysisModel: "mock-fixture-v1",
+    };
+    const json = createPlanJson(legacyContext, "2026-07-17T02:00:00.000Z");
+    const parsed = JSON.parse(json) as { schemaVersion: number };
+
+    expect(parsed.schemaVersion).toBe(LEGACY_PLAN_JSON_SCHEMA_VERSION);
+    expect(json).not.toContain('"deadlineDate"');
+    expect(json).not.toContain('"failureImpact"');
+    expect(json).not.toContain('"requiredQualityTier"');
+    expect(json).not.toContain('"workMode"');
+    expect(createPlanMarkdown(legacyContext, "en")).not.toContain("Analysis contract:");
+  });
+
+  it("rejects crossed discriminators and mixed task contracts in both export formats", () => {
+    const crossedContext = {
+      ...context,
+      analysisContract: {
+        contractVersion: "api-analysis-v1",
+        compatibility: "best-fit",
+      },
+    } as unknown as PlanExportContext;
+    const firstAnalysis = plan.tasks[0].analysis;
+    const legacyFirstAnalysis: LegacyTaskAnalysis = {
+      taskId: firstAnalysis.taskId,
+      taskType: firstAnalysis.taskType,
+      complexity: firstAnalysis.complexity,
+      reasoningDepth: firstAnalysis.reasoningDepth,
+      expectedIterations: firstAnalysis.expectedIterations,
+      estimatedInputSize: firstAnalysis.estimatedInputSize,
+      estimatedOutputSize: firstAnalysis.estimatedOutputSize,
+      uncertainty: firstAnalysis.uncertainty,
+      recommendedModelTier: firstAnalysis.recommendedModelTier,
+      riskFactors: firstAnalysis.riskFactors,
+      rationale: firstAnalysis.rationale,
+    };
+    const mixedContext: PlanExportContext = {
+      ...context,
+      plan: {
+        ...plan,
+        tasks: plan.tasks.map((task, index) =>
+          index === 0 ? { ...task, analysis: legacyFirstAnalysis } : task,
+        ),
+      },
+    };
+
+    for (const invalidContext of [crossedContext, mixedContext]) {
+      expect(() => createPlanJson(invalidContext)).toThrow(
+        "The export analysis contract does not match the planned task analysis.",
+      );
+      expect(() => createPlanMarkdown(invalidContext)).toThrow(
+        "The export analysis contract does not match the planned task analysis.",
+      );
+    }
   });
 
   it("preserves infeasible invocation reasons in Markdown and JSON without a High cost", () => {
