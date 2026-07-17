@@ -294,9 +294,10 @@ neighboring products, empty arrays, or free-form text.
 
 Model limits and capabilities use complete/partial/unknown sourced profiles. Access paths separately
 declare same-as-model, a narrower sourced bound, or unknown for both limits and capabilities.
-Intersect constraints only when both sides are complete and provider-published; partial, unknown,
-or user-observed knowledge is conditional. “Complete” means the source covers every constraint
-applicable to that model/surface, not that every optional numeric limit must exist.
+Intersect constraints only when both sides are complete and carry resolver-issued
+provider-published evidence; partial, unknown, or user-observed knowledge is conditional.
+“Complete” means the source covers every constraint applicable to that model/surface, not that
+every optional numeric limit must exist.
 
 The current `ProviderModelPrice` and `ProviderCatalog` stay behind an API-offering adapter until
 parity tests prove the new view. Reuse size bands, iteration rules, invocation-feasibility checks,
@@ -304,16 +305,37 @@ micro-USD arithmetic, priority ordering, deterministic tie-breaks, and active/he
 states. Keep `compareProviderPlans` as the API-only compatibility view rather than expanding it into
 the subscription allocator.
 
-API provider identity remains separate from extensible subscription provider names. This avoids
-forcing ChatGPT, GitHub, GLM, or Custom subscription values into every current
-`Record<ProviderId, ...>` consumer. The existing `OfferingFeasibilityFailure` name must be reviewed
-before a future general `Offering` type is introduced so two meanings are not conflated.
+API provider identity remains separate from extensible access-provider identity. Every Offering,
+including a model-opaque subscription, has an immutable locale-independent access-provider ID.
+Every execution path uses the same structured `(providerId, offeringId, resourceId)` identity: APIs
+use a null resource, while subscriptions use their stable source resource ID. This avoids forcing
+ChatGPT, GitHub, GLM, or Custom subscription values into every current `Record<ProviderId, ...>`
+consumer and closes ties between multiple accounts for one Offering. Registered IDs come from the
+registry; Custom access providers receive planner-generated IDs in a separate namespace. The existing
+`OfferingFeasibilityFailure` name must be reviewed before a future general `Offering` type is
+introduced so two meanings are not conflated.
 
 Permit future user overrides only for the planning tier and standard-text price of an existing
 verified catalog entry. Preserve and display the official default and source beside the labeled
 override, provide a restore action, and persist/export both values. This does not reopen arbitrary
 API provider or model creation. `Custom subscription` describes an access resource and does not add
 a custom API model.
+
+### Treat persisted provenance as a claim, not authority
+
+UI input, LocalStorage, and imports may store exact catalog/preset references, connector references,
+and user observations, but never a trusted `provider-published` or verified-connector value. Only an
+internal resolver creates those evidence types. It binds a provider claim to an immutable
+allowlisted registry ID/version/entry/field, or validates a registered connector adapter,
+authenticated user/account/resource binding, snapshot version, freshness, replay state, and signed
+receipt. A URL, timestamp, discriminator, Origin header, or exported snapshot is not authority.
+
+Restore resolves exact historical versions again; it never silently selects the latest registry.
+Unknown versions, binding failures, offline connectors, stale/replayed snapshots, and invalid
+receipts preserve source state but make the dependent fact unknown. The route becomes conditional
+with a compatible API fallback and closed reason code. Custom subscription fields and user
+overrides remain user-supplied and cannot promote themselves to official evidence. Exported
+resolved provenance is audit-only and has no import authority.
 
 ### Keep cash and quota in separate ledgers
 
@@ -323,9 +345,9 @@ capacity remain; it still consumes quota with opportunity cost. Charge a newly s
 subscription once per plan, not per task. Never add requests, credits, a remaining percentage, or
 opportunity cost to USD.
 
-Exact numeric depletion requires provider-published units or user-observed calibration. An opaque
-or private limit produces conditional availability and an API fallback, never an invented task
-count. A chat-only offering cannot satisfy IDE/CLI or batch work.
+Exact numeric depletion requires resolver-issued provider-published units or user-observed
+calibration. An opaque or private limit produces conditional availability and an API fallback,
+never an invented task count. A chat-only offering cannot satisfy IDE/CLI or batch work.
 
 Keep availability, quota shape, consumption rule, evidence, reset, and overage as separate closed
 fields. A pure resolver returns same-unit Low / Expected / High demand or an unknown reason. Exact
@@ -356,9 +378,9 @@ candidate-new resources carry a finite evidenced USD fee for one plan period. On
 candidate-new commitment used by an active primary route contributes its distinct fee.
 
 Owned quota uses a timestamped remaining snapshot. A not-yet-purchased candidate cannot have that
-snapshot, so it needs provider-published initial capacity for the same plan period; otherwise it is
-conditional. Activating a valid candidate initializes only the derived ledger and never rewrites
-the source allowance.
+snapshot, so it needs resolver-issued provider-published initial capacity for the same plan period;
+otherwise it is conditional. Activating a valid candidate initializes only the derived ledger and
+never rewrites the source allowance.
 
 ### Add Best-fit as an orchestrator, not a big-bang rewrite
 
@@ -386,37 +408,44 @@ work-mode/surface contract. Do not infer a substitute surface when an offering l
 one. Use closed, versioned capability and upgrade codes; required capabilities must be a subset of
 the resolved profile, and unknown codes are rejected. Derive High failure exposure only from High
 user impact plus non-Low GPT risk, and deadline retry risk only from an explicit deadline plus High
-risk. Cost Saver chooses the least-cash sufficient route; Balanced prefers a confirmed owned route;
-Quality First adds at most one tier only for a closed trigger. All remain bounded by minimum quality,
-compatibility, budget, quota, and no-false-precision rules.
+risk. After the hard minimum and Premium-trigger filters, Cost Saver compares Expected incremental
+cash before quality excess. Balanced compares quality fit and confirmed owned included capacity
+before cash; Quality First adds at most one tier only for a closed trigger and then uses Balanced.
+All remain bounded by compatibility, budget, quota, and no-false-precision rules.
 
 When hard filtering leaves no compatible sub-Premium route but does leave Premium, generate the
 closed minimum-sufficient Premium fallback trigger even if no risk trigger exists. This is
 compatibility fallback, not unconditional Quality First headroom.
 
-Separate task, route, and full-plan ordering. Every strategy's confirmed route comparator ends in
-provider ID and stable Offering ID, so object enumeration never breaks a tie; native quota units
-are not converted for ordering. Evaluate a new subscription by rebuilding a complete plan with its
-shared fee, not by assigning the fee to the first task. Starting from owned resources plus APIs,
-repeatedly accept only the best strict add-one full-plan improvement. This bounded deterministic
-heuristic is explainable but does not claim a global optimum or combined-subscription exhaustive
-search.
+Separate task, route, conditional-diagnostic, and full-plan ordering. Every confirmed route
+comparator ends in the structured provider/Offering/resource key; conditional alternatives use
+primary key, fallback key, and a closed versioned reason-code rank. The same identity appears in
+task results, quota/fee ledgers, Premium baselines, plans, and exports, so multiple accounts and
+object enumeration cannot break a tie. Native quota units are not converted for ordering. Evaluate
+a new subscription by rebuilding a complete plan with its shared fee, not by assigning the fee to
+the first task. Starting from owned resources plus APIs, repeatedly accept only the best strict
+add-one full-plan improvement. This bounded deterministic heuristic is explainable but does not
+claim a global optimum or combined-subscription exhaustive search.
 
 Rank Economy/Balanced/Premium as 0/1/2. The quality key first penalizes target shortfall and then
-excess above target. Budget fit, task status, quality vectors, cash, activated IDs, and assignment
-IDs all compare lexicographically with explicit ascending ranks. Per-route variable cash includes
-Expected API cash and paid-overage delta, while shared fixed fees remain plan-level only.
+excess above target. Cost Saver route ordering is Expected variable cash, quality key, route kind,
+then canonical route key; a `$0` owned Balanced route therefore beats a `$1` Economy API, while an
+equal-cash tie selects Economy. Premium remains ineligible without its closed trigger. Cost Saver
+full plans compare Expected and High cash before their quality vector after the common budget-fit
+and task-status prefix. Balanced and Quality First retain quality/capacity before cash. Shared fixed
+fees remain plan-level only.
 
 Balanced prefers owned capacity only while the work fits included quota. A paid-overage route is a
 cash-bearing candidate and competes with API on Expected variable cash before route-kind tie-breaks.
 Before holding, try the next confirmed compatible route and recalculate shared fees and overage.
 
 Define avoided spend conservatively. For every active guaranteed task, choose the cheapest
-compatible Premium API at the same `pricingAsOf`, with provider and Offering ID tie-breaks. If any
-active task lacks one, the metric is null. Subtract the complete selected Expected incremental cash,
-including each new fee and paid overage once. Exclude held/infeasible work, use API fallback cash for
-conditional suggestions, and report a negative difference as additional spend rather than hiding it
-behind zero savings. Export the baseline task set, Offering IDs, cash components, and pricing date.
+compatible Premium API at the same `pricingAsOf`, with the canonical API route key as tie-break. If
+any active task lacks one, the metric is null. Subtract the complete selected Expected incremental
+cash, including each new fee and paid overage once. Exclude held/infeasible work, use API fallback
+cash for conditional suggestions, and report a negative difference as additional spend rather than
+hiding it behind zero savings. Export the baseline task set, structured route identities, cash
+components, and pricing date.
 
 ### Version source and result meaning only when implementation changes
 
@@ -429,7 +458,9 @@ never invent new GPT fields, and require explicit reanalysis before Best-fit all
 Delete a historical record only when its own frozen parser proves it malformed. Adapter,
 target-validation, or rewrite failure preserves the original bytes and returns a recoverable state;
 unknown future versions remain untouched. Continue storing source data, not derived routes. Keep
-JSON v3 as the historical API-only export and version result meaning independently from LocalStorage.
+JSON v3 as the historical API-only export and version result meaning independently from
+LocalStorage. Persist only registry/connector references and user observations; re-resolve evidence
+authority on restore, and never accept an exported resolved snapshot as import authority.
 
 ### Reserve self-hosting for Phase 2 and freeze unrelated P2 work
 

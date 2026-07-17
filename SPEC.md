@@ -340,23 +340,66 @@ exact task capacity from a private or variable limit. A chat-only subscription c
 `ide-cli` or `batch` task. When a quota is uncertain, the route is conditional and receives an API
 fallback rather than a guaranteed-capacity claim.
 
-The target quota contract separates evidence, declared availability, quota shape, and a serializable
-consumption rule:
+The target quota contract separates untrusted persisted evidence input, internally resolved
+evidence, declared availability, quota shape, and a serializable consumption rule:
 
 ```ts
+type AccessProviderId = string;
+
+type StoredEvidenceInput =
+  | {
+      kind: "catalog-ref";
+      catalogId: string;
+      catalogVersion: string;
+      entryId: string;
+      claimId: string;
+    }
+  | {
+      kind: "preset-ref";
+      presetId: string;
+      presetVersion: string;
+      claimId: string;
+    }
+  | {
+      kind: "connector-ref";
+      adapterId: string;
+      adapterVersion: string;
+      bindingId: string;
+      snapshotId: string;
+      snapshotVersion: string;
+    }
+  | { kind: "user-observed"; observedAt: string; note: string };
+
+declare const resolvedEvidenceAuthority: unique symbol;
+
 type EvidenceRef =
-  | { kind: "provider-published"; sourceUrl: string; verifiedAt: string }
+  | {
+      kind: "provider-published";
+      authority: "allowlisted-registry-resolver";
+      registryKind: "catalog" | "preset";
+      registryId: string;
+      registryVersion: string;
+      entryId: string;
+      claimId: string;
+      sourceUrl: string;
+      verifiedAt: string;
+      readonly [resolvedEvidenceAuthority]: true;
+    }
   | { kind: "user-observed"; observedAt: string; note: string }
   | {
-      kind: "connector-snapshot";
-      connectorId: string;
+      kind: "verified-connector-snapshot";
+      authority: "verified-connector-resolver";
+      adapterId: string;
+      adapterVersion: string;
+      bindingId: string;
+      snapshotId: string;
       capturedAt: string;
-      sourceUrl?: string;
+      readonly [resolvedEvidenceAuthority]: true;
     };
 
 type CapacitySnapshotEvidence = Extract<
   EvidenceRef,
-  { kind: "user-observed" | "connector-snapshot" }
+  { kind: "user-observed" | "verified-connector-snapshot" }
 >;
 
 interface SourcedValue<T, E extends EvidenceRef = EvidenceRef> {
@@ -444,7 +487,10 @@ type OveragePolicy =
       usdPerUnit: number;
       appliesTo:
         | { kind: "whole-resource" }
-        | { kind: "offering-list"; offeringIds: string[] };
+        | {
+            kind: "offering-list";
+            offeringRefs: Array<{ providerId: AccessProviderId; offeringId: string }>;
+          };
       effectiveFrom: string;
       effectiveThrough?: string;
       maxOverageUnits?: number;
@@ -452,9 +498,9 @@ type OveragePolicy =
     }
   | { kind: "unknown" };
 
-interface SubscriptionResource {
+interface ResolvedSubscriptionResource {
   id: string;
-  offeringId: string;
+  offeringRef: { providerId: AccessProviderId; offeringId: string };
   ownership: "owned" | "candidate-new";
   commitment:
     | {
@@ -477,6 +523,37 @@ interface SubscriptionResource {
   overage: OveragePolicy;
 }
 ```
+
+`StoredEvidenceInput` is an untrusted claim accepted from UI state, LocalStorage, or import. A
+separate `StoredSubscriptionResourceInput` uses that type at every evidence-bearing field;
+`ResolvedSubscriptionResource` is never a persistence or request schema. `EvidenceRef` is an
+internal resolved type and is never accepted by those parsers. Only the bundled
+registry resolver can construct `provider-published`; it resolves an exact immutable catalog or
+preset ID, version, entry, claim, subject, and field path from an allowlist. Historical registry
+versions referenced by valid saved state remain available. A URL, date, official-looking domain,
+or copied discriminator is not authority. User overrides are a separate user-supplied layer and
+cannot replace the resolved source, limits, registry version, or evidence kind.
+
+The authority brand and constructors are module-private. Runtime input schemas do not contain the
+trusted variants, and calculation functions accept only resolver-produced model, Offering, and
+subscription-resource objects. Type assertions or structurally similar JSON therefore cannot skip
+the resolver boundary.
+
+Likewise, `connector-ref` is only a pointer. The trusted connector resolver must validate an
+allowlisted adapter and version, the authenticated user/account binding, the referenced resource
+and Offering, snapshot schema/version, freshness and replay status, and a server receipt or
+connector signature before constructing `verified-connector-snapshot`. A browser-supplied
+connector ID, Origin header, URL, timestamp, or exported snapshot is insufficient. A deployment
+without that authenticated backend cannot produce confirmed connector evidence, and secrets or
+receipts are never persisted or exported.
+
+Every restore re-resolves stored references rather than deserializing a trusted discriminator.
+Unknown or mismatched registry versions, missing historical entries, invalid claim/subject binding,
+uninstalled or offline connectors, account/resource mismatch, stale/replayed snapshots, and failed
+receipts preserve the source record but resolve the dependent fact to unknown. The affected route
+is conditional with a structured reason and compatible API fallback; this evidence alone cannot
+confirm eligibility, quota, initial capacity, paid overage, active work, or all-tasks-active. Exported
+resolved evidence is audit/display data only and cannot be imported as authority.
 
 `ResetPolicy` is a sourced closed union for none, fixed cadence plus next reset, rolling window, or
 unknown. It is display/validity metadata in Ver3: the planner never replenishes quota or predicts a
@@ -509,11 +586,11 @@ billing basis, fee evidence, or invalid amount is not an executable activation c
 fees are informational sunk commitments; candidate-new fees enter plan cash only after activation.
 
 Owned resources use timestamped metered/calibrated snapshots or opaque state. A candidate-new
-resource can become confirmed only with provider-published `initial-capacity` available immediately
-for the same plan period; `availableOnActivation` must be positive and no greater than included
-capacity. Activation creates only a derived remaining ledger. A candidate with no official initial
-capacity stays opaque/conditional with an API fallback rather than pretending that the full
-published allowance is currently available.
+resource can become confirmed only with resolver-issued provider-published `initial-capacity`
+available immediately for the same plan period; `availableOnActivation` must be positive and no
+greater than included capacity. Activation creates only a derived remaining ledger. A candidate
+with no resolved official initial capacity stays opaque/conditional with an API fallback rather
+than pretending that the full published allowance is currently available.
 
 `estimateQuotaDemand(rule, analysis)` is pure and returns either a same-unit Low / Expected / High
 range with provenance or `unknown` with a reason code. A task basis uses multiplier one; an
@@ -523,9 +600,9 @@ Infinity, and opaque quotas never become zero demand.
 Availability and demand resolve as follows:
 
 - `unavailable` excludes the route.
-- `available` plus provider-published demand that fits the remaining quota, or a deficit covered by
-  source-backed paid overage, can become a confirmed route; Expected demand drives reservation and
-  High drives a risk warning.
+- `available` plus resolver-issued provider-published demand that fits the remaining quota, or a
+  deficit covered by resolved source-backed paid overage, can become a confirmed route; Expected
+  demand drives reservation and High drives a risk warning.
 - `uncertain`, user-observed/calibrated demand, or an opaque quota remains a conditional
   alternative. A numeric observed range may reserve High in a derived planning ledger to prevent
   duplicate suggestions, but that reservation never promotes the route to confirmed.
@@ -608,7 +685,7 @@ type OfferingCapabilityPolicy =
 
 interface ModelDefinition {
   id: string;
-  provider: string;
+  modelProviderId: string;
   family: string;
   qualityTier: PlanningQualityTier;
   capabilityProfile: SourcedCapabilityProfile;
@@ -619,6 +696,7 @@ type Offering =
   | {
       kind: "model-bound";
       id: string;
+      providerId: AccessProviderId;
       mode: "api" | "subscription";
       modelId: string;
       supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
@@ -629,6 +707,7 @@ type Offering =
   | {
       kind: "model-opaque-subscription";
       id: string;
+      providerId: AccessProviderId;
       mode: "subscription";
       modelId?: never;
       supportedSurfaces: Array<"chat" | "ide-cli" | "batch">;
@@ -657,34 +736,110 @@ type ModelOpaqueReasonCode =
   | "quality-undocumented"
   | "capabilities-undocumented"
   | "limits-undocumented";
+
+type RouteIdentity =
+  | {
+      providerId: AccessProviderId;
+      offeringId: string;
+      resourceId: null;
+    }
+  | {
+      providerId: AccessProviderId;
+      offeringId: string;
+      resourceId: string;
+    };
+
+type ApiRouteIdentity = Extract<RouteIdentity, { resourceId: null }>;
+type SubscriptionRouteIdentity = Extract<RouteIdentity, { resourceId: string }>;
+
+type CanonicalRouteKey = readonly [AccessProviderId, string, string | null];
+
+type ConditionalReasonCode =
+  | "catalog-reference-unresolved"
+  | "catalog-version-mismatch"
+  | "catalog-claim-mismatch"
+  | "preset-version-mismatch"
+  | "connector-unverified"
+  | "connector-binding-mismatch"
+  | "connector-snapshot-stale"
+  | "connector-snapshot-replayed"
+  | "connector-receipt-invalid"
+  | "evidence-authority-invalid"
+  | "profile-unverified"
+  | "model-limits-incomplete"
+  | "access-limits-incomplete"
+  | "access-capabilities-incomplete"
+  | "availability-uncertain"
+  | "consumption-user-observed"
+  | "quota-calibrated"
+  | "quota-opaque"
+  | "initial-capacity-unpublished";
+
+type ConditionalAlternative = {
+  routeIdentity: SubscriptionRouteIdentity;
+  reasonCodes: readonly [ConditionalReasonCode, ...ConditionalReasonCode[]];
+  fallbackRouteIdentity: ApiRouteIdentity;
+};
+
+type ConditionalFallbackFailureCode =
+  | "no-compatible-api-fallback"
+  | "fallback-over-incremental-cash-budget";
 ```
 
-`ModelDefinition` owns identity, family, planning tier, capabilities, and a reference to invocation
-limits. `Offering` owns the access mode, supported surfaces, availability conditions, and source.
-API price schedules and subscription quota/resource state are separate types; neither is embedded
-in calculation code.
+`ModelDefinition` owns model identity, family, planning tier, capabilities, and invocation limits.
+`Offering.providerId` identifies the access provider and is required even when the model is opaque;
+it is not inferred from `modelProviderId` because an access product can expose another company's
+model. `Offering` otherwise owns access mode, supported surfaces, availability conditions, and
+source. API price schedules and subscription quota/resource state are separate types; neither is
+embedded in calculation code.
+
+Access-provider, Offering, and resource IDs are immutable, locale-independent ASCII identifiers,
+unique in their respective source-state scope, and never derived from a display label. Every API
+or preset provider ID comes from its registry; Custom providers receive a planner-generated ID in a
+separate user namespace and cannot claim a registered namespace. Every API route uses
+`resourceId: null`; every subscription route uses the non-empty stable ID of its resolved resource.
+A resource's `offeringRef` must resolve to the same provider and Offering, and a duplicate
+`(providerId, offeringId, resourceId)` tuple is a schema error.
+
+`CanonicalRouteKey` is constructed structurally from `RouteIdentity`, never by delimiter joining.
+Keys compare provider ID, Offering ID, then resource ID element by element in ascending code-point
+order, with `null` before a string. This same structured identity is used by task assignments,
+quota and fee ledgers, route and full-plan comparators, conditional alternatives, API fallbacks,
+Premium baselines, and JSON/Markdown projection. Display names and model labels never break ties.
 
 A model-bound offering must resolve its `modelId`; a missing reference is catalog-invalid and
 ineligible. `same-as-model`, a narrower bounded policy, and unknown access policy are distinct—not
 an optional field. Effective limits use the tighter intersection only when the model and access
-policies both have complete provider-published knowledge. Effective capabilities are the model
-capability set intersected with a complete bounded access-path profile, or the complete model set
-under sourced `same-as-model`.
+policies both have complete resolver-issued provider-published knowledge. Effective capabilities
+are the model capability set intersected with a complete bounded access-path profile, or the
+complete model set under sourced `same-as-model`.
 
 For limits, `complete` means that the evidence covers the full set of constraints applicable to
 that model/surface; it does not require every optional numeric field to be present. Partial,
 unknown, or user-observed model/access limits and capabilities cannot confirm eligibility. A
 model-opaque subscription can be a confirmed eligibility candidate only when a complete
-provider-published quality/capability/invocation-limit profile exists. A user-observed profile is
-conditional, and an unprofiled product is only a conditional alternative. The planner never fills
-an undisclosed profile from `recommendedModelTier`, a neighboring product, an empty capability
-array, or guessed limits.
+resolver-issued provider-published quality/capability/invocation-limit profile exists. A
+user-observed profile is conditional, and an unprofiled product is only a conditional alternative.
+The planner never fills an undisclosed profile from `recommendedModelTier`, a neighboring product,
+an empty capability array, or guessed limits.
 
-Eligibility is a closed union of `eligible`, `conditional` with reason codes and
-`fallbackRequired: true`, or `ineligible` with reason codes. Surface mismatch, a required capability
-missing from a complete profile, or a published invocation-limit failure is ineligible. Undisclosed
-or user-observed eligibility is conditional. Eligibility and quota availability must both be
-confirmed before a subscription can be the primary execution route.
+Eligibility is a closed union of `eligible`, `conditional` with non-empty
+`ConditionalReasonCode[]` and `fallbackRequired: true`, or `ineligible` with closed reason codes.
+Surface mismatch, a required capability missing from a complete profile, or a published
+invocation-limit failure is ineligible. Undisclosed or user-observed eligibility is conditional.
+Eligibility and quota availability must both be confirmed before a subscription can be the primary
+execution route.
+
+Conditional alternatives never enter the confirmed primary comparator and are not called optimal.
+For diagnostic display they sort by primary `CanonicalRouteKey`, API fallback
+`CanonicalRouteKey`, then a deduplicated reason-code vector using the declared enum order. The
+resolver owns a versioned rank table in exactly the sequence shown above and never relies on union,
+array, or object enumeration order. The fallback itself is selected by the confirmed API
+comparator. Missing fallback becomes infeasible with `no-compatible-api-fallback`; a compatible
+fallback that exceeds the incremental-cash budget becomes held with
+`fallback-over-incremental-cash-budget`. These identities and codes are preserved unchanged in
+task, plan, Markdown, and JSON results so enumeration order cannot choose a resource or rewrite an
+explanation.
 
 The existing machine value `frontier` remains unchanged in GPT output, LocalStorage v3, JSON v3,
 Mock fixtures, and current UI. A future adapter may interpret that legacy planning position as
@@ -757,6 +912,12 @@ Adapters must not synthesize `workMode`, `requiredQualityTier`, capabilities, up
 `failureRisk`, or another GPT-derived value from a legacy tier, task type, free-form risk text,
 empty array, or default. User-owned fields added later use an explicit legacy/unspecified state when
 needed rather than pretending the user chose a value.
+
+Future source-state records persist only `StoredEvidenceInput`, never branded `EvidenceRef` or a
+resolved result snapshot. Restore re-runs the exact-version registry and connector resolvers before
+calculation. Resolution failure preserves the reference and produces a recoverable conditional
+state; it does not delete the scenario, trust exported provenance, or copy a claimed official kind
+into the internal domain.
 
 A valid historical record is removed only when its declared version's frozen parser proves that the
 record itself is malformed. If historical parsing succeeds but adaptation, target validation, or
@@ -836,11 +997,12 @@ deadline first—but retain original input index ascending as the final stable t
 must not reinterpret the current global deadline or free-form risk text to rank tasks.
 
 The three target strategies are secondary policies applied only after the hard quality and
-compatibility filters. Cost Saver selects the least incremental-cash sufficient route. Balanced
-prefers a confirmed owned route before applying cost tie-breaks. Quality First may add at most one
-tier of headroom only when a closed `AppliedUpgradeTrigger` exists and budget or quota permits it.
-No strategy may cross below the minimum quality, treat conditional capacity as guaranteed, or
-select premium merely because it is available.
+compatibility filters. Cost Saver minimizes incremental cash among eligible routes and uses quality
+excess only as an equal-cash tie-break. Balanced prefers minimum quality excess and then confirmed
+owned included capacity before applying cash tie-breaks. Quality First may add at most one tier of
+headroom only when a closed `AppliedUpgradeTrigger` exists and budget or quota permits it. No
+strategy may cross below the minimum quality, treat conditional capacity as guaranteed, or select
+Premium merely because it is available.
 
 After hard filtering, if the minimum is below Premium, no compatible sub-Premium Offering remains,
 and a compatible Premium Offering exists, the program emits
@@ -853,13 +1015,14 @@ include deterministic
 and any hold reason. GPT does not generate cost or route-selection explanations.
 
 For a fixed activated-subscription set, confirmed task routes use a complete lexicographic
-comparator. Cost Saver sorts by quality distance, Expected variable cash in micro-USD, route-kind
-rank, provider ID, then stable Offering ID. Balanced sorts by quality distance, capacity/cash class,
-Expected variable cash, route-kind rank, provider ID, then Offering ID. Quality First first raises
-its target by at most one tier when triggered, then uses Balanced ordering. Shared activation fees
-are excluded from the per-route variable cash key and handled only at plan level. Different native
-quota units are never converted for a tie-break; stable Offering ID closes every remaining tie.
-Conditional alternatives never enter this confirmed-route comparator.
+comparator. Cost Saver sorts by Expected variable cash in micro-USD, `qualityKey`, route-kind rank,
+then `CanonicalRouteKey`. Balanced sorts by `qualityKey`, capacity/cash class, Expected variable
+cash, route-kind rank, then `CanonicalRouteKey`. Quality First first raises its target by at most one
+tier when triggered, then uses Balanced ordering. Shared activation fees are excluded from the
+per-route variable cash key and handled only at plan level. Different native quota units are never
+converted for a tie-break; the full provider/Offering/resource tuple closes every remaining tie.
+Conditional alternatives use their separate diagnostic ordering and never enter this confirmed
+primary comparator.
 
 The shared scalar definitions are:
 
@@ -890,6 +1053,12 @@ scalar keys sort ascending, and task-status and quality-key vectors compare lexi
 the documented task order. Expected variable cash excludes only the shared subscription fixed fee,
 which belongs to the full-plan comparator.
 
+For Cost Saver, “minimum sufficient” is the hard eligibility floor rather than its first
+optimization key. An eligible owned Balanced route at `$0` therefore beats a `$1` Economy API; at
+equal cash, Economy wins through `qualityKey`. This does not maximize quality: an untriggered
+Premium route is removed before comparison, and any selected higher eligible tier discloses that
+cash was saved while scarce subscription quota was consumed.
+
 An owned route that requires paid overage is cash-bearing and cannot outrank a cheaper API merely
 because the base subscription is already owned. Within every complete plan, budget relief tries the
 next confirmed compatible route in comparator order and recalculates all shared fees and overage
@@ -898,12 +1067,16 @@ before it holds the task. Holding occurs only after no remaining confirmed assig
 New subscription activation uses a deterministic plan-level heuristic rather than claiming a
 global optimum. Start with owned subscriptions plus APIs. In each round, build a complete plan for
 adding each one inactive subscription, remove unused activations, and accept only the strictly best
-full-plan improvement. Repeat until none improves. Full plans compare: `budgetFitRank`; the
-`statusRank` vector in reservation order; the `qualityKey` vector in that order;
-Expected incremental cash; High incremental cash; sorted activated subscription IDs; then task
-assignment Offering IDs in original input order. This catches a fee shared by several tasks without
-making task traversal decide the fee. It may miss a combination that improves only when several
-subscriptions activate together, which must remain disclosed as a heuristic limitation.
+full-plan improvement. Repeat until none improves. Every strategy first compares `budgetFitRank`
+and the `statusRank` vector in reservation order, so keeping more important work active beats a cash
+saving. Cost Saver then compares Expected incremental cash, High incremental cash, and the
+`qualityKey` vector. Balanced and Quality First compare the `qualityKey` vector, the
+capacity/cash-class vector, Expected incremental cash, then High incremental cash. Every plan ends
+with sorted canonical keys for activated subscription resources and the
+`RouteIdentity | null` assignment vector in original task order; `null` sorts before a route key.
+This catches a fee shared by several tasks without making task traversal decide the fee. It may miss
+a combination that improves only when several subscriptions activate together, which must remain
+disclosed as a heuristic limitation.
 
 ### Plan-level cash and budget contract
 
@@ -911,12 +1084,12 @@ Ver3 introduces `incrementalCashBudgetUsd` as the versioned successor to current
 the maximum additional cash for the plan, not an API-only cap:
 
 ```text
-activatedSubscriptionIds =
-  distinct new subscription resource IDs used by active primary routes
+activatedSubscriptionKeys =
+  distinct CanonicalRouteKeys for new subscription resources used by active primary routes
 
 planIncrementalCash[scenario] =
   active API spend[scenario]
-  + full plan-period fee for each activatedSubscriptionId
+  + full plan-period fee for each activatedSubscriptionKey
   + source-backed paid overage[scenario]
 
 expectedWithinBudget =
@@ -948,9 +1121,10 @@ prefer one applicable $10 subscription while one $6 task does not.
 Let `E` be exactly the active tasks in the guaranteed selected plan. If `E` is empty, the metric is
 `null`. Otherwise, for each task in `E`, resolve
 the compatible Premium API Offering with the lowest Expected micro-USD cost at the same
-`pricingAsOf`; provider ID then Offering ID breaks a cost tie. Compatibility includes surface,
-capabilities, invocation limits, price date, and token-range conditions. If any task in `E` lacks
-such an Offering, the premium baseline and avoided spend are `null` rather than partial.
+`pricingAsOf`; its API `CanonicalRouteKey` with `resourceId: null` breaks a cost tie. Compatibility
+includes surface, capabilities, invocation limits, price date, and token-range conditions. If any
+task in `E` lacks such an Offering, the premium baseline and avoided spend are `null` rather than
+partial.
 
 ```text
 premiumBaselineExpectedUsd =
@@ -970,9 +1144,9 @@ Held and infeasible work is excluded from both sides. Conditional subscription s
 selected API fallback cost because they are not confirmed primary routes. Existing subscription
 fees stay excluded as sunk commitments; new subscription fees and paid overage are deducted once
 through selected incremental cash. A negative difference is shown as `additionalSpendUsd`, not
-hidden behind `$0 saved`. Exports record the task set, baseline Offering IDs and costs,
-`pricingAsOf`, selected cash components, and both signed outcomes. The comparison is a planning
-counterfactual, not realized savings or a claim that Premium objectively performs better.
+hidden behind `$0 saved`. Exports record the task set, structured baseline route identities and
+costs, `pricingAsOf`, selected cash components, and both signed outcomes. The comparison is a
+planning counterfactual, not realized savings or a claim that Premium objectively performs better.
 
 The current standard-uncached API comparison remains a normalized reference view. Before an API
 offering can become an executable Best-fit route, its effective date, token-range price conditions,
@@ -999,6 +1173,8 @@ The result keeps four quantities visibly separate:
 These remain separate line items. Only the explicitly labeled incremental-cash total combines API,
 new-subscription, and paid-overage cash for the budget boundary. Each task leads with its
 recommended access route before the model name and includes the deterministic explanations above.
+Task, plan, fallback, baseline, and export records carry the same structured `RouteIdentity`; a
+conditional result also carries its ordered reason codes and structured API fallback identity.
 
 The eventual Korean hero contract is:
 
@@ -1021,7 +1197,9 @@ The Ver3 target covers API and subscription offerings. ChatGPT-like variable sub
 coding plans, rolling-quota plans, and `Custom subscription` are future presets or inputs, not
 implemented checkpoint-1 features. A cloud subscription for a model family that can also run
 locally is represented only as `Custom subscription`. This user-defined subscription metadata does
-not authorize an arbitrary API provider, custom model catalog, or local-inference claim.
+not authorize an arbitrary API provider, custom model catalog, local-inference claim, or
+provider-published evidence. Unless its facts resolve through an allowlisted preset or verified
+connector, a Custom subscription remains user-observed/unknown and therefore conditional.
 
 Self-hosted execution, local inference, GPU memory, throughput, electricity, and hardware
 depreciation are Phase 2. “Local execution” must not appear as an implemented hero claim in Ver3.

@@ -122,6 +122,9 @@
 - [x] Define machine-readable quota availability, same-unit consumption, validation, and provenance
 - [x] Define plan-level incremental cash, shared subscription fee, and total-cash budget rules
 - [x] Close capability/upgrade signals and complete task, route, and plan tie-breaks
+- [x] Separate persisted provenance claims from resolver-issued evidence authority
+- [x] Define one canonical provider/Offering/resource identity across routes and exports
+- [x] Align Cost Saver route and full-plan comparators with cash-first product wording
 - [x] Define the conservative premium baseline and signed avoided/additional-spend formulas
 - [x] Keep LocalStorage and result-export versioning independent without changing runtime v3 schemas
 - [x] Keep the five provider-comparison P2 findings outside this implementation checkpoint
@@ -142,11 +145,19 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Intersect model and access-path capability profiles; never inherit an unknown surface capability set
 - [ ] Gate model-opaque subscriptions on complete sourced eligibility profiles
 - [ ] Return closed eligible/conditional/ineligible results and require API fallback for conditional paths
+- [ ] Separate untrusted stored evidence inputs from resolver-only provider/connector evidence types
+- [ ] Resolve exact immutable catalog/preset IDs, versions, entries, claims, subjects, and field paths from an allowlist
+- [ ] Preserve referenced historical registry versions and reject missing or mismatched versions without trusting URLs
+- [ ] Add stable access-provider identity and one structured provider/Offering/resource route identity
+- [ ] Assign Custom providers a non-registered namespace and reject registered-ID impersonation
+- [ ] Reject duplicate route tuples and resource-to-Offering/provider reference mismatches
 - [ ] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
 - [ ] Preserve current provider-plan outputs with API-offering parity tests
-- [ ] Keep API provider IDs separate from extensible subscription provider identity
+- [ ] Keep the closed current API `ProviderId` separate from extensible `AccessProviderId`
 - [ ] Test missing model references, sourced/observed/unprofiled opaque offerings, capability subsets, surfaces, and limits
 - [ ] Test same-as-model versus unknown, tighter limit/capability intersections, and partial/user-observed conditional results
+- [ ] Test forged official kinds/URLs, Custom metadata, unknown registry versions, claim mismatches, and user override non-escalation
+- [ ] Test model-opaque provider ordering and API `resourceId: null` canonical route keys
 
 ### Checkpoint 3 — workload requirement contract
 
@@ -190,6 +201,9 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Resolve paid overage by Offering scope, effective dates, same unit, deficit, and optional cap
 - [ ] Reject opaque-quota paid overage and unknown/expired/out-of-scope overage as confirmed capacity
 - [ ] Keep observed/calibrated/opaque paths conditional and require a compatible budgeted API fallback
+- [ ] Resolve connector references only through registered adapters with authenticated account/resource binding and replay checks
+- [ ] Downgrade unresolved registry/connector evidence to conditional without deleting its source state
+- [ ] Emit closed conditional and fallback-failure reason codes in a fixed versioned order
 - [ ] Reserve only a derived ledger; never mutate saved remaining quota during planning
 - [ ] Count a new subscription commitment once and existing included use as `$0` incremental cash
 - [ ] Keep subscription consumption and API spend in separate ledgers
@@ -198,6 +212,8 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Test exact quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
 - [ ] Test valid/oversized/missing initial capacity and ensure activation depletes only a derived ledger
 - [ ] Prove conditional-only routes cannot set active/all-active; fallback budget failure holds and missing fallback is infeasible
+- [ ] Test forged/offline/cross-account/stale/replayed connector snapshots and authenticated refresh behavior
+- [ ] Test two resources for one Offering select the same canonical resource regardless of input order
 
 ### Checkpoint 6 — deterministic Best-fit allocation
 
@@ -209,7 +225,7 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Test two $6 API tasks versus one $10 shared subscription and the one-task $6 versus $10 boundary
 - [ ] Test fixed fees in Expected fit and High warning plus source-backed paid-overage boundaries
 - [ ] Compare complete plans for each add-one subscription activation before choosing a route set
-- [ ] Select the minimum-sufficient route with the complete strategy comparator ending in stable Offering ID
+- [ ] Select routes with complete strategy comparators ending in the canonical provider/Offering/resource tuple
 - [ ] Implement exact tier/status/budget/route ranks and lexicographic `qualityKey` vector semantics
 - [ ] Apply the documented Cost Saver, Balanced, and Quality First secondary policies
 - [ ] Emit the Premium compatibility-fallback trigger when no compatible sub-Premium Offering remains
@@ -217,7 +233,12 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Test priority → deadline → impact → risk → stable-index reservation and inverse relief boundaries
 - [ ] Test all failure impact/risk triggers, unknown enum rejection, and free-form risk exclusion
 - [ ] Test route and full-plan comparator ties for every strategy and input/object enumeration order
-- [ ] Test below/above-target quality distance symmetry and Expected API-plus-overage variable cash keys
+- [ ] Test directional `qualityKey`: exact target first, equal-distance above beats below, then smallest excess
+- [ ] Apply `qualityKey` in Cost Saver only after equal Expected variable cash
+- [ ] Test Cost Saver cash-first boundaries: `$0` owned Balanced beats `$1` Economy API, while equal cash prefers Economy
+- [ ] Prove untriggered Premium is excluded and triggered Premium participates in the cash comparator
+- [ ] Test Cost Saver full-plan cash before quality after the common budget-fit/status prefix
+- [ ] Test conditional candidate/reason/fallback ordering and exports are invariant to insertion order
 - [ ] Test cheaper API versus owned paid overage and route reassignment before any hold
 - [ ] Hold lower-priority work when compatible quota and incremental-cash budget are unavailable
 - [ ] Generate route rationale, premium non-selection, upgrade trigger, alternative, and hold reason by rule
@@ -243,10 +264,14 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [ ] Preserve the versioned legacy analysis snapshot while adding default API-only resource state
 - [ ] Persist and export user overrides without overwriting the official default/source snapshot
 - [ ] Preserve source-only persistence and recalculate all derived routes on restore
+- [ ] Persist only evidence references and user observations; re-resolve authority on every restore
+- [ ] Treat exported resolved evidence as audit-only and never as import or restore authority
 - [ ] Version JSON independently from LocalStorage instead of changing JSON v3 meaning; update Markdown in parallel
 - [ ] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
-- [ ] Export activated fee IDs, paid overage, baseline Offering IDs, `planningAsOf`, `pricingAsOf`, and signed cash difference
+- [ ] Export structured route identities for tasks, fallbacks, activated resources, and Premium baselines
+- [ ] Export paid overage, `planningAsOf`, `pricingAsOf`, and signed cash difference
 - [ ] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
+- [ ] Test task/plan/Markdown/JSON route-key parity and ensure audit snapshots cannot escalate restored authority
 - [ ] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
 - [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
 - [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
