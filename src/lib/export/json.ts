@@ -29,6 +29,13 @@ export function createPlanJson(
               priceAfterEffectiveThrough: model.priceAfterEffectiveThrough ?? null,
               standardPriceInputLimitTokens: model.standardPriceInputLimitTokens ?? null,
               excludedLongContextPrice: model.excludedLongContextPrice ?? null,
+              limits: {
+                maxInputTokens: model.limits.maxInputTokens ?? null,
+                maxOutputTokens: model.limits.maxOutputTokens ?? null,
+                maxCombinedTokens: model.limits.maxCombinedTokens ?? null,
+                sourceUrl: model.limits.sourceUrl,
+                verifiedAt: model.limits.verifiedAt,
+              },
             },
           ];
         }),
@@ -76,23 +83,43 @@ export function createPlanJson(
       minimumExpectedCostUsd: task.minimumExpectedCostUsd,
     };
 
-    return task.status === "held"
-      ? {
-          ...base,
-          assignedTier: null,
-          modelId: null,
-          cost: null,
-          wasDowngradedForBudget: false,
-          holdReason: task.holdReason,
-        }
-      : {
-          ...base,
-          assignedTier: task.assignedTier,
-          modelId: task.modelId,
-          cost: task.cost,
-          wasDowngradedForBudget: task.wasDowngradedForBudget,
-          holdReason: null,
-        };
+    if (task.status === "held") {
+      return {
+        ...base,
+        assignedTier: null,
+        modelId: null,
+        cost: null,
+        wasDowngradedForBudget: false,
+        wasReassignedForLimits: task.wasReassignedForLimits,
+        holdReason: task.holdReason,
+        infeasibleReason: null,
+        offeringFailures: task.offeringFailures,
+      };
+    }
+    if (task.status === "infeasible") {
+      return {
+        ...base,
+        assignedTier: null,
+        modelId: null,
+        cost: null,
+        wasDowngradedForBudget: false,
+        wasReassignedForLimits: false,
+        holdReason: null,
+        infeasibleReason: task.infeasibleReason,
+        offeringFailures: task.offeringFailures,
+      };
+    }
+    return {
+      ...base,
+      assignedTier: task.assignedTier,
+      modelId: task.modelId,
+      cost: task.cost,
+      wasDowngradedForBudget: task.wasDowngradedForBudget,
+      wasReassignedForLimits: task.wasReassignedForLimits,
+      holdReason: null,
+      infeasibleReason: null,
+      offeringFailures: task.offeringFailures,
+    };
   });
 
   return JSON.stringify(
@@ -124,7 +151,9 @@ export function createPlanJson(
         highExceedsBudget: context.plan.highExceedsBudget,
         activeTaskCount: context.plan.activeTaskCount,
         heldTaskCount: context.plan.heldTaskCount,
+        infeasibleTaskCount: context.plan.infeasibleTaskCount,
         downgradedTaskCount: context.plan.downgradedTaskCount,
+        limitReassignedTaskCount: context.plan.limitReassignedTaskCount,
         warnings: context.plan.warnings,
         tasks: resultTasks,
       },
@@ -137,7 +166,9 @@ export function createPlanJson(
           highExceedsBudget: comparison.highExceedsBudget,
           activeTaskCount: comparison.activeTaskCount,
           heldTaskCount: comparison.heldTaskCount,
+          infeasibleTaskCount: comparison.infeasibleTaskCount,
           downgradedTaskCount: comparison.downgradedTaskCount,
+          limitReassignedTaskCount: comparison.limitReassignedTaskCount,
         })),
       },
       pricing: {

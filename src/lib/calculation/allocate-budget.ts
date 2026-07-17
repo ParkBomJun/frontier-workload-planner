@@ -4,6 +4,7 @@ import type {
   Complexity,
   CostTotals,
   ModelTier,
+  OfferingFeasibilityFailure,
   PlannedTask,
   PlanningSettings,
   ProviderId,
@@ -15,6 +16,7 @@ import type {
 } from "@/types/domain";
 
 import { estimateTaskCost, fromMicroUsd, toMicroUsd } from "./estimate-cost";
+import { validateTaskModelFeasibility } from "./invocation-feasibility";
 
 const TIER_ORDER: ModelTier[] = ["economy", "balanced", "frontier"];
 const COMPLEXITY_ORDER: Record<Complexity, number> = {
@@ -44,8 +46,11 @@ interface WorkingTask {
   task: TaskInput;
   analysis: TaskAnalysis;
   strategyTargetTier: ModelTier;
-  assignedTier: ModelTier;
-  status: "active" | "held";
+  compatibleTiers: ModelTier[];
+  initialTier: ModelTier | null;
+  assignedTier: ModelTier | null;
+  status: "active" | "held" | "infeasible";
+  offeringFailures: OfferingFeasibilityFailure[];
 }
 
 function shiftTier(tier: ModelTier, offset: -1 | 0 | 1): ModelTier {
@@ -63,16 +68,67 @@ export function strategyTargetTier(
   return recommendedTier;
 }
 
-function lowerTier(tier: ModelTier): ModelTier {
-  return shiftTier(tier, -1);
+function initialCompatibleTier(
+  strategyTarget: ModelTier,
+  compatibleTiers: ModelTier[],
+): ModelTier | null {
+  const targetIndex = TIER_ORDER.indexOf(strategyTarget);
+  return (
+    TIER_ORDER.slice(targetIndex).find((tier) => compatibleTiers.includes(tier)) ??
+    [...TIER_ORDER]
+      .slice(0, targetIndex)
+      .reverse()
+      .find((tier) => compatibleTiers.includes(tier)) ??
+    null
+  );
+}
+
+function lowerCompatibleTier(item: WorkingTask): ModelTier | null {
+  if (item.assignedTier === null) return null;
+  const currentIndex = TIER_ORDER.indexOf(item.assignedTier);
+  return (
+    [...TIER_ORDER]
+      .slice(0, currentIndex)
+      .reverse()
+      .find((tier) => item.compatibleTiers.includes(tier)) ?? null
+  );
+}
+
+function minimumCompatibleExpectedCostUsd(
+  item: WorkingTask,
+  providerId: ProviderId,
+): number | null {
+  if (item.compatibleTiers.length === 0) return null;
+  return Math.min(
+    ...item.compatibleTiers.map(
+      (tier) => estimateTaskCost(item.analysis, tier, providerId).expected.costUsd,
+    ),
+  );
 }
 
 function toPlannedTask(item: WorkingTask, providerId: ProviderId): PlannedTask {
-  const minimumExpectedCostUsd = estimateTaskCost(
-    item.analysis,
-    "economy",
-    providerId,
-  ).expected.costUsd;
+  const minimumExpectedCostUsd = minimumCompatibleExpectedCostUsd(item, providerId);
+  if (item.status === "infeasible") {
+    return {
+      taskId: item.task.id,
+      taskName: item.task.name,
+      priority: item.task.priority,
+      analysis: item.analysis,
+      strategyTargetTier: item.strategyTargetTier,
+      offeringFailures: item.offeringFailures,
+      minimumExpectedCostUsd: null,
+      status: "infeasible",
+      assignedTier: null,
+      modelId: null,
+      cost: null,
+      wasDowngradedForBudget: false,
+      wasReassignedForLimits: false,
+      infeasibleReason: "no-compatible-offering",
+    };
+  }
+  if (minimumExpectedCostUsd === null) {
+    throw new Error("A feasible task must have at least one compatible offering.");
+  }
   if (item.status === "held") {
     return {
       taskId: item.task.id,
@@ -80,14 +136,20 @@ function toPlannedTask(item: WorkingTask, providerId: ProviderId): PlannedTask {
       priority: item.task.priority,
       analysis: item.analysis,
       strategyTargetTier: item.strategyTargetTier,
+      offeringFailures: item.offeringFailures,
       minimumExpectedCostUsd,
       status: "held",
       assignedTier: null,
       modelId: null,
       cost: null,
       wasDowngradedForBudget: false,
+      wasReassignedForLimits: false,
       holdReason: "insufficient-budget",
     };
+  }
+
+  if (item.assignedTier === null) {
+    throw new Error("An active task must have an assigned compatible tier.");
   }
 
   return {
@@ -96,6 +158,7 @@ function toPlannedTask(item: WorkingTask, providerId: ProviderId): PlannedTask {
     priority: item.task.priority,
     analysis: item.analysis,
     strategyTargetTier: item.strategyTargetTier,
+    offeringFailures: item.offeringFailures,
     minimumExpectedCostUsd,
     status: "active",
     assignedTier: item.assignedTier,
@@ -103,13 +166,14 @@ function toPlannedTask(item: WorkingTask, providerId: ProviderId): PlannedTask {
     cost: estimateTaskCost(item.analysis, item.assignedTier, providerId),
     wasDowngradedForBudget:
       TIER_ORDER.indexOf(item.assignedTier) < TIER_ORDER.indexOf(item.strategyTargetTier),
+    wasReassignedForLimits: item.initialTier !== item.strategyTargetTier,
   };
 }
 
 function sumTotals(tasks: PlannedTask[]): CostTotals {
   const totalsMicroUsd = tasks.reduce(
     (totals, task) =>
-      task.status === "held"
+      task.status !== "active"
         ? totals
         : {
             low: totals.low + toMicroUsd(task.cost.low.costUsd),
@@ -153,34 +217,40 @@ function compareForBudgetRelief(a: WorkingTask, b: WorkingTask): number {
 
 function expectedTotalMicroUsd(working: WorkingTask[], providerId: ProviderId): number {
   return working.reduce(
-    (total, item) =>
-      item.status === "held"
-        ? total
-        : total +
-          toMicroUsd(
-            estimateTaskCost(item.analysis, item.assignedTier, providerId).expected.costUsd,
-          ),
+    (total, item) => {
+      if (item.status !== "active") return total;
+      if (item.assignedTier === null) {
+        throw new Error("An active task must have an assigned compatible tier.");
+      }
+      return (
+        total +
+        toMicroUsd(
+          estimateTaskCost(item.analysis, item.assignedTier, providerId).expected.costUsd,
+        )
+      );
+    },
     0,
   );
 }
 
-function activeMinimumExpectedTotalMicroUsd(
+function minimumCompatibleExpectedTotalMicroUsd(
   working: WorkingTask[],
   providerId: ProviderId,
 ): number {
   return working.reduce(
-    (total, item) =>
-      item.status === "held"
-        ? total
-        : total +
-          toMicroUsd(estimateTaskCost(item.analysis, "economy", providerId).expected.costUsd),
+    (total, item) => {
+      if (item.status === "infeasible") return total;
+      const minimum = minimumCompatibleExpectedCostUsd(item, providerId);
+      if (minimum === null) return total;
+      return total + toMicroUsd(minimum);
+    },
     0,
   );
 }
 
 function resetActiveTiers(working: WorkingTask[]): void {
   working.forEach((item) => {
-    if (item.status === "active") item.assignedTier = item.strategyTargetTier;
+    if (item.status === "active") item.assignedTier = item.initialTier;
   });
 }
 
@@ -222,29 +292,48 @@ export function allocateBudget(
     const analysis = analysisById.get(task.id);
     if (!analysis) throw new Error(`Missing analysis for task ${task.id}.`);
     const target = strategyTargetTier(analysis.recommendedModelTier, settings.strategy);
+    const offeringResults = TIER_ORDER.map((tier) => {
+      const model = PROVIDER_CATALOG[providerId].models[tier];
+      const result = validateTaskModelFeasibility(model, analysis);
+      return { tier, model, result };
+    });
+    const compatibleTiers = offeringResults
+      .filter(({ result }) => result.feasible)
+      .map(({ tier }) => tier);
+    const initialTier = initialCompatibleTier(target, compatibleTiers);
+    const offeringFailures = offeringResults
+      .filter(({ result }) => !result.feasible)
+      .map(({ tier, model, result }) => ({
+        tier,
+        modelId: model.catalogId,
+        scenarios: result.scenarios.filter((scenario) => !scenario.feasible),
+      }));
     return {
       index,
       task,
       analysis,
       strategyTargetTier: target,
-      assignedTier: target,
-      status: "active",
+      compatibleTiers,
+      initialTier,
+      assignedTier: initialTier,
+      status: initialTier === null ? "infeasible" : "active",
+      offeringFailures,
     };
   });
 
-  const minimumExpectedCostUsd = fromMicroUsd(
-    activeMinimumExpectedTotalMicroUsd(working, providerId),
-  );
+  const minimumExpectedCostUsd = working.some((item) => item.status === "infeasible")
+    ? null
+    : fromMicroUsd(minimumCompatibleExpectedTotalMicroUsd(working, providerId));
 
   while (true) {
     resetActiveTiers(working);
 
     while (expectedTotalMicroUsd(working, providerId) > budgetMicroUsd) {
       const candidate = working
-        .filter((item) => item.status === "active" && item.assignedTier !== "economy")
+        .filter((item) => item.status === "active" && lowerCompatibleTier(item) !== null)
         .sort(compareForBudgetRelief)[0];
       if (!candidate) break;
-      candidate.assignedTier = lowerTier(candidate.assignedTier);
+      candidate.assignedTier = lowerCompatibleTier(candidate);
     }
 
     if (expectedTotalMicroUsd(working, providerId) <= budgetMicroUsd) break;
@@ -261,8 +350,14 @@ export function allocateBudget(
   const expectedWithinBudget = toMicroUsd(totals.expectedUsd) <= budgetMicroUsd;
   const highExceedsBudget = toMicroUsd(totals.highUsd) > budgetMicroUsd;
   const activeTaskCount = plannedTasks.filter((task) => task.status === "active").length;
-  const heldTaskCount = plannedTasks.length - activeTaskCount;
+  const heldTaskCount = plannedTasks.filter((task) => task.status === "held").length;
+  const infeasibleTaskCount = plannedTasks.filter(
+    (task) => task.status === "infeasible",
+  ).length;
   const downgradedTaskCount = plannedTasks.filter((task) => task.wasDowngradedForBudget).length;
+  const limitReassignedTaskCount = plannedTasks.filter(
+    (task) => task.status === "active" && task.wasReassignedForLimits,
+  ).length;
   const warnings: string[] = [];
 
   if (!expectedWithinBudget) {
@@ -271,6 +366,16 @@ export function allocateBudget(
   if (heldTaskCount > 0) {
     warnings.push(
       `${heldTaskCount}개 작업을 예산 부족으로 보류했습니다. 보류 작업 비용은 합계에서 제외됩니다.`,
+    );
+  }
+  if (infeasibleTaskCount > 0) {
+    warnings.push(
+      `${infeasibleTaskCount}개 작업은 모든 카탈로그 모델의 호출 한도를 벗어나 실행 불가로 표시했습니다.`,
+    );
+  }
+  if (limitReassignedTaskCount > 0) {
+    warnings.push(
+      `${limitReassignedTaskCount}개 작업을 호출 한도와 호환되는 tier로 재배정했습니다.`,
     );
   }
   if (downgradedTaskCount > 0) {
@@ -294,7 +399,9 @@ export function allocateBudget(
     highExceedsBudget,
     activeTaskCount,
     heldTaskCount,
+    infeasibleTaskCount,
     downgradedTaskCount,
+    limitReassignedTaskCount,
     warnings,
   };
 }

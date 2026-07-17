@@ -22,7 +22,7 @@
 - [x] Calculate deterministic Low / Expected / High token totals and costs
 - [x] Compare and sum costs with integer micro-USD boundaries
 - [x] Allocate model tiers against Expected cost with explainable downgrade rules
-- [x] Warn when all-Economy Expected cost or allocated High cost exceeds budget
+- [x] Warn when the lowest compatible Expected cost or allocated High cost exceeds budget
 - [x] Render result summaries, task details, assumptions, and one Expected-cost chart
 - [x] Test pricing order, size bands, scenarios, strategies, budget boundaries, ID validation, tie-breaking, and deadline independence
 - [x] Pass full unit tests, lint, TypeScript, production build, API checks, and mobile-width smoke check
@@ -89,7 +89,11 @@
 - [x] Define standard uncached text pricing and exclusions for cache, Batch, tools, and long-context surcharges
 - [x] Add the OpenAI, Anthropic, and Google catalog with official source URLs and verification date
 - [x] Preserve Sonnet 5's 2026-08-31 introductory-price expiry
-- [x] Mark the selected Gemini models preview and disclose the Gemini 3.1 Pro ≤200K condition
+- [x] Record Flash-Lite as Stable, the other selected Gemini models as Preview, and disclose the Gemini 3.1 Pro ≤200K price condition
+- [x] Record provider-native input/output/combined invocation limits with official source and verification date
+- [x] Validate each Low / Expected / High invocation without truncation or automatic splitting
+- [x] Exclude incompatible tiers, reassign compatible work, and separate `infeasible` from budget holds
+- [x] Preserve invocation-limit failures in UI, Markdown, and JSON
 - [x] Calculate independent Low / Expected / High allocation plans and comparison summaries for all providers
 - [x] Select a product family and swap plans locally without an analysis API request
 - [x] Migrate LocalStorage v1/v2 to v3 with OpenAI selected by default

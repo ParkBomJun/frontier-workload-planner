@@ -191,15 +191,32 @@ cache-write assumption. It is a planning normalization, not a prediction of actu
 
 Keep all catalog values, official pricing and model URLs, and `verifiedAt: 2026-07-17` in program
 data. Record Claude Sonnet 5's `$2 / $10` introductory price through 2026-08-31 and its `$3 / $15`
-price from 2026-09-01. Mark all three selected Gemini 3 models as preview. Restrict the displayed
+price from 2026-09-01. Record Gemini 3.1 Flash-Lite as Stable and only Gemini 3 Flash plus Gemini
+3.1 Pro as Preview. Restrict the displayed
 Gemini 3.1 Pro `$2 / $12` basis to prompts up to 200K tokens and disclose that the official
 `$4 / $18` greater-than-200K tier is excluded rather than silently applying it.
+
+### Preserve provider-native invocation limits
+
+Do not normalize every provider into a single guessed context-window field. Store optional
+`maxInputTokens`, `maxOutputTokens`, and `maxCombinedTokens` according to the provider's published
+meaning, together with a per-model source URL and `verifiedAt: 2026-07-17`. Validate the Low,
+Expected, and High per-iteration calls with a pure function before calculating an allocation.
+Iterations are separate calls, so their totals do not determine single-call feasibility. Never
+truncate or automatically split a task in this correction.
+
+Require one selected model to support all three scenarios. Exclude an incompatible tier even when
+it is cheaper, move to a compatible tier under the existing deterministic tier rules, and never
+downgrade through an incompatible tier. When no catalog offering is compatible, return a distinct
+`infeasible` task with `no-compatible-offering` plus structured input/output/context-limit failures.
+Do not label that state as a budget hold, do not assign a model or cost, and never report
+`allTasksActiveWithinBudget=true` while it exists.
 
 ### Recalculate complete provider plans locally
 
 Build an independent allocation for OpenAI, Anthropic, and Google from the same source tasks,
-settings, and GPT analysis. Each plan owns its Low / Expected / High totals, budget fit, active and
-held counts, downgrades, and warnings. Selecting a product family swaps the displayed precomputed
+settings, and GPT analysis. Each plan owns its Low / Expected / High totals, budget fit, active,
+held, and infeasible counts, downgrades, and warnings. Selecting a product family swaps the displayed precomputed
 plan and must not trigger `/api/analyze` or another network request.
 
 ### Version source persistence and result exports separately

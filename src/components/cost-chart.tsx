@@ -35,6 +35,8 @@ export function CostChart({ tasks, providerLabel, formatCurrency }: CostChartPro
                 task.taskName,
                 task.status === "held"
                   ? copy.costChart.heldAllocation
+                  : task.status === "infeasible"
+                    ? copy.costChart.infeasibleAllocation
                   : formatCurrency(task.cost.expected.costUsd),
               )}
               className="min-w-0"
@@ -46,17 +48,19 @@ export function CostChart({ tasks, providerLabel, formatCurrency }: CostChartPro
                 <span className="shrink-0 font-mono font-bold text-[#b9ddc9]">
                   {task.status === "held"
                     ? copy.costChart.heldAllocation
+                    : task.status === "infeasible"
+                      ? copy.costChart.infeasibleAllocation
                     : formatCurrency(task.cost.expected.costUsd)}
                 </span>
               </div>
               <div aria-hidden="true" className="h-2.5 overflow-hidden rounded-full bg-white/10">
                 <div
                   className={`h-full rounded-full ${
-                    task.status === "held"
+                    task.status !== "active"
                       ? "bg-transparent"
                       : "bg-gradient-to-r from-[#79b797] to-[#e5a77d]"
                   }`}
-                  style={{ width: task.status === "held" ? "0%" : `${Math.max(4, percentage)}%` }}
+                  style={{ width: task.status === "active" ? `${Math.max(4, percentage)}%` : "0%" }}
                 />
               </div>
             </li>

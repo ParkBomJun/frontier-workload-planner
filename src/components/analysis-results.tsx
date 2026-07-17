@@ -47,6 +47,7 @@ export function AnalysisResults({
     notation: "compact",
     maximumFractionDigits: 1,
   });
+  const exactTokenFormatter = new Intl.NumberFormat(localeMeta.numberLocale);
   const percentFormatter = new Intl.NumberFormat(localeMeta.numberLocale, {
     maximumFractionDigits: 1,
   });
@@ -56,6 +57,12 @@ export function AnalysisResults({
   const localizedWarnings = [
     !plan.expectedWithinBudget ? copy.analysisResults.expectedBudgetUnresolved : null,
     plan.heldTaskCount > 0 ? copy.analysisResults.heldWarning(plan.heldTaskCount) : null,
+    plan.infeasibleTaskCount > 0
+      ? copy.analysisResults.infeasibleWarning(plan.infeasibleTaskCount)
+      : null,
+    plan.limitReassignedTaskCount > 0
+      ? copy.analysisResults.limitReassignedWarning(plan.limitReassignedTaskCount)
+      : null,
     plan.downgradedTaskCount > 0
       ? copy.analysisResults.downgradedWarning(plan.downgradedTaskCount)
       : null,
@@ -116,6 +123,7 @@ export function AnalysisResults({
               percentFormatter.format(utilization),
               plan.activeTaskCount,
               plan.heldTaskCount,
+              plan.infeasibleTaskCount,
             )}
             emphasized
           />
@@ -176,6 +184,7 @@ export function AnalysisResults({
               {copy.analysisResults.allocationSummary(
                 plan.activeTaskCount,
                 plan.heldTaskCount,
+                plan.infeasibleTaskCount,
                 formatCurrency(plan.remainingBudgetUsd),
               )}
             </p>
@@ -183,6 +192,22 @@ export function AnalysisResults({
           <div className="grid gap-4 lg:grid-cols-2">
             {plan.tasks.map((task, index) => {
               const titleId = `result-task-title-${task.taskId}`;
+              const invocationFailures = task.offeringFailures.flatMap((offering) =>
+                offering.scenarios.flatMap((scenario) =>
+                  scenario.failures.map((failure) => ({
+                    modelId: offering.modelId,
+                    scenario: scenario.scenario,
+                    ...failure,
+                  })),
+                ),
+              );
+              const failureLabels = [
+                ...new Set(
+                  invocationFailures.map(
+                    (failure) => copy.enums.invocationFailure[failure.code],
+                  ),
+                ),
+              ];
               return (
                 <article
                   key={task.taskId}
@@ -190,7 +215,9 @@ export function AnalysisResults({
                   data-task-id={task.taskId}
                   data-allocation-status={task.status}
                   className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${
-                    task.status === "held"
+                    task.status === "infeasible"
+                      ? "border-[#ef8664]/35 bg-[#4b302b]"
+                      : task.status === "held"
                       ? "border-[#e9b082]/30 bg-[#4a4032]"
                       : "border-white/10 bg-[#1b4a39]"
                   }`}
@@ -212,15 +239,43 @@ export function AnalysisResults({
                         <span className="rounded-full bg-[#efb28b]/20 px-2.5 py-1 text-xs font-bold text-[#ffe0c9]">
                           {copy.analysisResults.onHoldBadge}
                         </span>
+                      ) : task.status === "infeasible" ? (
+                        <span className="rounded-full bg-[#ef8664]/20 px-2.5 py-1 text-xs font-bold text-[#ffd2c4]">
+                          {copy.analysisResults.infeasibleBadge}
+                        </span>
                       ) : task.wasDowngradedForBudget ? (
                         <span className="rounded-full bg-[#efb28b]/15 px-2.5 py-1 text-xs font-bold text-[#ffd8bd]">
                           {copy.analysisResults.budgetAdjustedBadge}
+                        </span>
+                      ) : task.wasReassignedForLimits ? (
+                        <span className="rounded-full bg-[#e9b082]/15 px-2.5 py-1 text-xs font-bold text-[#ffd8bd]">
+                          {copy.analysisResults.limitAdjustedBadge}
                         </span>
                       ) : null}
                     </div>
                   </div>
 
-                  {task.status === "held" ? (
+                  {task.status === "infeasible" ? (
+                    <div className="mt-4 rounded-xl border border-[#ef8664]/30 bg-[#ef8664]/10 p-3.5">
+                      <p className="text-sm font-bold text-[#ffd2c4]">
+                        {copy.analysisResults.infeasibleTitle}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-white/75">
+                        {copy.analysisResults.infeasibleReason(failureLabels.join(", "))}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-[0.68rem] leading-5 text-white/65">
+                        {invocationFailures.map((failure, failureIndex) => (
+                          <li
+                            key={`${failure.modelId}-${failure.scenario}-${failure.code}-${failureIndex}`}
+                          >
+                            {failure.modelId} · {failure.scenario} ·{" "}
+                            {copy.enums.invocationFailure[failure.code]} ({exactTokenFormatter.format(failure.actualTokens)} &gt;{" "}
+                            {exactTokenFormatter.format(failure.limitTokens)})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : task.status === "held" ? (
                     <div
                       id={`held-reason-${task.taskId}`}
                       className="mt-4 rounded-xl border border-[#efb28b]/25 bg-[#efb28b]/10 p-3.5"
@@ -299,6 +354,28 @@ export function AnalysisResults({
                       </div>
                     </>
                   )}
+
+                  {task.status !== "infeasible" && invocationFailures.length > 0 ? (
+                    <div className="mt-4 rounded-xl border border-[#e9b082]/20 bg-[#e9b082]/[0.07] p-3.5">
+                      <p className="text-xs font-bold text-[#ffe4d1]">
+                        {copy.analysisResults.excludedOfferingsTitle}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-white/70">
+                        {copy.analysisResults.excludedOfferingsReason(failureLabels.join(", "))}
+                      </p>
+                      <ul className="mt-2 space-y-1 text-[0.68rem] leading-5 text-white/60">
+                        {invocationFailures.map((failure, failureIndex) => (
+                          <li
+                            key={`excluded-${failure.modelId}-${failure.scenario}-${failure.code}-${failureIndex}`}
+                          >
+                            {failure.modelId} · {failure.scenario} ·{" "}
+                            {copy.enums.invocationFailure[failure.code]} ({exactTokenFormatter.format(failure.actualTokens)} &gt;{" "}
+                            {exactTokenFormatter.format(failure.limitTokens)})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
 
                   <dl className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                     {[

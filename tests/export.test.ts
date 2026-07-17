@@ -35,8 +35,12 @@ const context: PlanExportContext = {
   analysisModel: "mock-fixture-v1",
   generatedAt: "2026-07-17T01:00:00.000Z",
 };
+const firstMinimumExpectedCostUsd = plan.tasks[0].minimumExpectedCostUsd;
+if (firstMinimumExpectedCostUsd === null) {
+  throw new Error("The OpenAI export fixture must have a compatible offering.");
+}
 const constrainedPlanning = compareProviderPlans(tasks, analyses, {
-  budgetUsd: plan.tasks[0].minimumExpectedCostUsd,
+  budgetUsd: firstMinimumExpectedCostUsd,
   deadlineDays: 7,
   strategy: "balanced",
 });
@@ -66,6 +70,11 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("https://ai.google.dev/gemini-api/docs/pricing");
     expect(markdown).toContain("2026-08-31까지 현재 가격");
     expect(markdown).toContain("Preview");
+    const flashLiteLine = markdown
+      .split("\n")
+      .find((line) => line.includes("`gemini-3.1-flash-lite`"));
+    expect(flashLiteLine).toBeDefined();
+    expect(flashLiteLine).not.toContain("Preview");
     expect(markdown).toContain("prompt 200,000토큰 이하 가격");
     expect(markdown).toContain("캐시 쓰기·적중, Batch 할인, 도구 호출비, 장문 구간 할증");
     expect(markdown).toContain("객관적 품질 순위가 아닙니다");
@@ -94,7 +103,7 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## Warnings");
     expect(markdown).toContain("## Pricing and calculation assumptions");
     expect(markdown).toContain("| Low (`low`) | On hold |");
-    expect(markdown).toContain("Reason for hold: The all-Economy minimum exceeded the budget");
+    expect(markdown).toContain("Reason for hold: The lowest compatible Expected total exceeded the budget");
     expect(markdown).toContain("A stored Mock fixture provides the structured analysis");
     expect(markdown).toContain(
       "GPT-5.6 is the only Live analysis engine; Claude and Gemini APIs are not called.",
@@ -128,7 +137,7 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## 警告");
     expect(markdown).toContain("## 料金と計算の前提");
     expect(markdown).toContain("| 低 (`low`) | 保留 |");
-    expect(markdown).toContain("保留理由: 全タスクのEconomy最小コストが予算を超えたため");
+    expect(markdown).toContain("保留理由: 全タスクの互換可能なExpected最小コストが予算を超えたため");
     expect(markdown).toContain("GPT-5.6がタスクを1回だけ分析し");
     expect(markdown).toContain("Live分析はGPT-5.6のみが行い、ClaudeとGemini APIは呼び出しません。");
     expect(markdown).not.toContain("Mockモードは保存済みfixtureを使用します。");
@@ -206,6 +215,13 @@ describe("plan JSON export", () => {
             catalogId: "gpt-5.6-luna",
             inputUsdPerMillion: 1,
             outputUsdPerMillion: 6,
+            limits: {
+              maxInputTokens: null,
+              maxOutputTokens: 128_000,
+              maxCombinedTokens: 1_050_000,
+              sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+              verifiedAt: "2026-07-17",
+            },
           },
         },
       },
@@ -221,6 +237,10 @@ describe("plan JSON export", () => {
       google: {
         verifiedAt: "2026-07-17",
         models: {
+          economy: {
+            catalogId: "gemini-3.1-flash-lite",
+            preview: false,
+          },
           frontier: {
             catalogId: "gemini-3.1-pro-preview",
             preview: true,
@@ -264,5 +284,119 @@ describe("plan JSON export", () => {
     expect(constrainedPlan.totals.expectedUsd).toBe(
       constrainedPlan.tasks[0].minimumExpectedCostUsd,
     );
+  });
+
+  it("preserves excluded-tier limit failures after a compatible reassignment", () => {
+    const largeAnalysis = {
+      ...analyses[0],
+      expectedIterations: 1,
+      estimatedInputSize: "xl" as const,
+      estimatedOutputSize: "xl" as const,
+      recommendedModelTier: "economy" as const,
+    };
+    const reassignedPlanning = compareProviderPlans([tasks[0]], [largeAnalysis], {
+      budgetUsd: 1.024,
+      deadlineDays: 7,
+      strategy: "balanced",
+    });
+    const reassignedContext: PlanExportContext = {
+      ...context,
+      sourceTasks: [tasks[0]],
+      plan: reassignedPlanning.plans.anthropic,
+      providerComparisons: reassignedPlanning.comparisons,
+    };
+    const markdown = createPlanMarkdown(reassignedContext, "en");
+    const parsed = JSON.parse(createPlanJson(reassignedContext)) as {
+      result: {
+        tasks: Array<{
+          status: string;
+          modelId: string | null;
+          offeringFailures: Array<{ modelId: string }>;
+        }>;
+      };
+    };
+
+    expect(markdown).toContain("Models excluded by invocation limits");
+    expect(markdown).toContain("`claude-haiku-4-5` · expected · context limit exceeded");
+    expect(parsed.result.tasks[0]).toMatchObject({
+      status: "active",
+      modelId: "claude-sonnet-5",
+      offeringFailures: [{ modelId: "claude-haiku-4-5" }],
+    });
+  });
+
+  it("preserves infeasible invocation reasons in Markdown and JSON without a High cost", () => {
+    const largeAnalysis = {
+      ...analyses[0],
+      expectedIterations: 1,
+      estimatedInputSize: "xl" as const,
+      estimatedOutputSize: "xl" as const,
+      recommendedModelTier: "economy" as const,
+    };
+    const infeasiblePlanning = compareProviderPlans([tasks[0]], [largeAnalysis], {
+      budgetUsd: 5,
+      deadlineDays: 7,
+      strategy: "balanced",
+    });
+    const infeasibleContext: PlanExportContext = {
+      ...context,
+      sourceTasks: [tasks[0]],
+      plan: infeasiblePlanning.plans.google,
+      providerComparisons: infeasiblePlanning.comparisons,
+    };
+    const markdown = createPlanMarkdown(infeasibleContext, "en");
+    const parsed = JSON.parse(createPlanJson(infeasibleContext)) as {
+      result: {
+        infeasibleTaskCount: number;
+        tasks: Array<{
+          status: string;
+          cost: unknown;
+          infeasibleReason: string | null;
+          offeringFailures: Array<{
+            scenarios: Array<{
+              failures: Array<{ code: string; actualTokens: number; limitTokens: number }>;
+            }>;
+          }> | null;
+        }>;
+      };
+      comparison: {
+        providers: Array<{
+          providerId: string;
+          allTasksActiveWithinBudget: boolean;
+          infeasibleTaskCount: number;
+        }>;
+      };
+    };
+    const task = parsed.result.tasks[0];
+    const google = parsed.comparison.providers.find(
+      (provider) => provider.providerId === "google",
+    );
+
+    expect(markdown).toContain("| High |");
+    expect(markdown).toContain("| Infeasible |");
+    expect(markdown).toContain("output limit exceeded (96,000 > 65,536)");
+    expect(task).toMatchObject({
+      status: "infeasible",
+      cost: null,
+      infeasibleReason: "no-compatible-offering",
+    });
+    expect(task.offeringFailures).not.toBeNull();
+    expect(
+      task.offeringFailures?.some((offering) =>
+        offering.scenarios.some((scenario) =>
+          scenario.failures.some(
+            (failure) =>
+              failure.code === "output-limit-exceeded" &&
+              failure.actualTokens === 96_000 &&
+              failure.limitTokens === 65_536,
+          ),
+        ),
+      ),
+    ).toBe(true);
+    expect(parsed.result.infeasibleTaskCount).toBe(1);
+    expect(google).toMatchObject({
+      allTasksActiveWithinBudget: false,
+      infeasibleTaskCount: 1,
+    });
   });
 });

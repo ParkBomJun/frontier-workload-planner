@@ -66,8 +66,8 @@ be described as deployed until it is verified, merged, and redeployed:
 | Input and output size bands | Budget-aware allocation rules |
 | Uncertainty and risk factors | Budget warnings and chart values |
 | Recommended model tier | Currency formatting and totals |
-| — | Per-provider totals, budget fit, and active/held counts |
-| — | User priority, tier downgrades, and held-work selection |
+| — | Per-provider totals, budget fit, and active/held/infeasible counts |
+| — | Invocation feasibility, user priority, tier downgrades, and held-work selection |
 
 GPT must not return a provider choice, final token counts, prices, costs, budget allocation, or
 completion time. A Claude or Gemini endpoint is never used for classification, validation, or
@@ -120,7 +120,7 @@ the providers' official documentation on 2026-07-17.
 | Anthropic | `economy` | `claude-haiku-4-5` | Claude Haiku 4.5 | $1.00 | $5.00 | — |
 | Anthropic | `balanced` | `claude-sonnet-5` | Claude Sonnet 5 | $2.00 | $10.00 | introductory price through 2026-08-31; $3 / $15 from 2026-09-01 |
 | Anthropic | `frontier` | `claude-fable-5` | Claude Fable 5 | $10.00 | $50.00 | — |
-| Google | `economy` | `gemini-3.1-flash-lite` | Gemini 3.1 Flash-Lite | $0.25 | $1.50 | preview |
+| Google | `economy` | `gemini-3.1-flash-lite` | Gemini 3.1 Flash-Lite | $0.25 | $1.50 | stable |
 | Google | `balanced` | `gemini-3-flash-preview` | Gemini 3 Flash | $0.50 | $3.00 | preview |
 | Google | `frontier` | `gemini-3.1-pro-preview` | Gemini 3.1 Pro | $2.00 | $12.00 | preview; prompt ≤200K tokens |
 
@@ -131,7 +131,7 @@ Catalog sources:
 - Anthropic pricing: <https://platform.claude.com/docs/en/about-claude/pricing>
 - Anthropic models: <https://platform.claude.com/docs/en/about-claude/models/overview>
 - Google pricing: <https://ai.google.dev/gemini-api/docs/pricing>
-- Google models and preview status: <https://ai.google.dev/gemini-api/docs/gemini-3>
+- Google models and Stable/Preview status: <https://ai.google.dev/gemini-api/docs/models>
 
 Every comparison uses **standard uncached text** prices. The engine intentionally excludes cache
 writes, cache reads or discounts, Batch/Flex/Priority processing, tool and grounding fees, and
@@ -165,6 +165,39 @@ increase scenario totals without changing the per-request size-band classificati
 
 Costs and budget comparisons are rounded to integer micro-USD before summing or comparing. Returned token values are scenario totals across all iterations.
 
+### Invocation feasibility
+
+The catalog records provider-native invocation limits rather than forcing every provider into one
+synthetic context-window field:
+
+| Product family | Models | `maxInputTokens` | `maxOutputTokens` | `maxCombinedTokens` |
+| --- | --- | ---: | ---: | ---: |
+| OpenAI | GPT-5.6 Luna / Terra / Sol | — | 128,000 | 1,050,000 |
+| Anthropic | Claude Haiku 4.5 | — | 64,000 | 200,000 |
+| Anthropic | Claude Sonnet 5 / Fable 5 | — | 128,000 | 1,000,000 |
+| Google | Gemini 3.1 Flash-Lite / 3 Flash / 3.1 Pro | 1,048,576 | 65,536 | — |
+
+Every model limit object includes its official `sourceUrl` and `verifiedAt: 2026-07-17`. OpenAI
+limits come from each model page, Anthropic limits from the official model overview, and Google
+input/output limits from each individual model page.
+
+`validateInvocationFeasibility(model, tokenScenario)` is a pure function. For each Low, Expected,
+and High **single invocation** it independently checks the published input limit, output limit, and
+combined context limit when that field exists. It returns structured `input-limit-exceeded`,
+`output-limit-exceeded`, and `context-limit-exceeded` failures with actual and allowed token counts.
+Iterations are not multiplied into this feasibility check because each iteration represents another
+call. The planner never truncates tokens or automatically splits work.
+
+An allocation candidate must support all three scenarios on one model. An incompatible tier is
+excluded even when its projected price is lower. The engine first selects the closest compatible
+tier at or above the strategy target, falling back to a compatible lower tier only when no higher
+candidate exists under the existing tier heuristic. Budget relief may move only between compatible
+tiers. If no catalog model for a task/provider pair supports all three scenarios, the task becomes
+`infeasible` with `no-compatible-offering` plus per-model scenario failures. It is not a budget hold,
+receives no model or cost, is excluded from totals, and forces `allTasksActiveWithinBudget=false`.
+Active and budget-held tasks also retain failures for every excluded offering so the UI and exports
+can explain why a cheaper or strategy-target tier was not eligible.
+
 ## Budget allocation contract
 
 Planning controls accept a budget from $0.01 through $10,000, a reference deadline from 1 to 90 days, and one strategy:
@@ -177,11 +210,11 @@ The engine builds a complete independent allocation for every provider from the 
 analysis snapshots. Selecting a product family only chooses which existing plan is displayed; it
 does not call `/api/analyze` or a vendor API.
 
-Within each provider, if the initial Expected total exceeds the budget, lower one eligible task by one tier and recalculate until the plan fits or every active task is Economy. The budget-relief order is deterministic: lower user priority (`low`, then `medium`, then `high`), lower GPT-recommended tier, lighter reasoning, lower complexity, lower uncertainty, then earlier input order. The same task may be lowered again if it remains first in that ordering.
+Within each provider, if the initial Expected total exceeds the budget, lower one eligible task to its next compatible lower tier and recalculate until the plan fits or no active task has a compatible lower tier. The budget-relief order is deterministic: lower user priority (`low`, then `medium`, then `high`), lower GPT-recommended tier, lighter reasoning, lower complexity, lower uncertainty, then earlier input order. The same task may be lowered again if it remains first in that ordering.
 
-If every active task is already Economy and its Expected total still exceeds the budget, move the first task in that same order to `held`, then restart the remaining active tasks from their strategy targets. Repeat until active Expected cost fits. Held tasks remain visible in input order but receive no tier, model, or execution cost and are excluded from Low / Expected / High totals and the High warning. Increasing the budget recalculates from the same GPT analysis and can reactivate held work without another API request.
+If every active task is already at its lowest compatible tier and its Expected total still exceeds the budget, move the first task in that same order to `held`, then restart the remaining active tasks from their compatible strategy targets. Repeat until active Expected cost fits. Held tasks remain visible in input order but receive no tier, model, or execution cost and are excluded from Low / Expected / High totals and the High warning. Increasing the budget recalculates from the same GPT analysis and can reactivate held work without another API request. It cannot make an `infeasible` task executable unless the task analysis or catalog limits change.
 
-Uncertainty only protects higher-uncertainty work from earlier budget relief; it does not widen the numeric token bands. `minimumExpectedCostUsd` remains the Economy Expected lower bound for running every submitted task before any holds. High is compared after allocation for active tasks only and produces a risk warning only when it is strictly greater than the budget.
+Uncertainty only protects higher-uncertainty work from earlier budget relief; it does not widen the numeric token bands. `minimumExpectedCostUsd` is the sum of each task's least expensive compatible Expected offering before budget holds and is `null` when any task has no compatible offering. High is compared after allocation for active tasks only and produces a risk warning only when it is strictly greater than the budget.
 
 The deadline is reference information. It does not alter token estimates, costs, or assigned tiers, and this MVP does not claim detailed duration prediction.
 
@@ -225,7 +258,7 @@ locale only when the user explicitly loads them.
 
 Markdown copy and JSON export use the currently selected provider plan, including any valid local recalculation after analysis. Both include original task descriptions, analysis metadata, selected-provider Low / Expected / High results, task allocations, all three provider summaries, warnings, source URLs, verification date, price conditions, exclusions, and the heuristic/non-optimization disclaimer. Human-readable Markdown labels and explanations follow the current UI locale; user and GPT content remains unchanged.
 
-JSON uses schema version 3 and an explicit allowlist projection rather than serializing application state wholesale. JSON keys, enums, and schema values are locale-independent. Its pricing snapshot records the three catalogs used for the comparison, not a promise that those APIs were called. Both formats include selected provider, priority and active/held status; held JSON allocations use explicit `null` values and Markdown uses em dashes instead of inventing a model or cost. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
+JSON uses schema version 3 and an explicit allowlist projection rather than serializing application state wholesale. JSON keys, enums, and schema values are locale-independent. Its pricing snapshot records the three catalogs, provider-native invocation limits, limit sources, and verification dates used for the comparison, not a promise that those APIs were called. Both formats include selected provider, priority and active/held/infeasible status. Held and infeasible allocations use explicit `null` model/cost values; infeasible entries also preserve `no-compatible-offering` and the structured per-model scenario failures. Markdown uses em dashes instead of inventing a model or cost and prints the localized failure reasons. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
 
 Exports contain task descriptions and leave the app through the clipboard or a local file. They never contain `OPENAI_API_KEY` or another server secret.
 

@@ -51,6 +51,27 @@ function modelNotes(
       ),
     );
   }
+  if (model.limits.maxInputTokens !== undefined) {
+    notes.push(
+      copy.providerPricing.maxInputLimit(
+        model.limits.maxInputTokens.toLocaleString(numberLocale),
+      ),
+    );
+  }
+  if (model.limits.maxOutputTokens !== undefined) {
+    notes.push(
+      copy.providerPricing.maxOutputLimit(
+        model.limits.maxOutputTokens.toLocaleString(numberLocale),
+      ),
+    );
+  }
+  if (model.limits.maxCombinedTokens !== undefined) {
+    notes.push(
+      copy.providerPricing.maxCombinedLimit(
+        model.limits.maxCombinedTokens.toLocaleString(numberLocale),
+      ),
+    );
+  }
 
   return notes;
 }

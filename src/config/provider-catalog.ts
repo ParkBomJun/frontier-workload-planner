@@ -18,6 +18,13 @@ export interface ProviderModelPrice {
     inputUsdPerMillion: number;
     outputUsdPerMillion: number;
   };
+  limits: {
+    maxInputTokens?: number;
+    maxOutputTokens?: number;
+    maxCombinedTokens?: number;
+    sourceUrl: string;
+    verifiedAt: "2026-07-17";
+  };
 }
 
 export interface ProviderCatalog {
@@ -53,6 +60,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "GPT-5.6 Luna",
         inputUsdPerMillion: 1,
         outputUsdPerMillion: 6,
+        limits: {
+          maxOutputTokens: 128_000,
+          maxCombinedTokens: 1_050_000,
+          sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+          verifiedAt: "2026-07-17",
+        },
       },
       balanced: {
         tier: "balanced",
@@ -60,6 +73,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "GPT-5.6 Terra",
         inputUsdPerMillion: 2.5,
         outputUsdPerMillion: 15,
+        limits: {
+          maxOutputTokens: 128_000,
+          maxCombinedTokens: 1_050_000,
+          sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
+          verifiedAt: "2026-07-17",
+        },
       },
       frontier: {
         tier: "frontier",
@@ -67,6 +86,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "GPT-5.6 Sol",
         inputUsdPerMillion: 5,
         outputUsdPerMillion: 30,
+        limits: {
+          maxOutputTokens: 128_000,
+          maxCombinedTokens: 1_050_000,
+          sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
+          verifiedAt: "2026-07-17",
+        },
       },
     },
   },
@@ -84,6 +109,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "Claude Haiku 4.5",
         inputUsdPerMillion: 1,
         outputUsdPerMillion: 5,
+        limits: {
+          maxOutputTokens: 64_000,
+          maxCombinedTokens: 200_000,
+          sourceUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+          verifiedAt: "2026-07-17",
+        },
       },
       balanced: {
         tier: "balanced",
@@ -97,6 +128,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
           outputUsdPerMillion: 15,
           effectiveFrom: "2026-09-01",
         },
+        limits: {
+          maxOutputTokens: 128_000,
+          maxCombinedTokens: 1_000_000,
+          sourceUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+          verifiedAt: "2026-07-17",
+        },
       },
       frontier: {
         tier: "frontier",
@@ -104,6 +141,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "Claude Fable 5",
         inputUsdPerMillion: 10,
         outputUsdPerMillion: 50,
+        limits: {
+          maxOutputTokens: 128_000,
+          maxCombinedTokens: 1_000_000,
+          sourceUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+          verifiedAt: "2026-07-17",
+        },
       },
     },
   },
@@ -112,7 +155,7 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
     displayName: "Google",
     productFamily: "Gemini 3",
     pricingSource: "https://ai.google.dev/gemini-api/docs/pricing",
-    modelsSource: "https://ai.google.dev/gemini-api/docs/gemini-3",
+    modelsSource: "https://ai.google.dev/gemini-api/docs/models",
     verifiedAt: "2026-07-17",
     models: {
       economy: {
@@ -121,7 +164,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         displayName: "Gemini 3.1 Flash-Lite",
         inputUsdPerMillion: 0.25,
         outputUsdPerMillion: 1.5,
-        preview: true,
+        limits: {
+          maxInputTokens: 1_048_576,
+          maxOutputTokens: 65_536,
+          sourceUrl: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
+          verifiedAt: "2026-07-17",
+        },
       },
       balanced: {
         tier: "balanced",
@@ -130,6 +178,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         inputUsdPerMillion: 0.5,
         outputUsdPerMillion: 3,
         preview: true,
+        limits: {
+          maxInputTokens: 1_048_576,
+          maxOutputTokens: 65_536,
+          sourceUrl: "https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview",
+          verifiedAt: "2026-07-17",
+        },
       },
       frontier: {
         tier: "frontier",
@@ -142,6 +196,12 @@ export const PROVIDER_CATALOG: Record<ProviderId, ProviderCatalog> = {
         excludedLongContextPrice: {
           inputUsdPerMillion: 4,
           outputUsdPerMillion: 18,
+        },
+        limits: {
+          maxInputTokens: 1_048_576,
+          maxOutputTokens: 65_536,
+          sourceUrl: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview",
+          verifiedAt: "2026-07-17",
         },
       },
     },

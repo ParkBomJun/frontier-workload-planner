@@ -21,6 +21,9 @@ export interface ProviderComparisonProps {
 }
 
 function budgetFitLabel(comparison: ProviderComparisonSummary, copy: UiCopy): string {
+  if (comparison.infeasibleTaskCount > 0) {
+    return copy.providerComparison.infeasibleOfferings;
+  }
   if (!comparison.expectedWithinBudget) return copy.providerComparison.outsideBudget;
   if (comparison.heldTaskCount > 0) return copy.providerComparison.fitsWithHolds;
   return copy.providerComparison.allWorkFits;
@@ -152,7 +155,9 @@ export function ProviderComparison({
                     </span>
                     <span
                       className={`shrink-0 rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${
-                        comparison.expectedWithinBudget
+                        comparison.infeasibleTaskCount > 0
+                          ? "bg-[#ef8664]/20 text-[#ffd2c4]"
+                          : comparison.expectedWithinBudget
                           ? comparison.heldTaskCount > 0
                             ? "bg-[#e9b082]/18 text-[#ffd7b7]"
                             : "bg-[#9ed0b8]/18 text-[#d9ebe1]"
@@ -196,6 +201,7 @@ export function ProviderComparison({
                       {copy.providerComparison.activeHeld(
                         comparison.activeTaskCount,
                         comparison.heldTaskCount,
+                        comparison.infeasibleTaskCount,
                       )}
                     </span>
                     <span className="font-bold text-[#b9ddc9]">

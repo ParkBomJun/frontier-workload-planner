@@ -36,6 +36,10 @@ describe("UI locale contract", () => {
     expect(copy.page.submitting(3)).toContain("3");
     expect(copy.taskEditor.maximumReached(8)).toContain("8");
     expect(copy.analysisResults.heldWarning(2)).toContain("2");
+    expect(copy.analysisResults.infeasibleWarning(2)).toContain("2");
+    expect(copy.analysisResults.infeasibleReason(
+      copy.enums.invocationFailure["output-limit-exceeded"],
+    )).toContain(copy.enums.invocationFailure["output-limit-exceeded"]);
     expect(copy.providerComparison.previewModels(3)).toContain("3");
     expect(copy.providerComparison.analysisExplanation.mock).toContain("Mock");
     expect(copy.providerComparison.analysisExplanation.live).toContain("GPT-5.6");

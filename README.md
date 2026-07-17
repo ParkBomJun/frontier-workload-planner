@@ -27,9 +27,10 @@
 - OpenAI·Anthropic·Google 제품군의 가격 계획 비교와 선택 즉시 로컬 재계산
 - 동일한 GPT tier를 공급자별 모델에 매핑하는 예산 휴리스틱이며 객관적 품질 순위나 “최고 모델”을 주장하지 않음
 - 사용자 우선순위를 첫 기준으로 하는 등급 하향, 저예산 작업 보류, High 초과 경고
+- 모델별 공식 입력·출력·컨텍스트 한도 검사, 호환 tier 재배정과 별도 실행 불가 상태
 - 작업별 배분 카드, 가격·계산 가정, Expected 비용 막대그래프
 - 최근 성공 시나리오 1개 자동 저장·복원과 저장 기록 삭제
-- 선택 공급자, 3개 공급자 요약, 우선순위와 실행/보류 상태를 포함한 Markdown 복사와 버전 3 JSON 내보내기
+- 선택 공급자, 3개 공급자 요약, 우선순위와 실행/보류/실행 불가 상태를 포함한 Markdown 복사와 버전 3 JSON 내보내기
 - 로딩, 입력 오류, Live 설정 오류, API 오류, 성공 상태
 - 손상된 LocalStorage와 클립보드·파일 생성 실패의 비차단 처리
 - 반응형 단일 페이지
@@ -45,18 +46,25 @@ GPT-5.6은 계속 유일한 작업 분석 엔진입니다. Claude나 Gemini API�
 | --- | --- | --- | --- |
 | OpenAI | GPT-5.6 Luna `$1 / $6` | GPT-5.6 Terra `$2.50 / $15` | GPT-5.6 Sol `$5 / $30` |
 | Anthropic | Claude Haiku 4.5 `$1 / $5` | Claude Sonnet 5 `$2 / $10`¹ | Claude Fable 5 `$10 / $50` |
-| Google | Gemini 3.1 Flash-Lite `$0.25 / $1.50`² | Gemini 3 Flash `$0.50 / $3`² | Gemini 3.1 Pro `$2 / $12`²³ |
+| Google | Gemini 3.1 Flash-Lite `$0.25 / $1.50` | Gemini 3 Flash `$0.50 / $3`² | Gemini 3.1 Pro `$2 / $12`²³ |
 
 가격은 입력/출력 USD per 1M tokens이며 2026-07-17에 공식 문서로 확인했습니다.
 
 1. Claude Sonnet 5 도입 가격은 2026-08-31까지이며 2026-09-01부터 `$3 / $15`입니다.
-2. Gemini 3 제품군은 현재 preview입니다.
+2. Gemini 3.1 Flash-Lite는 Stable이며 Gemini 3 Flash와 Gemini 3.1 Pro만 Preview입니다.
 3. Gemini 3.1 Pro 가격은 prompt가 200K tokens 이하일 때만 적용됩니다. 200K 초과 공식
    `$4 / $18` 구간은 이 비교 계산에서 제외합니다.
 
 모든 비교는 **standard uncached text** 가격만 사용합니다. 캐시 쓰기·할인, Batch/Flex 등
 비표준 처리, 도구 호출 비용과 장문 구간 할증은 계산하지 않습니다. 결과는 실제 청구액이나
 견적이 아니며, 각 공급자 API를 직접 실행해 측정한 결과도 아닙니다.
+
+각 모델에는 2026-07-17에 공식 문서로 확인한 호출 한도를 별도로 기록합니다. OpenAI
+GPT-5.6 3종은 1,050,000-token context와 128,000 max output, Claude Haiku 4.5는 200,000
+context와 64,000 max output, Claude Sonnet 5·Fable 5는 1,000,000 context와 128,000 max
+output을 사용합니다. Google 3종은 1,048,576 max input과 65,536 max output을 사용합니다.
+제공자가 공개한 의미에 맞춰 input, output, combined limit를 구분하며 하나의 공통 context
+필드로 추정하지 않습니다.
 
 ## 로컬 실행
 
@@ -121,7 +129,7 @@ UI와 API 모두 한 요청에 1~8개 작업을 전송합니다.
 
 성공 응답은 각 작업에 `taskType`, `complexity`, `reasoningDepth`, `expectedIterations`, 입력·출력 크기 구간, `uncertainty`, `recommendedModelTier`, 최대 3개 `riskFactors`, 짧은 `rationale`을 반환합니다. GPT는 비용이나 최종 토큰 숫자를 반환하지 않습니다.
 
-크기 구간은 반복 1회당 전체 billable input/output을 뜻합니다. 프로그램이 같은 GPT 분류의 구간과 반복 수를 토큰 합계로 변환한 뒤 선택 공급자의 standard uncached text 가격을 적용합니다. 캐시, Batch, 도구 호출비와 장문 할증은 제외합니다. 예산 비교는 Expected 비용 기준입니다. 등급 하향과 작업 보류는 사용자 우선순위를 첫 기준으로 하며, 보류 작업은 비용 합계에서 제외됩니다. High는 실행 작업의 초과 위험만 알립니다. 자세한 카탈로그, 밴드, 수식과 배분 순서는 [SPEC.md](./SPEC.md)에 고정되어 있습니다.
+크기 구간은 반복 1회당 전체 billable input/output을 뜻합니다. 프로그램은 먼저 Low / Expected / High 각각의 1회 호출이 모델의 입력·출력·통합 한도를 모두 만족하는지 검사합니다. 토큰을 자르거나 작업을 자동 분할하지 않으며, 세 시나리오를 모두 지원하는 모델만 후보가 됩니다. 호환 상위 tier가 있으면 재배정하고, 어느 tier도 호환되지 않으면 예산 보류와 구분된 `infeasible` 상태로 표시합니다. 그 뒤 같은 GPT 분류의 구간과 반복 수를 토큰 합계로 변환하고 선택 공급자의 standard uncached text 가격을 적용합니다. 캐시, Batch, 도구 호출비와 장문 할증은 제외합니다. 예산 비교는 Expected 비용 기준입니다. 등급 하향과 작업 보류는 사용자 우선순위를 첫 기준으로 하며, 보류 및 실행 불가 작업은 비용 합계에서 제외됩니다. High는 실행 작업의 초과 위험만 알립니다. 자세한 카탈로그, 밴드, 수식과 배분 순서는 [SPEC.md](./SPEC.md)에 고정되어 있습니다.
 
 API Route Handler는 `Content-Length`만 신뢰하지 않고 실제 본문 스트림을 읽으면서 96KiB를 넘는 즉시 취소합니다. 초과 본문은 `413 REQUEST_TOO_LARGE`, 읽기 실패와 잘못된 JSON은 원시 오류를 노출하지 않는 `400 INVALID_JSON` 계약으로 처리합니다.
 
@@ -143,7 +151,7 @@ API Route Handler는 `Content-Length`만 신뢰하지 않고 실제 본문 스�
 - [Anthropic 가격](https://platform.claude.com/docs/en/about-claude/pricing)
 - [Anthropic 모델 목록](https://platform.claude.com/docs/en/about-claude/models/overview)
 - [Gemini API 가격](https://ai.google.dev/gemini-api/docs/pricing)
-- [Gemini 3 개발자 가이드](https://ai.google.dev/gemini-api/docs/gemini-3)
+- [Gemini 모델 상태와 한도](https://ai.google.dev/gemini-api/docs/models)
 
 ## 라이선스
 

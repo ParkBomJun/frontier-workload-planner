@@ -28,6 +28,11 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 export type PlanningStrategy = (typeof PLANNING_STRATEGIES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type AnalysisMode = "mock" | "live";
+export type CostScenario = "low" | "expected" | "high";
+export type InvocationLimitFailureCode =
+  | "input-limit-exceeded"
+  | "output-limit-exceeded"
+  | "context-limit-exceeded";
 
 export interface TaskInput {
   id: string;
@@ -86,6 +91,33 @@ export interface ScenarioEstimate {
   costUsd: number;
 }
 
+export interface InvocationTokenScenario {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface InvocationLimitFailure {
+  code: InvocationLimitFailureCode;
+  actualTokens: number;
+  limitTokens: number;
+}
+
+export interface InvocationFeasibilityResult {
+  feasible: boolean;
+  tokenScenario: InvocationTokenScenario;
+  failures: InvocationLimitFailure[];
+}
+
+export interface ScenarioInvocationFeasibility extends InvocationFeasibilityResult {
+  scenario: CostScenario;
+}
+
+export interface OfferingFeasibilityFailure {
+  tier: ModelTier;
+  modelId: string;
+  scenarios: ScenarioInvocationFeasibility[];
+}
+
 export interface TaskCostEstimate {
   low: ScenarioEstimate;
   expected: ScenarioEstimate;
@@ -104,7 +136,7 @@ interface PlannedTaskBase {
   priority: TaskPriority;
   analysis: TaskAnalysis;
   strategyTargetTier: ModelTier;
-  minimumExpectedCostUsd: number;
+  offeringFailures: OfferingFeasibilityFailure[];
 }
 
 export interface ActivePlannedTask extends PlannedTaskBase {
@@ -112,7 +144,9 @@ export interface ActivePlannedTask extends PlannedTaskBase {
   assignedTier: ModelTier;
   modelId: string;
   cost: TaskCostEstimate;
+  minimumExpectedCostUsd: number;
   wasDowngradedForBudget: boolean;
+  wasReassignedForLimits: boolean;
 }
 
 export interface HeldPlannedTask extends PlannedTaskBase {
@@ -120,24 +154,39 @@ export interface HeldPlannedTask extends PlannedTaskBase {
   assignedTier: null;
   modelId: null;
   cost: null;
+  minimumExpectedCostUsd: number;
   wasDowngradedForBudget: false;
+  wasReassignedForLimits: false;
   holdReason: "insufficient-budget";
 }
 
-export type PlannedTask = ActivePlannedTask | HeldPlannedTask;
+export interface InfeasiblePlannedTask extends PlannedTaskBase {
+  status: "infeasible";
+  assignedTier: null;
+  modelId: null;
+  cost: null;
+  minimumExpectedCostUsd: null;
+  wasDowngradedForBudget: false;
+  wasReassignedForLimits: false;
+  infeasibleReason: "no-compatible-offering";
+}
+
+export type PlannedTask = ActivePlannedTask | HeldPlannedTask | InfeasiblePlannedTask;
 
 export interface BudgetAllocationPlan {
   providerId: ProviderId;
   settings: PlanningSettings;
   tasks: PlannedTask[];
   totals: CostTotals;
-  minimumExpectedCostUsd: number;
+  minimumExpectedCostUsd: number | null;
   remainingBudgetUsd: number;
   expectedWithinBudget: boolean;
   highExceedsBudget: boolean;
   activeTaskCount: number;
   heldTaskCount: number;
+  infeasibleTaskCount: number;
   downgradedTaskCount: number;
+  limitReassignedTaskCount: number;
   warnings: string[];
 }
 
@@ -149,7 +198,9 @@ export interface ProviderComparisonSummary {
   highExceedsBudget: boolean;
   activeTaskCount: number;
   heldTaskCount: number;
+  infeasibleTaskCount: number;
   downgradedTaskCount: number;
+  limitReassignedTaskCount: number;
 }
 
 export interface PlanExportContext {

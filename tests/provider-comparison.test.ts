@@ -68,7 +68,9 @@ describe("compareProviderPlans", () => {
         highExceedsBudget: true,
         activeTaskCount: 1,
         heldTaskCount: 1,
+        infeasibleTaskCount: 0,
         downgradedTaskCount: 1,
+        limitReassignedTaskCount: 0,
       },
       {
         providerId: "anthropic",
@@ -78,7 +80,9 @@ describe("compareProviderPlans", () => {
         highExceedsBudget: true,
         activeTaskCount: 2,
         heldTaskCount: 0,
+        infeasibleTaskCount: 0,
         downgradedTaskCount: 2,
+        limitReassignedTaskCount: 0,
       },
       {
         providerId: "google",
@@ -88,7 +92,9 @@ describe("compareProviderPlans", () => {
         highExceedsBudget: true,
         activeTaskCount: 2,
         heldTaskCount: 0,
+        infeasibleTaskCount: 0,
         downgradedTaskCount: 0,
+        limitReassignedTaskCount: 0,
       },
     ]);
   });

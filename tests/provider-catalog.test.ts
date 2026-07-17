@@ -58,11 +58,11 @@ describe("provider catalog", () => {
     expect(PROVIDER_CATALOG.google).toMatchObject({
       verifiedAt: "2026-07-17",
       pricingSource: "https://ai.google.dev/gemini-api/docs/pricing",
-      modelsSource: "https://ai.google.dev/gemini-api/docs/gemini-3",
+      modelsSource: "https://ai.google.dev/gemini-api/docs/models",
     });
   });
 
-  it("preserves preview, temporary-price, and long-context restrictions", () => {
+  it("preserves stable/preview, temporary-price, and long-context restrictions", () => {
     expect(PROVIDER_CATALOG.anthropic.models.balanced).toMatchObject({
       effectiveThrough: "2026-08-31",
       priceAfterEffectiveThrough: {
@@ -71,7 +71,7 @@ describe("provider catalog", () => {
         outputUsdPerMillion: 15,
       },
     });
-    expect(PROVIDER_CATALOG.google.models.economy.preview).toBe(true);
+    expect(PROVIDER_CATALOG.google.models.economy.preview).toBeUndefined();
     expect(PROVIDER_CATALOG.google.models.balanced.preview).toBe(true);
     expect(PROVIDER_CATALOG.google.models.frontier).toMatchObject({
       preview: true,
@@ -80,6 +80,34 @@ describe("provider catalog", () => {
         inputUsdPerMillion: 4,
         outputUsdPerMillion: 18,
       },
+    });
+    expect(
+      Object.values(PROVIDER_CATALOG.google.models).filter((model) => model.preview),
+    ).toHaveLength(2);
+  });
+
+  it("records provider-native invocation limits and their official sources", () => {
+    expect(PROVIDER_CATALOG.openai.models.economy.limits).toEqual({
+      maxOutputTokens: 128_000,
+      maxCombinedTokens: 1_050_000,
+      sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      verifiedAt: "2026-07-17",
+    });
+    expect(PROVIDER_CATALOG.anthropic.models.economy.limits).toEqual({
+      maxOutputTokens: 64_000,
+      maxCombinedTokens: 200_000,
+      sourceUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+      verifiedAt: "2026-07-17",
+    });
+    expect(PROVIDER_CATALOG.anthropic.models.balanced.limits).toMatchObject({
+      maxOutputTokens: 128_000,
+      maxCombinedTokens: 1_000_000,
+    });
+    expect(PROVIDER_CATALOG.google.models.economy.limits).toEqual({
+      maxInputTokens: 1_048_576,
+      maxOutputTokens: 65_536,
+      sourceUrl: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
+      verifiedAt: "2026-07-17",
     });
   });
 

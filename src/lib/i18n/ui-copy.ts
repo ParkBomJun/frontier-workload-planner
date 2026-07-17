@@ -9,6 +9,7 @@ import type {
   TaskPriority,
   TaskType,
   Uncertainty,
+  InvocationLimitFailureCode,
 } from "@/types/domain";
 
 export const UI_LOCALES = ["ko", "en", "ja"] as const;
@@ -56,7 +57,8 @@ export interface UiEnumLabels {
   provider: Record<ProviderId, string>;
   strategy: Record<PlanningStrategy, string>;
   priority: Record<TaskPriority, string>;
-  allocationStatus: Record<"active" | "held", string>;
+  allocationStatus: Record<"active" | "held" | "infeasible", string>;
+  invocationFailure: Record<InvocationLimitFailureCode, string>;
 }
 
 export interface UiCopy {
@@ -172,23 +174,41 @@ export interface UiCopy {
     programCalculated: string;
     budget: string;
     lowDetail: string;
-    expectedDetail: (utilization: string, active: number, held: number) => string;
+    expectedDetail: (
+      utilization: string,
+      active: number,
+      held: number,
+      infeasible: number,
+    ) => string;
     highWithinBudget: string;
     highRisk: string;
     reviewItems: string;
     expectedBudgetUnresolved: string;
     heldWarning: (count: number) => string;
+    infeasibleWarning: (count: number) => string;
+    limitReassignedWarning: (count: number) => string;
     downgradedWarning: (count: number) => string;
     highBudgetWarning: string;
     oneDayDeadlineWarning: string;
     allScenariosWithinBudget: string;
     allocationTitle: string;
-    allocationSummary: (active: number, held: number, remaining: string) => string;
+    allocationSummary: (
+      active: number,
+      held: number,
+      infeasible: number,
+      remaining: string,
+    ) => string;
     taskNumber: (index: number) => string;
     onHoldBadge: string;
+    infeasibleBadge: string;
     budgetAdjustedBadge: string;
+    limitAdjustedBadge: string;
     heldTitle: string;
     heldReason: (minimum: string) => string;
+    infeasibleTitle: string;
+    infeasibleReason: (reasons: string) => string;
+    excludedOfferingsTitle: string;
+    excludedOfferingsReason: (reasons: string) => string;
     assignedModel: string;
     assignedTier: string;
     recommendationTrail: (recommended: string, target: string) => string;
@@ -206,6 +226,7 @@ export interface UiCopy {
   costChart: {
     title: (provider: string) => string;
     heldAllocation: string;
+    infeasibleAllocation: string;
     expectedCostAria: (task: string, amount: string) => string;
   };
   export: {
@@ -229,9 +250,10 @@ export interface UiCopy {
     selectorLegend: string;
     allWorkFits: string;
     fitsWithHolds: string;
+    infeasibleOfferings: string;
     outsideBudget: string;
     highExceeds: string;
-    activeHeld: (active: number, held: number) => string;
+    activeHeld: (active: number, held: number, infeasible: number) => string;
     selectedPlan: string;
     selectPlan: string;
     previewModels: (count: number) => string;
@@ -253,6 +275,9 @@ export interface UiCopy {
     priceThrough: (date: string) => string;
     priceFrom: (date: string, input: number, output: number) => string;
     inputLimit: (limit: string) => string;
+    maxInputLimit: (limit: string) => string;
+    maxOutputLimit: (limit: string) => string;
+    maxCombinedLimit: (limit: string) => string;
     longContextExcluded: (input: number, output: number) => string;
     scrollHint: string;
     excludedTitle: string;
@@ -388,26 +413,38 @@ const ko: UiCopy = {
     programCalculated: "프로그램 계산",
     budget: "예산",
     lowDetail: "낮은 토큰·반복 가정",
-    expectedDetail: (utilization, active, held) =>
-      `예산 사용 ${utilization}% · 실행 ${active} / 보류 ${held}`,
+    expectedDetail: (utilization, active, held, infeasible) =>
+      `예산 사용 ${utilization}% · 실행 ${active} / 보류 ${held} / 실행 불가 ${infeasible}`,
     highWithinBudget: "예산 범위",
     highRisk: "예산 초과 위험",
     reviewItems: "계획 확인 사항",
     expectedBudgetUnresolved: "실행 작업의 Expected 비용을 예산 안으로 조정하지 못했습니다.",
     heldWarning: (count) => `${count}개 작업을 예산 부족으로 보류했습니다. 보류 작업 비용은 합계에서 제외됩니다.`,
+    infeasibleWarning: (count) =>
+      `${count}개 작업은 호환되는 모델이 없어 실행 불가입니다. 비용 합계와 예산 적합 판정에서 제외됩니다.`,
+    limitReassignedWarning: (count) =>
+      `${count}개 작업을 Low / Expected / High 호출 한도와 호환되는 tier로 재배정했습니다.`,
     downgradedWarning: (count) => `${count}개 작업의 tier를 예산에 맞춰 낮췄습니다.`,
     highBudgetWarning: "High 시나리오 비용이 예산을 초과합니다.",
     oneDayDeadlineWarning: "1일 기한은 참고 정보이며 이 MVP는 정교한 시간 예측을 제공하지 않습니다.",
     allScenariosWithinBudget: "모든 실행 작업의 Expected와 High 시나리오가 입력 예산 안에 있습니다.",
     allocationTitle: "작업별 배분",
-    allocationSummary: (active, held, remaining) =>
-      `실행 ${active} · 보류 ${held} · Expected 잔여 예산 ${remaining}`,
+    allocationSummary: (active, held, infeasible, remaining) =>
+      `실행 ${active} · 보류 ${held} · 실행 불가 ${infeasible} · Expected 잔여 예산 ${remaining}`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
     onHoldBadge: "On hold · 보류",
+    infeasibleBadge: "Infeasible · 실행 불가",
     budgetAdjustedBadge: "예산 조정",
+    limitAdjustedBadge: "호출 한도 재배정",
     heldTitle: "이번 계획의 실행 대상에서 제외됨",
     heldReason: (minimum) =>
-      `전체 작업의 Economy 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다. 이 작업의 Expected 최소 필요액은 ${minimum}입니다.`,
+      `전체 작업의 호환 가능한 Expected 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다. 이 작업의 호환 가능한 Expected 최소 필요액은 ${minimum}입니다.`,
+    infeasibleTitle: "호환되는 모델 제품이 없음",
+    infeasibleReason: (reasons) =>
+      `어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 자동 분할이나 토큰 자르기는 적용하지 않았습니다. 실패 이유: ${reasons}`,
+    excludedOfferingsTitle: "호출 한도로 제외된 모델",
+    excludedOfferingsReason: (reasons) =>
+      `아래 모델은 Low / Expected / High 중 하나 이상을 지원하지 않아 배분 후보에서 제외했습니다. 실패 이유: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT 권장 ${recommended} · 전략 목표 ${target}`,
@@ -425,6 +462,7 @@ const ko: UiCopy = {
   costChart: {
     title: (provider) => `${provider} 작업별 Expected 비용`,
     heldAllocation: "보류 · $0 배정",
+    infeasibleAllocation: "실행 불가 · 비용 제외",
     expectedCostAria: (task, amount) => `${task} Expected 비용 ${amount}`,
   },
   export: {
@@ -447,13 +485,15 @@ const ko: UiCopy = {
     heuristicNotice: "Economy / Balanced / Frontier 매핑은 예산 계획용 휴리스틱입니다.",
     noQualityRanking: "객관적 품질 동등성, 우열 또는 ‘최고 모델’을 뜻하지 않습니다.",
     standardPricingNotice: "표준 uncached text 가격만 사용하며 캐시, Batch, 도구 호출비, 장문 할증은 제외합니다.",
-    activeOnlyNotice: "비용은 배분 후 실행 작업만 합산하며 보류 작업은 포함하지 않습니다.",
+    activeOnlyNotice: "비용은 배분 후 실행 작업만 합산하며 보류·실행 불가 작업은 포함하지 않습니다.",
     selectorLegend: "상세 계획에 사용할 모델 제품군 선택",
     allWorkFits: "전체 작업 적합",
     fitsWithHolds: "보류 포함 적합",
+    infeasibleOfferings: "호환 모델 없음",
     outsideBudget: "예산 밖",
     highExceeds: "예산 초과",
-    activeHeld: (active, held) => `실행 ${active} · 보류 ${held}`,
+    activeHeld: (active, held, infeasible) =>
+      `실행 ${active} · 보류 ${held} · 실행 불가 ${infeasible}`,
     selectedPlan: "상세 계획 선택됨",
     selectPlan: "상세 계획으로 선택",
     previewModels: (count) => `${count}개 모델 Preview`,
@@ -476,6 +516,9 @@ const ko: UiCopy = {
     priceThrough: (date) => `표시 단가 ${date}까지`,
     priceFrom: (date, input, output) => `${date}부터 입력 $${input} / 출력 $${output}`,
     inputLimit: (limit) => `표준 단가 입력 ${limit} 이하`,
+    maxInputLimit: (limit) => `호출당 입력 최대 ${limit}`,
+    maxOutputLimit: (limit) => `호출당 출력 최대 ${limit}`,
+    maxCombinedLimit: (limit) => `호출당 입력+출력 최대 ${limit}`,
     longContextExcluded: (input, output) =>
       `장문 입력 $${input} / 출력 $${output} 단가는 비교에서 제외`,
     scrollHint: "가격표는 좌우로 스크롤할 수 있습니다.",
@@ -510,7 +553,12 @@ const ko: UiCopy = {
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
     strategy: { "cost-saver": "비용 절감", balanced: "균형", "quality-first": "상위 tier 우선" },
     priority: { high: "높음", medium: "보통", low: "낮음" },
-    allocationStatus: { active: "실행", held: "보류" },
+    allocationStatus: { active: "실행", held: "보류", infeasible: "실행 불가" },
+    invocationFailure: {
+      "input-limit-exceeded": "입력 한도 초과",
+      "output-limit-exceeded": "출력 한도 초과",
+      "context-limit-exceeded": "컨텍스트 한도 초과",
+    },
   },
 };
 
@@ -637,26 +685,38 @@ const en: UiCopy = {
     programCalculated: "Program calculated",
     budget: "Budget",
     lowDetail: "Lower token and iteration assumptions",
-    expectedDetail: (utilization, active, held) =>
-      `${utilization}% of budget · ${active} active / ${held} on hold`,
+    expectedDetail: (utilization, active, held, infeasible) =>
+      `${utilization}% of budget · ${active} active / ${held} on hold / ${infeasible} infeasible`,
     highWithinBudget: "Within budget",
     highRisk: "Budget overrun risk",
     reviewItems: "Plan review items",
     expectedBudgetUnresolved: "The active Expected cost could not be adjusted within budget.",
     heldWarning: (count) => `${count} task${count === 1 ? " was" : "s were"} put on hold for budget fit. Held-task costs are excluded from totals.`,
+    infeasibleWarning: (count) =>
+      `${count} task${count === 1 ? " has" : "s have"} no compatible model and ${count === 1 ? "is" : "are"} infeasible. Infeasible costs are excluded from totals and budget-fit claims.`,
+    limitReassignedWarning: (count) =>
+      `${count} task${count === 1 ? " was" : "s were"} reassigned to a tier that supports all Low / Expected / High invocation limits.`,
     downgradedWarning: (count) => `${count} task tier${count === 1 ? " was" : "s were"} lowered to fit the budget.`,
     highBudgetWarning: "The High scenario exceeds the budget.",
     oneDayDeadlineWarning: "The one-day deadline is reference information; this MVP does not provide detailed time estimates.",
     allScenariosWithinBudget: "Expected and High scenarios for every active task are within the entered budget.",
     allocationTitle: "Task allocation",
-    allocationSummary: (active, held, remaining) =>
-      `${active} active · ${held} on hold · ${remaining} Expected budget remaining`,
+    allocationSummary: (active, held, infeasible, remaining) =>
+      `${active} active · ${held} on hold · ${infeasible} infeasible · ${remaining} Expected budget remaining`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
     onHoldBadge: "On hold",
+    infeasibleBadge: "Infeasible",
     budgetAdjustedBadge: "Budget adjusted",
+    limitAdjustedBadge: "Invocation-limit reassignment",
     heldTitle: "Excluded from this plan's active work",
     heldReason: (minimum) =>
-      `The all-Economy minimum exceeded the budget, so lower-priority work was held first. This task needs at least ${minimum} at Expected.`,
+      `The lowest compatible Expected total exceeded the budget, so lower-priority work was held first. This task needs at least ${minimum} on a compatible offering at Expected.`,
+    infeasibleTitle: "No compatible model offering",
+    infeasibleReason: (reasons) =>
+      `No tier supports all Low / Expected / High invocations. The planner did not truncate tokens or split the task. Failures: ${reasons}`,
+    excludedOfferingsTitle: "Models excluded by invocation limits",
+    excludedOfferingsReason: (reasons) =>
+      `The models below fail at least one Low / Expected / High invocation and were excluded from allocation. Failures: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT recommendation ${recommended} · strategy target ${target}`,
@@ -674,6 +734,7 @@ const en: UiCopy = {
   costChart: {
     title: (provider) => `${provider} Expected cost by task`,
     heldAllocation: "On hold · $0 allocated",
+    infeasibleAllocation: "Infeasible · cost excluded",
     expectedCostAria: (task, amount) => `${task} Expected cost ${amount}`,
   },
   export: {
@@ -696,13 +757,15 @@ const en: UiCopy = {
     heuristicNotice: "Economy / Balanced / Frontier mappings are budget-planning heuristics.",
     noQualityRanking: "They do not claim objective quality equivalence, superiority, or a ‘best model.’",
     standardPricingNotice: "Only standard uncached text prices are used; cache, Batch, tool-call, and long-context fees are excluded.",
-    activeOnlyNotice: "Totals include active work after allocation and exclude held-task costs.",
+    activeOnlyNotice: "Totals include active work after allocation and exclude held and infeasible task costs.",
     selectorLegend: "Choose the model family for the detailed plan",
     allWorkFits: "All work fits",
     fitsWithHolds: "Fits with holds",
+    infeasibleOfferings: "No compatible model",
     outsideBudget: "Outside budget",
     highExceeds: "Over budget",
-    activeHeld: (active, held) => `${active} active · ${held} on hold`,
+    activeHeld: (active, held, infeasible) =>
+      `${active} active · ${held} on hold · ${infeasible} infeasible`,
     selectedPlan: "Detailed plan selected",
     selectPlan: "Select for detailed plan",
     previewModels: (count) => `${count} Preview model${count === 1 ? "" : "s"}`,
@@ -725,6 +788,9 @@ const en: UiCopy = {
     priceThrough: (date) => `Displayed price through ${date}`,
     priceFrom: (date, input, output) => `From ${date}: input $${input} / output $${output}`,
     inputLimit: (limit) => `Standard price up to ${limit} input`,
+    maxInputLimit: (limit) => `Maximum ${limit} input per invocation`,
+    maxOutputLimit: (limit) => `Maximum ${limit} output per invocation`,
+    maxCombinedLimit: (limit) => `Maximum ${limit} combined input + output per invocation`,
     longContextExcluded: (input, output) =>
       `Long-context input $${input} / output $${output} excluded from comparison`,
     scrollHint: "Scroll the price table horizontally to see every column.",
@@ -759,7 +825,12 @@ const en: UiCopy = {
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
     strategy: { "cost-saver": "Cost saver", balanced: "Balanced", "quality-first": "Upper-tier preference" },
     priority: { high: "High", medium: "Medium", low: "Low" },
-    allocationStatus: { active: "Active", held: "On hold" },
+    allocationStatus: { active: "Active", held: "On hold", infeasible: "Infeasible" },
+    invocationFailure: {
+      "input-limit-exceeded": "input limit exceeded",
+      "output-limit-exceeded": "output limit exceeded",
+      "context-limit-exceeded": "context limit exceeded",
+    },
   },
 };
 
@@ -885,26 +956,38 @@ const ja: UiCopy = {
     programCalculated: "プログラム計算",
     budget: "予算",
     lowDetail: "少ないトークン・反復の想定",
-    expectedDetail: (utilization, active, held) =>
-      `予算使用率${utilization}%・実行${active} / 保留${held}`,
+    expectedDetail: (utilization, active, held, infeasible) =>
+      `予算使用率${utilization}%・実行${active} / 保留${held} / 実行不可${infeasible}`,
     highWithinBudget: "予算内",
     highRisk: "予算超過リスク",
     reviewItems: "計画の確認事項",
     expectedBudgetUnresolved: "実行タスクのExpectedコストを予算内へ調整できませんでした。",
     heldWarning: (count) => `${count}件のタスクを予算不足で保留しました。保留タスクのコストは合計から除外します。`,
+    infeasibleWarning: (count) =>
+      `${count}件のタスクは互換モデルがなく実行不可です。コスト合計と予算適合判定から除外します。`,
+    limitReassignedWarning: (count) =>
+      `${count}件のタスクをLow / Expected / Highすべての呼び出し上限に対応するtierへ再配分しました。`,
     downgradedWarning: (count) => `${count}件のタスクのtierを予算に合わせて下げました。`,
     highBudgetWarning: "Highシナリオのコストが予算を超えます。",
     oneDayDeadlineWarning: "1日の期限は参考情報です。このMVPは詳細な時間予測を提供しません。",
     allScenariosWithinBudget: "すべての実行タスクのExpectedとHighシナリオが入力予算内です。",
     allocationTitle: "タスク別配分",
-    allocationSummary: (active, held, remaining) =>
-      `実行${active}・保留${held}・Expected残予算 ${remaining}`,
+    allocationSummary: (active, held, infeasible, remaining) =>
+      `実行${active}・保留${held}・実行不可${infeasible}・Expected残予算 ${remaining}`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
     onHoldBadge: "On hold・保留",
+    infeasibleBadge: "Infeasible・実行不可",
     budgetAdjustedBadge: "予算調整",
+    limitAdjustedBadge: "呼び出し上限で再配分",
     heldTitle: "今回の計画では実行対象外",
     heldReason: (minimum) =>
-      `全タスクのEconomy最小コストが予算を超えたため、優先度の低い順に保留しました。このタスクのExpected最小必要額は${minimum}です。`,
+      `全タスクの互換可能なExpected最小コストが予算を超えたため、優先度の低い順に保留しました。このタスクの互換可能なExpected最小必要額は${minimum}です。`,
+    infeasibleTitle: "互換モデル製品なし",
+    infeasibleReason: (reasons) =>
+      `すべてのLow / Expected / High呼び出しを処理できるtierがありません。トークンの切り捨てや自動分割は行っていません。失敗理由: ${reasons}`,
+    excludedOfferingsTitle: "呼び出し上限により除外したモデル",
+    excludedOfferingsReason: (reasons) =>
+      `以下のモデルはLow / Expected / Highのいずれかを処理できないため、配分候補から除外しました。失敗理由: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT推奨 ${recommended}・戦略目標 ${target}`,
@@ -922,6 +1005,7 @@ const ja: UiCopy = {
   costChart: {
     title: (provider) => `${provider} タスク別Expectedコスト`,
     heldAllocation: "保留・$0配分",
+    infeasibleAllocation: "実行不可・コスト除外",
     expectedCostAria: (task, amount) => `${task}のExpectedコスト ${amount}`,
   },
   export: {
@@ -944,13 +1028,15 @@ const ja: UiCopy = {
     heuristicNotice: "Economy / Balanced / Frontierの対応付けは予算計画用ヒューリスティックです。",
     noQualityRanking: "客観的な品質の同等性、優劣、または「最高のモデル」を示すものではありません。",
     standardPricingNotice: "標準uncached text料金のみを使い、キャッシュ、Batch、ツール呼び出し、長文追加料金は除外します。",
-    activeOnlyNotice: "コストは配分後の実行タスクのみを合計し、保留タスクは含みません。",
+    activeOnlyNotice: "コストは配分後の実行タスクのみを合計し、保留・実行不可タスクは含みません。",
     selectorLegend: "詳細計画に使うモデル製品群を選択",
     allWorkFits: "全タスクが予算内",
     fitsWithHolds: "保留を含め予算内",
+    infeasibleOfferings: "互換モデルなし",
     outsideBudget: "予算外",
     highExceeds: "予算超過",
-    activeHeld: (active, held) => `実行${active}・保留${held}`,
+    activeHeld: (active, held, infeasible) =>
+      `実行${active}・保留${held}・実行不可${infeasible}`,
     selectedPlan: "詳細計画に選択済み",
     selectPlan: "詳細計画に選択",
     previewModels: (count) => `Previewモデル ${count}件`,
@@ -973,6 +1059,9 @@ const ja: UiCopy = {
     priceThrough: (date) => `表示料金は${date}まで`,
     priceFrom: (date, input, output) => `${date}から入力 $${input} / 出力 $${output}`,
     inputLimit: (limit) => `標準料金は入力${limit}以下`,
+    maxInputLimit: (limit) => `1回の入力上限 ${limit}`,
+    maxOutputLimit: (limit) => `1回の出力上限 ${limit}`,
+    maxCombinedLimit: (limit) => `1回の入力+出力合計上限 ${limit}`,
     longContextExcluded: (input, output) =>
       `長文入力 $${input} / 出力 $${output}は比較対象外`,
     scrollHint: "料金表は左右にスクロールできます。",
@@ -1007,7 +1096,12 @@ const ja: UiCopy = {
     provider: { openai: "OpenAI・GPT-5.6", anthropic: "Anthropic・Claude", google: "Google・Gemini 3" },
     strategy: { "cost-saver": "コスト優先", balanced: "バランス", "quality-first": "上位tier優先" },
     priority: { high: "高", medium: "中", low: "低" },
-    allocationStatus: { active: "実行", held: "保留" },
+    allocationStatus: { active: "実行", held: "保留", infeasible: "実行不可" },
+    invocationFailure: {
+      "input-limit-exceeded": "入力上限超過",
+      "output-limit-exceeded": "出力上限超過",
+      "context-limit-exceeded": "コンテキスト上限超過",
+    },
   },
 };
 

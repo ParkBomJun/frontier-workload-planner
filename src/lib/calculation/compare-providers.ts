@@ -33,11 +33,16 @@ export function compareProviderPlans(
       providerId,
       totals: plan.totals,
       expectedWithinBudget: plan.expectedWithinBudget,
-      allTasksActiveWithinBudget: plan.expectedWithinBudget && plan.heldTaskCount === 0,
+      allTasksActiveWithinBudget:
+        plan.expectedWithinBudget &&
+        plan.heldTaskCount === 0 &&
+        plan.infeasibleTaskCount === 0,
       highExceedsBudget: plan.highExceedsBudget,
       activeTaskCount: plan.activeTaskCount,
       heldTaskCount: plan.heldTaskCount,
+      infeasibleTaskCount: plan.infeasibleTaskCount,
       downgradedTaskCount: plan.downgradedTaskCount,
+      limitReassignedTaskCount: plan.limitReassignedTaskCount,
     } satisfies ProviderComparisonSummary;
   });
 
