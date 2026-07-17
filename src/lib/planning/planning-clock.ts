@@ -23,6 +23,14 @@ export interface RestoredPlanningRevisionInput {
   confirmedAt: string | null;
 }
 
+export interface BestFitPlanningAsOfInput {
+  revisionAt: string | null;
+  resourceEvidenceObservedAt: readonly string[];
+  overrideRecordedAt: readonly string[];
+  generatedAt: string | null;
+  confirmedAt: string | null;
+}
+
 export function latestIsoDateTime(
   ...values: Array<string | null | undefined>
 ): string | null {
@@ -54,4 +62,27 @@ export function resolveRestoredPlanningRevisionAt(
     throw new Error("A restored planning revision requires a valid timestamp.");
   }
   return latest;
+}
+
+export function advancePlanningRevisionAt(
+  current: string | null,
+  changedAt: string,
+): string {
+  const latest = latestIsoDateTime(current, changedAt);
+  if (latest === null) {
+    throw new Error("A planning revision requires a valid timestamp.");
+  }
+  return latest;
+}
+
+export function resolveBestFitPlanningAsOf(
+  input: BestFitPlanningAsOfInput,
+): string | null {
+  return latestIsoDateTime(
+    input.revisionAt,
+    ...input.resourceEvidenceObservedAt,
+    ...input.overrideRecordedAt,
+    input.generatedAt,
+    input.confirmedAt,
+  );
 }

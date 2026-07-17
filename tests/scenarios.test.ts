@@ -14,6 +14,8 @@ import {
   reconcileBestFitRelevantSettings,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
+  advancePlanningRevisionAt,
+  resolveBestFitPlanningAsOf,
   resolveRestoredPlanningRevisionAt,
 } from "@/lib/planning/planning-clock";
 import {
@@ -246,6 +248,7 @@ describe("recent scenario storage v5", () => {
   it("restores an invalid-deadline strategy change without rolling Sonnet pricing back", () => {
     const storage = new MemoryStorage();
     const generatedAt = "2026-08-31T23:50:00.000Z";
+    const delayedAnalysisGeneratedAt = "2026-08-31T23:58:00.000Z";
     const confirmedAt = "2026-08-31T23:55:00.000Z";
     const restoredAt = "2026-09-01T00:05:00.000Z";
     const confirmed = confirmIncrementalCashBudget(
@@ -293,14 +296,28 @@ describe("recent scenario storage v5", () => {
     expect(loaded.scenario.settings.strategy).toBe("quality-first");
 
     const loadedBudget = loaded.scenario.settings.incrementalCashBudget;
-    const planningRevisionAt = resolveRestoredPlanningRevisionAt({
+    const restoredRevisionAt = resolveRestoredPlanningRevisionAt({
       restoredAt,
       generatedAt: loaded.scenario.analysisSnapshot.response.generatedAt,
       confirmedAt:
         loadedBudget.status === "confirmed" ? loadedBudget.confirmedAt : null,
     });
-    const pricingAsOf = planningRevisionAt.slice(0, 10);
+    const planningRevisionAt = advancePlanningRevisionAt(
+      restoredRevisionAt,
+      delayedAnalysisGeneratedAt,
+    );
+    const planningAsOf = resolveBestFitPlanningAsOf({
+      revisionAt: planningRevisionAt,
+      resourceEvidenceObservedAt: [],
+      overrideRecordedAt: [],
+      generatedAt: delayedAnalysisGeneratedAt,
+      confirmedAt:
+        loadedBudget.status === "confirmed" ? loadedBudget.confirmedAt : null,
+    });
+    if (planningAsOf === null) throw new Error("Restored planning clock is required.");
+    const pricingAsOf = planningAsOf.slice(0, 10);
     expect(planningRevisionAt).toBe(restoredAt);
+    expect(planningAsOf).toBe(restoredAt);
     expect(pricingAsOf).toBe("2026-09-01");
 
     const analysis = loaded.scenario.analysisSnapshot.response.analysis.tasks[0];

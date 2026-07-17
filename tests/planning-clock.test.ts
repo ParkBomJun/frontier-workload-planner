@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  advancePlanningRevisionAt,
   latestIsoDateTime,
+  resolveBestFitPlanningAsOf,
   resolveRestoredPlanningRevisionAt,
 } from "@/lib/planning/planning-clock";
 
@@ -58,6 +60,103 @@ describe("Best-fit planning clock", () => {
     expect(resolveRestoredPlanningRevisionAt(sourceWithStorageMetadata)).toBe(
       sourceWithStorageMetadata.restoredAt,
     );
+  });
+
+  it("never replaces a newer revision with an older event timestamp", () => {
+    expect(
+      advancePlanningRevisionAt(null, "2026-09-01T00:00:00.000Z"),
+    ).toBe("2026-09-01T00:00:00.000Z");
+    expect(
+      advancePlanningRevisionAt(
+        "2026-09-02T00:00:00.000Z",
+        "2026-09-01T00:00:00.000Z",
+      ),
+    ).toBe("2026-09-02T00:00:00.000Z");
+    expect(
+      advancePlanningRevisionAt(
+        "2026-09-01T00:00:00.000Z",
+        "2026-09-02T00:00:00.000Z",
+      ),
+    ).toBe("2026-09-02T00:00:00.000Z");
+  });
+
+  it("folds restore, older mutation, and older analysis into one high-water mark", () => {
+    const restored = resolveRestoredPlanningRevisionAt({
+      restoredAt: "2026-09-01T00:05:00.000Z",
+      generatedAt: "2026-08-31T23:50:00.000Z",
+      confirmedAt: "2026-09-03T00:00:00.000Z",
+    });
+    const afterManualRestore = advancePlanningRevisionAt(
+      "2026-09-04T00:00:00.000Z",
+      restored,
+    );
+    const afterMutation = advancePlanningRevisionAt(
+      afterManualRestore,
+      "2026-09-01T00:10:00.000Z",
+    );
+    const afterAnalysis = advancePlanningRevisionAt(
+      afterMutation,
+      "2026-08-31T23:58:00.000Z",
+    );
+
+    expect(restored).toBe("2026-09-03T00:00:00.000Z");
+    expect(afterManualRestore).toBe("2026-09-04T00:00:00.000Z");
+    expect(afterMutation).toBe(afterManualRestore);
+    expect(afterAnalysis).toBe(afterManualRestore);
+  });
+
+  it("retains a removed source candidate in the revision high-water", () => {
+    const withResource = resolveBestFitPlanningAsOf({
+      revisionAt: "2026-09-01T00:00:00.000Z",
+      resourceEvidenceObservedAt: ["2026-09-03T00:00:00.000Z"],
+      overrideRecordedAt: [],
+      generatedAt: "2026-08-31T23:50:00.000Z",
+      confirmedAt: null,
+    });
+    if (withResource === null) throw new Error("Resource clock candidate is required.");
+    const afterRemoval = advancePlanningRevisionAt(
+      withResource,
+      "2026-09-01T01:00:00.000Z",
+    );
+
+    expect(
+      resolveBestFitPlanningAsOf({
+        revisionAt: afterRemoval,
+        resourceEvidenceObservedAt: [],
+        overrideRecordedAt: [],
+        generatedAt: "2026-08-31T23:50:00.000Z",
+        confirmedAt: null,
+      }),
+    ).toBe("2026-09-03T00:00:00.000Z");
+  });
+
+  it("keeps confirmedAt as an independent planningAsOf candidate", () => {
+    expect(
+      resolveBestFitPlanningAsOf({
+        revisionAt: "2026-09-01T00:00:00.000Z",
+        resourceEvidenceObservedAt: ["2026-09-01T01:00:00.000Z"],
+        overrideRecordedAt: ["2026-09-01T02:00:00.000Z"],
+        generatedAt: "2026-09-01T03:00:00.000Z",
+        confirmedAt: "2026-09-02T00:00:00.000Z",
+      }),
+    ).toBe("2026-09-02T00:00:00.000Z");
+  });
+
+  it("keeps planningAsOf monotonic when a delayed analysis is older", () => {
+    const revisionAt = advancePlanningRevisionAt(
+      "2026-09-02T00:00:00.000Z",
+      "2026-08-31T23:50:00.000Z",
+    );
+
+    expect(
+      resolveBestFitPlanningAsOf({
+        revisionAt,
+        resourceEvidenceObservedAt: [],
+        overrideRecordedAt: [],
+        generatedAt: "2026-08-31T23:50:00.000Z",
+        confirmedAt: "2026-09-01T00:00:00.000Z",
+      }),
+    ).toBe("2026-09-02T00:00:00.000Z");
   });
 
   it("compares valid timestamps by instant instead of fractional string order", () => {

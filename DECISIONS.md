@@ -731,12 +731,18 @@ metadata rather than substituting it for the explicit task-level deadline.
 Changing only that global reference deadline does not advance `planningAsOf` or `pricingAsOf`, so
 it cannot refresh quota/reset evidence or activate a different dated price.
 Keep the last valid budget/strategy snapshot while the form is invalid; when validity returns, any
-intervening relevant change advances the calculation clock exactly once.
+intervening relevant change contributes one captured revision. Max-merge it into the session clock
+so the transition is handled once without allowing an older instant to rewind the high-water mark.
 On automatic or manual restore, capture the restore instant once and use the latest actual instant
 among that value, analysis `generatedAt`, and confirmed-budget `confirmedAt` as the reconstructed
 Best-fit clock. Do not use scenario `savedAt`: reference-deadline and selected-provider persistence
 can update that storage timestamp without changing a Best-fit input. Derive `pricingAsOf` from the
 reconstructed clock's UTC date so restore never reactivates an expired dated price.
+Use a functional max-merge for every subsequent revision write, including restore and new-analysis
+application, instead of assigning the event timestamp directly. Derive `planningAsOf` from the
+latest revision plus independent analysis `generatedAt`, confirmed-budget `confirmedAt`, resource
+observation, and override-recording candidates. This preserves monotonic time when a delayed or
+clock-skewed event carries an older timestamp.
 
 ### Bound catalog edits and keep expanded source state out of v5
 

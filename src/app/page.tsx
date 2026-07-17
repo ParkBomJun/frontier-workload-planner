@@ -1,6 +1,14 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 
 import { AnalysisResults } from "@/components/analysis-results";
 import { AvailableAiResources } from "@/components/available-ai-resources";
@@ -23,7 +31,8 @@ import {
   type BestFitUiPlan,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
-  latestIsoDateTime,
+  advancePlanningRevisionAt,
+  resolveBestFitPlanningAsOf,
   resolveRestoredPlanningRevisionAt,
 } from "@/lib/planning/planning-clock";
 import {
@@ -259,7 +268,10 @@ export default function Home() {
     Record<string, AvailableAiResourceEvidenceObservedAt>
   >({});
   const [apiOverrides, setApiOverrides] = useState<readonly ApiCatalogOverride[]>([]);
-  const [planningRevisionAt, setPlanningRevisionAt] = useState<string | null>(null);
+  const [planningRevisionAt, advancePlanningRevision] = useReducer(
+    advancePlanningRevisionAt,
+    null,
+  );
   const [mode, setMode] = useState<AnalysisMode>("mock");
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>("openai");
   const [status, setStatus] = useState<RequestStatus>("idle");
@@ -292,16 +304,15 @@ export default function Home() {
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
       setIncrementalCashBudget(result.scenario.settings.incrementalCashBudget);
-      setPlanningRevisionAt(
-        resolveRestoredPlanningRevisionAt({
-          restoredAt,
-          generatedAt: restoredSnapshot.response.generatedAt,
-          confirmedAt:
-            result.scenario.settings.incrementalCashBudget.status === "confirmed"
-              ? result.scenario.settings.incrementalCashBudget.confirmedAt
-              : null,
-        }),
-      );
+      const restoredRevisionAt = resolveRestoredPlanningRevisionAt({
+        restoredAt,
+        generatedAt: restoredSnapshot.response.generatedAt,
+        confirmedAt:
+          result.scenario.settings.incrementalCashBudget.status === "confirmed"
+            ? result.scenario.settings.incrementalCashBudget.confirmedAt
+            : null,
+      });
+      advancePlanningRevision(restoredRevisionAt);
       setSelectedProvider(result.scenario.selectedProvider);
       setMode(restoredSnapshot.response.mode);
       setCompleted({
@@ -373,15 +384,27 @@ export default function Home() {
   const parsedSettings = useMemo(() => parsePlanningSettings(settings), [settings]);
   const planningAsOf = useMemo(
     () =>
-      latestIsoDateTime(
-        planningRevisionAt,
-        ...Object.values(resourceEvidenceObservedAtById).flatMap((timestamps) =>
+      resolveBestFitPlanningAsOf({
+        revisionAt: planningRevisionAt,
+        resourceEvidenceObservedAt: Object.values(
+          resourceEvidenceObservedAtById,
+        ).flatMap((timestamps) =>
           Object.values(timestamps),
         ),
-        ...apiOverrides.map((override) => override.recordedAt),
-        completed?.analysisSnapshot.response.generatedAt,
-      ),
-    [apiOverrides, completed, planningRevisionAt, resourceEvidenceObservedAtById],
+        overrideRecordedAt: apiOverrides.map((override) => override.recordedAt),
+        generatedAt: completed?.analysisSnapshot.response.generatedAt ?? null,
+        confirmedAt:
+          incrementalCashBudget?.status === "confirmed"
+            ? incrementalCashBudget.confirmedAt
+            : null,
+      }),
+    [
+      apiOverrides,
+      completed,
+      incrementalCashBudget,
+      planningRevisionAt,
+      resourceEvidenceObservedAtById,
+    ],
   );
   const pricingAsOf =
     planningAsOf?.slice(0, 10) ?? PROVIDER_CATALOG.openai.verifiedAt;
@@ -484,8 +507,7 @@ export default function Home() {
   }
 
   function markPlanningRevision(changedAt = new Date().toISOString()) {
-    setPlanningRevisionAt(changedAt);
-    return changedAt;
+    advancePlanningRevision(changedAt);
   }
 
   function updateTask(taskId: string, field: "name" | "description", value: string) {
@@ -875,7 +897,7 @@ export default function Home() {
       };
       setCompleted(completedSnapshot);
       setStatus("success");
-      setPlanningRevisionAt(payload.generatedAt);
+      markPlanningRevision(payload.generatedAt);
       persistCompletedScenario(
         completedSnapshot,
         planningSettings,

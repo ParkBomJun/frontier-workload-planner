@@ -1408,13 +1408,20 @@ The legacy global `deadlineDays` remains compatibility metadata: changing it alo
 legacy view and persists the setting but does not advance Best-fit `planningAsOf` or `pricingAsOf`.
 The UI retains the last valid `{ budgetUsd, strategy }` snapshot across invalid form states. On
 return to a valid state it compares against that snapshot, ensuring a strategy or budget change
-made while `deadlineDays` was invalid still advances the Best-fit clock.
+made while `deadlineDays` was invalid contributes one captured Best-fit revision. The session clock
+max-merges that revision, so a clock-skewed older instant cannot rewind the existing high-water mark.
 Automatic and manual restore capture one `restoredAt` value and rebuild the Best-fit calculation
 clock as the latest actual instant among `restoredAt`, the analysis `generatedAt`, and the confirmed
 incremental-cash budget `confirmedAt` when present. `savedAt` is storage-write metadata and is never
 a calculation-clock candidate because reference-deadline and selected-provider edits can update it
 without changing Best-fit inputs. `pricingAsOf` is derived from the restored clock's UTC date, so a
 restore cannot roll dated pricing back behind the restore, analysis, or budget-confirmation instant.
+Every later calculation-clock write is monotonic: a task, setting, resource, override, restore, or
+new-analysis event merges its timestamp with the current revision instead of replacing it. The
+effective `planningAsOf` independently takes the latest revision, analysis `generatedAt`, confirmed
+budget `confirmedAt`, resource evidence observation, and override recording instant. Consequently,
+an older server analysis timestamp or another delayed event cannot move the calculation or pricing
+date backward, even when React state updates are batched.
 
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with
