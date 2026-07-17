@@ -1,4 +1,7 @@
-import { MODEL_PRICING } from "@/config/model-pricing";
+import {
+  MODEL_PRICING,
+  PROMPT_CACHE_MIN_INPUT_TOKENS,
+} from "@/config/model-pricing";
 import type {
   ModelTier,
   ScenarioEstimate,
@@ -33,10 +36,15 @@ function estimateScenario(
 ): ScenarioEstimate {
   const price = MODEL_PRICING[tier];
   const iterations = iterationsForScenario(analysis.expectedIterations, scenario);
-  const inputTokens = INPUT_TOKEN_BANDS[analysis.estimatedInputSize][scenario] * iterations;
+  const inputTokensPerIteration = INPUT_TOKEN_BANDS[analysis.estimatedInputSize][scenario];
+  const inputTokens = inputTokensPerIteration * iterations;
   const outputTokens = OUTPUT_TOKEN_BANDS[analysis.estimatedOutputSize][scenario] * iterations;
+  const inputRate =
+    inputTokensPerIteration >= PROMPT_CACHE_MIN_INPUT_TOKENS
+      ? price.cacheWriteInputUsdPerMillion
+      : price.inputUsdPerMillion;
   const costMicroUsd = Math.round(
-    inputTokens * price.inputUsdPerMillion + outputTokens * price.outputUsdPerMillion,
+    inputTokens * inputRate + outputTokens * price.outputUsdPerMillion,
   );
 
   return {

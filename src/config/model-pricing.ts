@@ -12,6 +12,9 @@ export interface ModelPrice {
 
 export const MODEL_PRICING_LAST_UPDATED = "2026-07-17";
 export const MODEL_PRICING_SOURCE = "https://developers.openai.com/api/docs/pricing";
+export const PROMPT_CACHE_SOURCE =
+  "https://developers.openai.com/api/docs/guides/prompt-caching";
+export const PROMPT_CACHE_MIN_INPUT_TOKENS = 1_024;
 
 export const MODEL_PRICING: Record<ModelTier, ModelPrice> = {
   economy: {

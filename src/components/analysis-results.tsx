@@ -2,6 +2,8 @@ import {
   MODEL_PRICING,
   MODEL_PRICING_LAST_UPDATED,
   MODEL_PRICING_SOURCE,
+  PROMPT_CACHE_MIN_INPUT_TOKENS,
+  PROMPT_CACHE_SOURCE,
 } from "@/config/model-pricing";
 import type {
   AnalysisMode,
@@ -362,12 +364,13 @@ function PricingAssumptions() {
         가격과 계산 가정 보기
       </summary>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-xs">
+        <table className="w-full min-w-[700px] text-left text-xs">
           <thead className="text-white/65">
             <tr>
               <th className="pb-2 font-semibold">등급</th>
               <th className="pb-2 font-semibold">모델</th>
-              <th className="pb-2 text-right font-semibold">입력 / 1M</th>
+              <th className="pb-2 text-right font-semibold">일반 입력 / 1M</th>
+              <th className="pb-2 text-right font-semibold">캐시 쓰기 / 1M</th>
               <th className="pb-2 text-right font-semibold">출력 / 1M</th>
             </tr>
           </thead>
@@ -379,6 +382,7 @@ function PricingAssumptions() {
                   <td className="py-2 capitalize">{tier}</td>
                   <td className="py-2 font-mono">{price.modelId}</td>
                   <td className="py-2 text-right">${price.inputUsdPerMillion}</td>
+                  <td className="py-2 text-right">${price.cacheWriteInputUsdPerMillion}</td>
                   <td className="py-2 text-right">${price.outputUsdPerMillion}</td>
                 </tr>
               );
@@ -390,7 +394,11 @@ function PricingAssumptions() {
         <li>크기 구간은 프로그램의 고정 표이며 GPT가 토큰 숫자를 만들지 않습니다.</li>
         <li>크기 구간은 반복 1회당이며 화면의 토큰은 모든 반복을 합친 시나리오 합계입니다.</li>
         <li>Low / Expected / High는 예상 반복 횟수 −1(최소 1) / 동일 / +1을 적용합니다.</li>
-        <li>캐시 할인과 도구 호출 비용은 보장할 수 없어 포함하지 않습니다.</li>
+        <li>
+          반복 1회 입력이 {PROMPT_CACHE_MIN_INPUT_TOKENS.toLocaleString("en-US")}토큰 이상이면
+          GPT-5.6 기본 캐싱의 보수적 상한으로 모든 입력에 캐시 쓰기 단가를 적용합니다.
+        </li>
+        <li>캐시 적중 할인과 도구 호출 비용은 보장할 수 없어 적용하지 않습니다.</li>
         <li>입력 구간은 요청당 256K 이하라 272K 초과 장문 입력 추가요금을 적용하지 않습니다.</li>
         <li>Expected가 예산을 넘으면 사용자 우선순위를 첫 기준으로 낮은 작업부터 한 등급씩 낮춥니다.</li>
         <li>모든 실행 작업이 Economy여도 예산을 넘으면 낮은 우선순위부터 보류하고 비용 합계에서 제외합니다.</li>
@@ -404,6 +412,15 @@ function PricingAssumptions() {
         className="mt-3 inline-block text-xs font-bold text-[#b9ddc9] underline decoration-[#b9ddc9]/40 underline-offset-4 hover:text-white"
       >
         공식 가격표 · {MODEL_PRICING_LAST_UPDATED} 확인
+      </a>
+      <span className="mx-2 text-white/35" aria-hidden="true">·</span>
+      <a
+        href={PROMPT_CACHE_SOURCE}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 inline-block text-xs font-bold text-[#b9ddc9] underline decoration-[#b9ddc9]/40 underline-offset-4 hover:text-white"
+      >
+        Prompt Caching 기준
       </a>
     </details>
   );

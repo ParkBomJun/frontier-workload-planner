@@ -2,6 +2,8 @@ import {
   MODEL_PRICING,
   MODEL_PRICING_LAST_UPDATED,
   MODEL_PRICING_SOURCE,
+  PROMPT_CACHE_MIN_INPUT_TOKENS,
+  PROMPT_CACHE_SOURCE,
 } from "@/config/model-pricing";
 import type { ModelTier, PlanExportContext } from "@/types/domain";
 
@@ -19,6 +21,8 @@ export function createPlanJson(
         {
           modelId: price.modelId,
           inputUsdPerMillion: price.inputUsdPerMillion,
+          cachedInputUsdPerMillion: price.cachedInputUsdPerMillion,
+          cacheWriteInputUsdPerMillion: price.cacheWriteInputUsdPerMillion,
           outputUsdPerMillion: price.outputUsdPerMillion,
         },
       ];
@@ -106,6 +110,9 @@ export function createPlanJson(
       pricing: {
         lastUpdated: MODEL_PRICING_LAST_UPDATED,
         source: MODEL_PRICING_SOURCE,
+        promptCacheSource: PROMPT_CACHE_SOURCE,
+        cacheWritePricingApplied: true,
+        cacheEligibilityMinInputTokensPerRequest: PROMPT_CACHE_MIN_INPUT_TOKENS,
         cacheDiscountApplied: false,
         models: pricing,
       },

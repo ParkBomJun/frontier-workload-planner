@@ -131,3 +131,21 @@ Represent planned work as an active/held discriminated union. Held tasks keep th
 ### Version source state separately from exported results
 
 Raise recent LocalStorage records to schema version 2 and explicitly migrate valid v1 tasks to Medium priority. Do not store held status or another derived plan. Raise JSON results to schema version 2, where priority and active/held allocation are intentional snapshot fields. A damaged v2 is rejected rather than silently defaulted, while an unknown future version remains untouched.
+
+## 2026-07-17 — post-review hardening
+
+### Count the actual request stream
+
+Treat `Content-Length` only as a fast rejection hint. Read the Web request stream in bounded chunks, retain at most 96 KiB, and cancel immediately when accumulated bytes exceed the limit. Stream failures converge on the sanitized `INVALID_JSON` response instead of leaking transport errors or allowing an unbounded `request.text()` allocation.
+
+### Price eligible GPT-5.6 input conservatively
+
+The official Prompt Caching contract enables caching for requests with at least 1,024 input tokens and bills GPT-5.6 cache writes at 1.25× standard input. Apply the cache-write rate to all modeled input when a scenario's per-iteration input reaches that threshold. Continue to exclude cached-read discounts because the planner cannot guarantee an exact prefix hit. This intentionally raises some estimates and can change downgrade or held decisions; it is a correctness change, not a fourth optimization mode.
+
+### Disclose persistence before it occurs
+
+Keep the agreed automatic single-scenario save, but state before submission that task names and descriptions will be stored as plaintext LocalStorage. The existing post-result notice remains responsible for success, failure, restore, and deletion feedback.
+
+### Bind export feedback to its plan
+
+Tag copy/download feedback with the exact plan reference and analysis timestamp that initiated it. Show the message only while that context remains current, so settings or priority changes hide stale success text and a delayed clipboard promise cannot claim success for a newer plan.

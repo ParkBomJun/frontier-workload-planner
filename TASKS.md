@@ -64,6 +64,15 @@
 - [x] Migrate recent scenarios from schema v1 to v2 without persisting derived allocation state
 - [x] Include priority and active/held state in Markdown and version 2 JSON exports
 - [x] Extend allocation, schema, storage, and export regression tests
+
+## Post-review hardening
+
+- [x] Enforce the 96 KiB request limit while streaming instead of after full buffering
+- [x] Contain request-stream failures in the existing sanitized JSON error contract
+- [x] Apply GPT-5.6 cache-write pricing conservatively to eligible modeled inputs
+- [x] Expose cache-write assumptions in the UI, Markdown, JSON, and specification
+- [x] Disclose automatic plaintext LocalStorage persistence before first submission
+- [x] Hide stale export feedback after plan changes, including delayed clipboard completion
 - [ ] Complete one real GPT-5.6 Structured Output call with the user's server-side key
 - [ ] Publish the GitHub repository
 - [ ] Configure Vercel environment variables and deploy

@@ -20,20 +20,23 @@ const mediumTask: TaskAnalysis = {
 };
 
 describe("estimateTaskCost", () => {
-  it("uses the fixed official standard input and output prices", () => {
+  it("uses the official standard, cache-write, and output prices", () => {
     expect(MODEL_PRICING.economy).toMatchObject({
       modelId: "gpt-5.6-luna",
       inputUsdPerMillion: 1,
+      cacheWriteInputUsdPerMillion: 1.25,
       outputUsdPerMillion: 6,
     });
     expect(MODEL_PRICING.balanced).toMatchObject({
       modelId: "gpt-5.6-terra",
       inputUsdPerMillion: 2.5,
+      cacheWriteInputUsdPerMillion: 3.125,
       outputUsdPerMillion: 15,
     });
     expect(MODEL_PRICING.frontier).toMatchObject({
       modelId: "gpt-5.6-sol",
       inputUsdPerMillion: 5,
+      cacheWriteInputUsdPerMillion: 6.25,
       outputUsdPerMillion: 30,
     });
   });
@@ -45,19 +48,19 @@ describe("estimateTaskCost", () => {
       inputTokens: 8_000,
       outputTokens: 2_000,
       iterations: 1,
-      costUsd: 0.05,
+      costUsd: 0.055,
     });
     expect(estimate.expected).toEqual({
       inputTokens: 32_000,
       outputTokens: 8_000,
       iterations: 2,
-      costUsd: 0.2,
+      costUsd: 0.22,
     });
     expect(estimate.high).toEqual({
       inputTokens: 96_000,
       outputTokens: 24_000,
       iterations: 3,
-      costUsd: 0.6,
+      costUsd: 0.66,
     });
   });
 
@@ -66,9 +69,33 @@ describe("estimateTaskCost", () => {
     const terra = estimateTaskCost(mediumTask, "balanced");
     const sol = estimateTaskCost(mediumTask, "frontier");
 
-    expect(luna.expected.costUsd).toBeCloseTo(0.08);
-    expect(terra.expected.costUsd).toBeCloseTo(0.2);
-    expect(sol.expected.costUsd).toBeCloseTo(0.4);
+    expect(luna.expected.costUsd).toBeCloseTo(0.088);
+    expect(terra.expected.costUsd).toBeCloseTo(0.22);
+    expect(sol.expected.costUsd).toBeCloseTo(0.44);
+  });
+
+  it("uses cache-write pricing only when one iteration reaches 1,024 input tokens", () => {
+    const belowThreshold = estimateTaskCost(
+      {
+        ...mediumTask,
+        expectedIterations: 1,
+        estimatedInputSize: "xs",
+        estimatedOutputSize: "xs",
+      },
+      "economy",
+    );
+    const eligible = estimateTaskCost(
+      {
+        ...mediumTask,
+        expectedIterations: 1,
+        estimatedInputSize: "xl",
+        estimatedOutputSize: "xs",
+      },
+      "economy",
+    );
+
+    expect(belowThreshold.expected.costUsd).toBe(0.004);
+    expect(eligible.expected.costUsd).toBe(0.243);
   });
 
   it("keeps Low at one iteration and gives a five-iteration estimate a six-iteration High", () => {

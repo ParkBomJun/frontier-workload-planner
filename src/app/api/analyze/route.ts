@@ -42,22 +42,85 @@ function successResponse(
   );
 }
 
-async function parseRequest(request: Request): Promise<AnalyzeRequest | NextResponse<AnalyzeErrorResponse>> {
-  const declaredLength = Number(request.headers.get("content-length") || 0);
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
-    return errorResponse(413, "REQUEST_TOO_LARGE", "요청 본문이 허용 크기를 초과했습니다.");
+type BodyReadResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: "too-large" | "read-failed" };
+
+async function readBodyWithinLimit(
+  stream: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+): Promise<BodyReadResult> {
+  if (!stream) return { ok: true, text: "" };
+
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = stream.getReader();
+  } catch {
+    return { ok: false, reason: "read-failed" };
   }
 
-  const rawBody = await request.text();
-  if (new TextEncoder().encode(rawBody).byteLength > MAX_REQUEST_BYTES) {
-    return errorResponse(413, "REQUEST_TOO_LARGE", "요청 본문이 허용 크기를 초과했습니다.");
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.byteLength) continue;
+
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel("request body too large").catch(() => undefined);
+        return { ok: false, reason: "too-large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    await reader.cancel("request body read failed").catch(() => undefined);
+    return { ok: false, reason: "read-failed" };
+  } finally {
+    reader.releaseLock();
   }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { ok: true, text: new TextDecoder().decode(bytes) };
+}
+
+function requestTooLargeResponse() {
+  return errorResponse(413, "REQUEST_TOO_LARGE", "요청 본문이 허용 크기를 초과했습니다.");
+}
+
+function invalidJsonResponse() {
+  return errorResponse(400, "INVALID_JSON", "요청 본문은 유효한 JSON이어야 합니다.");
+}
+
+async function parseRequest(request: Request): Promise<AnalyzeRequest | NextResponse<AnalyzeErrorResponse>> {
+  const contentLength = request.headers.get("content-length");
+  const declaredLength = contentLength === null ? null : Number(contentLength);
+  if (
+    declaredLength !== null &&
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_REQUEST_BYTES
+  ) {
+    await request.body?.cancel("declared request body too large").catch(() => undefined);
+    return requestTooLargeResponse();
+  }
+
+  const bodyRead = await readBodyWithinLimit(request.body, MAX_REQUEST_BYTES);
+  if (!bodyRead.ok && bodyRead.reason === "too-large") return requestTooLargeResponse();
+  if (!bodyRead.ok) return invalidJsonResponse();
 
   let body: unknown;
   try {
-    body = JSON.parse(rawBody);
+    body = JSON.parse(bodyRead.text);
   } catch {
-    return errorResponse(400, "INVALID_JSON", "요청 본문은 유효한 JSON이어야 합니다.");
+    return invalidJsonResponse();
   }
 
   const parsed = analyzeRequestSchema.safeParse(body);

@@ -10,7 +10,13 @@ interface ExportActionsProps {
   context: PlanExportContext;
 }
 
-type ExportStatus = "idle" | "copied" | "copy-error" | "json-ready" | "json-error";
+type ExportStatus = "copied" | "copy-error" | "json-ready" | "json-error";
+
+interface ExportFeedback {
+  status: ExportStatus;
+  plan: PlanExportContext["plan"];
+  generatedAt: string;
+}
 
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
@@ -35,18 +41,22 @@ function exportFilename(timestamp: string): string {
 }
 
 export function ExportActions({ context }: ExportActionsProps) {
-  const [status, setStatus] = useState<ExportStatus>("idle");
+  const [feedback, setFeedback] = useState<ExportFeedback | null>(null);
 
   async function copyMarkdown() {
+    const plan = context.plan;
+    const generatedAt = context.generatedAt;
     try {
       await copyText(createPlanMarkdown(context));
-      setStatus("copied");
+      setFeedback({ status: "copied", plan, generatedAt });
     } catch {
-      setStatus("copy-error");
+      setFeedback({ status: "copy-error", plan, generatedAt });
     }
   }
 
   function exportJson() {
+    const plan = context.plan;
+    const generatedAt = context.generatedAt;
     try {
       const exportedAt = new Date().toISOString();
       const blob = new Blob([createPlanJson(context, exportedAt)], {
@@ -60,11 +70,16 @@ export function ExportActions({ context }: ExportActionsProps) {
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      setStatus("json-ready");
+      setFeedback({ status: "json-ready", plan, generatedAt });
     } catch {
-      setStatus("json-error");
+      setFeedback({ status: "json-error", plan, generatedAt });
     }
   }
+
+  const status =
+    feedback?.plan === context.plan && feedback.generatedAt === context.generatedAt
+      ? feedback.status
+      : null;
 
   const statusMessage =
     status === "copied"

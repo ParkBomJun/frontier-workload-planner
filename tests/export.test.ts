@@ -50,6 +50,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("| high | Active |");
     expect(markdown).toContain("Low | Expected | High");
     expect(markdown).toContain("https://developers.openai.com/api/docs/pricing");
+    expect(markdown).toContain("캐시 쓰기");
+    expect(markdown).toContain("https://developers.openai.com/api/docs/guides/prompt-caching");
     expect(createPlanMarkdown(context)).toBe(markdown);
   });
 
@@ -90,11 +92,15 @@ describe("plan JSON export", () => {
       pricing: {
         lastUpdated: "2026-07-17",
         source: "https://developers.openai.com/api/docs/pricing",
+        promptCacheSource: "https://developers.openai.com/api/docs/guides/prompt-caching",
+        cacheWritePricingApplied: true,
+        cacheEligibilityMinInputTokensPerRequest: 1024,
         cacheDiscountApplied: false,
       },
     });
     expect(json).not.toContain("OPENAI_API_KEY");
     expect(json).not.toContain("NEXT_PUBLIC_");
+    expect(json).toContain('"cacheWriteInputUsdPerMillion": 1.25');
   });
 
   it("exports held work as an explicit null allocation in schema v2", () => {

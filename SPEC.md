@@ -98,13 +98,13 @@ Both size fields describe **one model iteration**. Input is the complete billabl
 
 Prices are fixed program data from the official OpenAI standard pricing table and were last checked on 2026-07-17.
 
-| Tier | Model | Input / 1M tokens | Output / 1M tokens |
-| --- | --- | ---: | ---: |
-| `economy` | `gpt-5.6-luna` | $1.00 | $6.00 |
-| `balanced` | `gpt-5.6-terra` | $2.50 | $15.00 |
-| `frontier` | `gpt-5.6-sol` | $5.00 | $30.00 |
+| Tier | Model | Standard input / 1M | Cached read / 1M | Cache write / 1M | Output / 1M |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `economy` | `gpt-5.6-luna` | $1.00 | $0.10 | $1.25 | $6.00 |
+| `balanced` | `gpt-5.6-terra` | $2.50 | $0.25 | $3.125 | $15.00 |
+| `frontier` | `gpt-5.6-sol` | $5.00 | $0.50 | $6.25 | $30.00 |
 
-Cached-input discounts, cache-write premiums, tool charges, and retries outside the declared iteration estimate are not applied. The price source and `lastUpdated` value are displayed with results.
+GPT-5.6 prompt caching is eligible at 1,024 input tokens per request and cache writes cost 1.25× standard input. For a conservative plan, every scenario whose per-iteration input reaches that threshold prices all input tokens at the cache-write rate. Below the threshold it uses the standard input rate. Cached-read discounts, tool charges, and retries outside the declared iteration estimate are not applied. The price and Prompt Caching sources plus `lastUpdated` are displayed with results.
 
 ### Token bands per iteration
 
@@ -124,7 +124,8 @@ The maximum input for any single iteration is 256K, below the current greater-th
 - Expected iterations: `expectedIterations`
 - High iterations: `expectedIterations + 1`; this may be 6 because the schema's maximum of 5 describes the expected case, not an execution cap
 - Scenario token totals: `per-iteration band value × scenario iterations`
-- Scenario cost: `(total input × input rate + total output × output rate) / 1,000,000`
+- Scenario input rate: cache-write rate when the per-iteration input band is at least 1,024 tokens; otherwise standard input rate
+- Scenario cost: `(total input × selected input rate + total output × output rate) / 1,000,000`
 
 Costs and budget comparisons are rounded to integer micro-USD before summing or comparing. Returned token values are scenario totals across all iterations.
 
@@ -160,6 +161,7 @@ The derived `BudgetAllocationPlan` is not stored. Restore validates the full sch
 Valid schema version 1 records are migrated explicitly by assigning `medium` priority to each task and are rewritten as version 2 on a best-effort basis. Malformed JSON or a damaged current-version record is ignored and removed. An unknown future schema version is preserved but not loaded. Storage access or quota errors remain non-blocking, and the user can explicitly delete the record. After deletion, settings-only edits do not recreate it; only another successful analysis enables recent-scenario persistence again.
 
 Task content is stored as plaintext in the current browser origin. API keys, prompts, raw provider errors, and server configuration are never included.
+The form discloses this automatic plaintext save before its submit button, while the result notice reports save success or failure and provides deletion.
 
 ## Export contract
 
@@ -206,6 +208,7 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 - `.env*` files are ignored except `.env.example`.
 - Live is off by default and never runs automatically.
 - Request count, field lengths, body bytes, output tokens, timeout, and retries are bounded.
+- The Route Handler counts actual streamed body bytes and cancels above 96 KiB instead of buffering an untrusted body first; `Content-Length` is only an early-rejection hint.
 - Provider errors are sanitized before reaching the client.
 - Browser persistence is versioned and validated before it reaches the calculation engine.
 - Local persistence and exports contain no API key, raw provider error, or hidden prompt.

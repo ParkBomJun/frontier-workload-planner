@@ -2,6 +2,8 @@ import {
   MODEL_PRICING,
   MODEL_PRICING_LAST_UPDATED,
   MODEL_PRICING_SOURCE,
+  PROMPT_CACHE_MIN_INPUT_TOKENS,
+  PROMPT_CACHE_SOURCE,
 } from "@/config/model-pricing";
 import type { ModelTier, PlanExportContext } from "@/types/domain";
 
@@ -116,13 +118,15 @@ export function createPlanMarkdown(context: PlanExportContext): string {
   (Object.keys(MODEL_PRICING) as ModelTier[]).forEach((tier) => {
     const price = MODEL_PRICING[tier];
     lines.push(
-      `- ${tier}: \`${price.modelId}\`, 입력 ${formatUsd(price.inputUsdPerMillion)} / 1M, 출력 ${formatUsd(price.outputUsdPerMillion)} / 1M`,
+      `- ${tier}: \`${price.modelId}\`, 일반 입력 ${formatUsd(price.inputUsdPerMillion)} / 1M, 캐시 쓰기 ${formatUsd(price.cacheWriteInputUsdPerMillion)} / 1M, 출력 ${formatUsd(price.outputUsdPerMillion)} / 1M`,
     );
   });
   lines.push(
     "- 토큰 크기 구간은 반복 1회당 고정 표이며, 표시 토큰은 모든 반복을 합친 값입니다.",
     "- 비용 합계는 실행 작업만 포함하며 보류 작업에는 모델이나 실행 비용을 배정하지 않습니다.",
-    "- 캐시 할인, 도구 호출 비용, 정교한 시간 예측은 포함하지 않습니다.",
+    `- 반복 1회 입력이 ${PROMPT_CACHE_MIN_INPUT_TOKENS.toLocaleString("en-US")}토큰 이상이면 모든 입력을 GPT-5.6 캐시 쓰기 단가로 계산합니다.`,
+    `- Prompt Caching 기준: ${PROMPT_CACHE_SOURCE}`,
+    "- 캐시 적중 할인, 도구 호출 비용, 정교한 시간 예측은 포함하지 않습니다.",
     "",
   );
 

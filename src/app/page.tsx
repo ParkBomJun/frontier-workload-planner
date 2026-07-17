@@ -478,6 +478,12 @@ export default function Home() {
                 </div>
               </fieldset>
 
+              <p className="mt-4 rounded-xl border border-[#173f31]/10 bg-[#f7f8f4] px-3.5 py-3 text-xs leading-5 text-[#5f6d65]">
+                계획 만들기 성공 시 최신 계획 1개(작업명·설명 포함)를 이 브라우저
+                LocalStorage에 평문으로 자동 저장합니다. 결과에서 삭제할 수 있으며 API 키는
+                저장하지 않습니다.
+              </p>
+
               <button
                 type="submit"
                 disabled={status === "loading"}
