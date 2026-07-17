@@ -795,8 +795,9 @@ embedded in calculation code.
 
 Access-provider, Offering, and resource IDs are immutable, locale-independent ASCII identifiers,
 unique in their respective source-state scope, and never derived from a display label. Every API
-or preset provider ID comes from its registry; Custom providers receive a planner-generated ID in a
-separate user namespace and cannot claim a registered namespace. Every API route uses
+or preset provider ID comes from its registry. Custom providers use only the planner-generated
+`custom.<stable-id>` namespace and cannot claim a registered namespace; the stable suffix is not a
+display label or raw user-entered provider name. Every API route uses
 `resourceId: null`; every subscription route uses the non-empty stable ID of its resolved resource.
 A resource's `offeringRef` must resolve to the same provider and Offering, and a duplicate
 `(providerId, offeringId, resourceId)` tuple is a schema error.
@@ -846,6 +847,16 @@ Mock fixtures, and current UI. A future adapter may interpret that legacy planni
 `premium`, but the names are not interchangeable until a versioned schema migration is implemented.
 Likewise, the current `recommendedModelTier` is a heuristic recommendation, not the future hard
 minimum `requiredQualityTier`.
+
+Checkpoint 2 keeps that adapter passive. It snapshots the current 3×3 API catalog in one immutable
+versioned registry, resolves exact catalog claims, and projects each entry back to its unchanged
+legacy value. The live allocator, UI, LocalStorage, and exports continue to use the reviewed
+API-only path. The provider-published model identity claim does not contain the planner-authored
+quality tier; a separately named resolver verifies the versioned `frontier` → `premium` heuristic
+adapter. Because the current catalog contains no versioned capability claims, adapted
+capability profiles remain `unknown`; model names are not evidence. Official model invocation
+limits remain available, but the access policy stays `unknown` until a dedicated access-path claim
+exists. Preset and connector references remain conditional until their allowlisted resolvers exist.
 
 Ver3 may let the user override the planning tier and standard text price only for a model already
 present in the verified catalog. An override is source state, is visibly labeled user-supplied,

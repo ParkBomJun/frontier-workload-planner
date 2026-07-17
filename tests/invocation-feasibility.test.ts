@@ -4,6 +4,7 @@ import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import {
   validateInvocationFeasibility,
+  validateInvocationLimits,
   validateTaskModelFeasibility,
 } from "@/lib/calculation/invocation-feasibility";
 import type { PlanningSettings, TaskAnalysis, TaskInput } from "@/types/domain";
@@ -61,6 +62,11 @@ describe("validateInvocationFeasibility", () => {
         { code: "context-limit-exceeded", actualTokens: 152, limitTokens: 120 },
       ],
     });
+    expect(
+      validateInvocationLimits(model.limits, { inputTokens: 101, outputTokens: 51 }),
+    ).toEqual(
+      validateInvocationFeasibility(model, { inputTokens: 101, outputTokens: 51 }),
+    );
   });
 
   it("validates per invocation rather than multiplying limits by iteration count", () => {

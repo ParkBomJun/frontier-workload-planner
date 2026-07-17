@@ -135,29 +135,36 @@ Checkpoint 1 is complete when the three planning documents agree on the target p
 API-only behavior remains labeled accurately, the incremental migration sequence and known
 conflicts are explicit, the full regression suite still passes, and no runtime contract changes.
 
-## Ver3 staged implementation — not started
+## Ver3 staged implementation — checkpoint 2 review candidate
 
 ### Checkpoint 2 — model and offering adapters
 
-- [ ] Add target `ModelDefinition`, discriminated `Offering`, resolved-price, and invocation-limit views beside current types
-- [ ] Resolve model-bound references and intersect model limits with narrower offering access limits
-- [ ] Distinguish complete/partial/unknown model limits and same/bounded/unknown access policies
-- [ ] Intersect model and access-path capability profiles; never inherit an unknown surface capability set
-- [ ] Gate model-opaque subscriptions on complete sourced eligibility profiles
-- [ ] Return closed eligible/conditional/ineligible results and require API fallback for conditional paths
-- [ ] Separate untrusted stored evidence inputs from resolver-only provider/connector evidence types
-- [ ] Resolve exact immutable catalog/preset IDs, versions, entries, claims, subjects, and field paths from an allowlist
-- [ ] Preserve referenced historical registry versions and reject missing or mismatched versions without trusting URLs
-- [ ] Add stable access-provider identity and one structured provider/Offering/resource route identity
-- [ ] Assign Custom providers a non-registered namespace and reject registered-ID impersonation
-- [ ] Reject duplicate route tuples and resource-to-Offering/provider reference mismatches
-- [ ] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
-- [ ] Preserve current provider-plan outputs with API-offering parity tests
-- [ ] Keep the closed current API `ProviderId` separate from extensible `AccessProviderId`
-- [ ] Test missing model references, sourced/observed/unprofiled opaque offerings, capability subsets, surfaces, and limits
-- [ ] Test same-as-model versus unknown, tighter limit/capability intersections, and partial/user-observed conditional results
-- [ ] Test forged official kinds/URLs, Custom metadata, unknown registry versions, claim mismatches, and user override non-escalation
-- [ ] Test model-opaque provider ordering and API `resourceId: null` canonical route keys
+- [x] Add target `ModelDefinition`, discriminated `Offering`, resolved-price, and invocation-limit views beside current types
+- [x] Resolve model-bound references and intersect model limits with narrower offering access limits
+- [x] Distinguish complete/partial/unknown model limits and same/bounded/unknown access policies
+- [x] Intersect model and access-path capability profiles; never inherit an unknown surface capability set
+- [x] Gate model-opaque subscriptions on complete sourced eligibility profiles
+- [x] Return closed eligible/conditional/ineligible results and require API fallback for conditional paths
+- [x] Separate untrusted stored evidence inputs from resolver-only provider/connector evidence types
+- [x] Resolve exact immutable catalog IDs, versions, entries, claims, subjects, and field paths from an allowlist
+- [x] Keep preset and connector references conditional until their versioned allowlists/resolvers exist
+- [x] Preserve the immutable current registry version and reject missing or mismatched versions without trusting URLs
+- [x] Add stable access-provider identity and one structured provider/Offering/resource route identity
+- [x] Assign Custom providers to the exact `custom.` namespace and reject registered-ID impersonation
+- [x] Reject duplicate route tuples and resource-to-Offering/provider reference mismatches
+- [x] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
+- [x] Keep the planner-authored quality-tier heuristic outside provider-published identity claims
+- [x] Preserve current provider-plan outputs with API-offering parity tests
+- [x] Keep the closed current API `ProviderId` separate from extensible `AccessProviderId`
+- [x] Test missing model references, sourced/observed/unprofiled opaque offerings, capability subsets, surfaces, and limits
+- [x] Test same-as-model versus unknown, tighter limit/capability intersections, and partial/user-observed conditional results
+- [x] Test forged official kinds/URLs, Custom metadata, unknown registry versions, claim mismatches, and user override non-escalation
+- [x] Test model-opaque provider ordering and API `resourceId: null` canonical route keys
+
+Checkpoint 2 is intentionally passive: the adapter does not replace the current allocator, UI,
+LocalStorage, or exports. Current catalog capabilities remain `unknown` until a versioned official
+claim is added, and model-limit evidence is not reused as access-policy evidence. These adapted API
+offerings therefore are not silently promoted to confirmed Best-fit routes.
 
 ### Checkpoint 3 — workload requirement contract
 

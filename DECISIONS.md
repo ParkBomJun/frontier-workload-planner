@@ -311,7 +311,8 @@ Every execution path uses the same structured `(providerId, offeringId, resource
 use a null resource, while subscriptions use their stable source resource ID. This avoids forcing
 ChatGPT, GitHub, GLM, or Custom subscription values into every current `Record<ProviderId, ...>`
 consumer and closes ties between multiple accounts for one Offering. Registered IDs come from the
-registry; Custom access providers receive planner-generated IDs in a separate namespace. The existing
+registry; Custom access providers use the exact planner-owned `custom.<stable-id>` namespace. The
+suffix is a stable identifier, not a display label or unvalidated provider name. The existing
 `OfferingFeasibilityFailure` name must be reviewed before a future general `Offering` type is
 introduced so two meanings are not conflated.
 
@@ -476,3 +477,41 @@ recorded but unchanged. They are outside Ver3 checkpoint 1 and require a separat
 When Ver3 functionality is implemented, use the same minimum-sufficient product definition in the
 localized UI, README, Devpost, and video. Until then, documentation must distinguish a target
 contract from current API-only behavior and must not advertise subscription allocation as live.
+
+## 2026-07-17 — Ver3 checkpoint 2 passive offering adapters
+
+### Preserve the reviewed runtime
+
+Add the target model, Offering, evidence, eligibility, and route-identity contracts beside the
+current domain types. Do not connect them to the live allocator, UI, LocalStorage, or exports in
+this checkpoint. The current 3×3 catalog remains the runtime source and must round-trip through the
+new adapter without changing any legacy field or provider-plan result.
+
+### Resolve authority before calculation
+
+Persist only strict catalog, preset, connector, or user-observed source shapes. Only the internal
+allowlisted registry resolver may issue provider-published evidence, and it must match the exact
+registry ID, version, entry, claim, subject, field, and frozen claim value. One legitimate claim
+cannot authenticate a different model, access path, capability, limit, or opaque profile. An
+official-looking URL, exported resolved object, user override, unknown preset, or unavailable
+connector never becomes trusted authority. The bundled registry is an independent recursively
+frozen snapshot, and inherited object-property names are never registry entries or claims.
+
+### Keep unsupported knowledge conditional
+
+The current provider catalog does not contain sourced capability claims. The adapter therefore
+keeps capabilities unknown instead of inferring them from model names. Partial, unknown, observed,
+or otherwise unresolved eligibility remains conditional and requires a future API fallback;
+complete trusted hard limits can still reject an impossible route without upgrading incomplete
+knowledge to confirmed eligibility.
+
+The Economy/Balanced/Premium position is planner-authored budget guidance, not provider-published
+model identity. Keep it out of the provider claim value and verify the versioned legacy-tier
+adapter through an explicitly named planner resolver before it can drive a hard quality boundary.
+
+### Use one structured route identity
+
+Use the locale-independent tuple `(providerId, offeringId, resourceId)` everywhere in the target
+layer. API resources are always `null`; subscription resources use stable non-empty IDs. Compare
+tuple elements directly, reject duplicates and mismatched references, and use only registered IDs
+or the planner-owned `custom.<stable-id>` provider namespace.

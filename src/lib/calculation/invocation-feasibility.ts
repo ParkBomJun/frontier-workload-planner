@@ -7,22 +7,18 @@ import type {
   ScenarioInvocationFeasibility,
   TaskAnalysis,
 } from "@/types/domain";
+import type { InvocationLimits } from "@/types/offerings";
 
 import { INPUT_TOKEN_BANDS, OUTPUT_TOKEN_BANDS } from "./size-bands";
 
 export const COST_SCENARIOS: CostScenario[] = ["low", "expected", "high"];
 
-/**
- * Validates one projected API invocation without truncating or splitting it.
- * Limits retain each provider's official meaning instead of assuming that every
- * catalog exposes the same kind of context-window field.
- */
-export function validateInvocationFeasibility(
-  model: ProviderModelPrice,
+/** Validates provider-native invocation limits without requiring a legacy price object. */
+export function validateInvocationLimits(
+  limits: InvocationLimits,
   tokenScenario: InvocationTokenScenario,
 ): InvocationFeasibilityResult {
   const failures: InvocationLimitFailure[] = [];
-  const { limits } = model;
 
   if (
     limits.maxInputTokens !== undefined &&
@@ -63,6 +59,18 @@ export function validateInvocationFeasibility(
     tokenScenario: { ...tokenScenario },
     failures,
   };
+}
+
+/**
+ * Validates one projected API invocation without truncating or splitting it.
+ * Limits retain each provider's official meaning instead of assuming that every
+ * catalog exposes the same kind of context-window field.
+ */
+export function validateInvocationFeasibility(
+  model: ProviderModelPrice,
+  tokenScenario: InvocationTokenScenario,
+): InvocationFeasibilityResult {
+  return validateInvocationLimits(model.limits, tokenScenario);
 }
 
 export function invocationTokensForScenario(
