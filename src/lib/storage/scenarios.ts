@@ -2,13 +2,16 @@ import { z } from "zod";
 
 import {
   analysisDocumentSchema,
+  MAX_TASK_DESCRIPTION_LENGTH,
+  MAX_TASK_ID_LENGTH,
+  MAX_TASK_NAME_LENGTH,
   MAX_TASKS,
   taskInputSchema,
 } from "@/lib/ai/schema";
 import { PLANNING_STRATEGIES, type AnalyzeSuccessResponse } from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 1;
+export const RECENT_SCENARIO_VERSION = 2;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -29,6 +32,45 @@ const successResponseSchema = z.strictObject({
   generatedAt: z.iso.datetime(),
   analysis: analysisDocumentSchema,
 });
+
+const legacyTaskInputSchemaV1 = z.strictObject({
+  id: z.string().trim().min(1).max(MAX_TASK_ID_LENGTH),
+  name: z.string().trim().min(1).max(MAX_TASK_NAME_LENGTH),
+  description: z.string().trim().min(1).max(MAX_TASK_DESCRIPTION_LENGTH),
+});
+
+const recentScenarioV1Schema = z
+  .strictObject({
+    schemaVersion: z.literal(1),
+    savedAt: z.iso.datetime(),
+    tasks: z.array(legacyTaskInputSchemaV1).min(1).max(MAX_TASKS),
+    settings: planningSettingsSchema,
+    response: successResponseSchema,
+  })
+  .superRefine(({ tasks, response }, context) => {
+    const taskIds = new Set<string>();
+    tasks.forEach((task, index) => {
+      if (taskIds.has(task.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index, "id"],
+          message: "Stored task IDs must be unique.",
+        });
+      }
+      taskIds.add(task.id);
+    });
+
+    const identitiesMatch =
+      response.analysis.tasks.length === tasks.length &&
+      response.analysis.tasks.every((analysis, index) => analysis.taskId === tasks[index].id);
+    if (!identitiesMatch) {
+      context.addIssue({
+        code: "custom",
+        path: ["response", "analysis", "tasks"],
+        message: "Stored analyses must preserve task order and identity.",
+      });
+    }
+  });
 
 export const recentScenarioSchema = z
   .strictObject({
@@ -93,6 +135,15 @@ function resolveStorage(storage?: KeyValueStorage): KeyValueStorage | null {
   }
 }
 
+function discardStoredScenario(storage: KeyValueStorage): LoadRecentScenarioResult {
+  try {
+    storage.removeItem(RECENT_SCENARIO_STORAGE_KEY);
+  } catch {
+    // The invalid value is ignored even if storage cleanup is blocked.
+  }
+  return { status: "discarded" };
+}
+
 export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenarioResult {
   const resolvedStorage = resolveStorage(storage);
   if (!resolvedStorage) return { status: "unavailable" };
@@ -109,12 +160,36 @@ export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenari
   try {
     parsedJson = JSON.parse(rawValue);
   } catch {
+    return discardStoredScenario(resolvedStorage);
+  }
+
+  if (
+    typeof parsedJson === "object" &&
+    parsedJson !== null &&
+    "schemaVersion" in parsedJson &&
+    parsedJson.schemaVersion === 1
+  ) {
+    const legacyScenario = recentScenarioV1Schema.safeParse(parsedJson);
+    if (!legacyScenario.success) return discardStoredScenario(resolvedStorage);
+
+    const migratedScenario = recentScenarioSchema.safeParse({
+      schemaVersion: RECENT_SCENARIO_VERSION,
+      savedAt: legacyScenario.data.savedAt,
+      tasks: legacyScenario.data.tasks.map((task) => ({ ...task, priority: "medium" as const })),
+      settings: legacyScenario.data.settings,
+      response: legacyScenario.data.response,
+    });
+    if (!migratedScenario.success) return discardStoredScenario(resolvedStorage);
+
     try {
-      resolvedStorage.removeItem(RECENT_SCENARIO_STORAGE_KEY);
+      resolvedStorage.setItem(
+        RECENT_SCENARIO_STORAGE_KEY,
+        JSON.stringify(migratedScenario.data),
+      );
     } catch {
-      // A blocked cleanup must not prevent the app from starting.
+      // A validated migration can still be restored when persistence is blocked.
     }
-    return { status: "discarded" };
+    return { status: "loaded", scenario: migratedScenario.data };
   }
 
   if (
@@ -122,20 +197,25 @@ export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenari
     parsedJson !== null &&
     "schemaVersion" in parsedJson &&
     typeof parsedJson.schemaVersion === "number" &&
-    parsedJson.schemaVersion !== RECENT_SCENARIO_VERSION
+    Number.isInteger(parsedJson.schemaVersion) &&
+    parsedJson.schemaVersion > RECENT_SCENARIO_VERSION
   ) {
     return { status: "unsupported" };
+  }
+
+  if (
+    typeof parsedJson === "object" &&
+    parsedJson !== null &&
+    "schemaVersion" in parsedJson &&
+    parsedJson.schemaVersion !== RECENT_SCENARIO_VERSION
+  ) {
+    return discardStoredScenario(resolvedStorage);
   }
 
   const parsedScenario = recentScenarioSchema.safeParse(parsedJson);
   if (parsedScenario.success) return { status: "loaded", scenario: parsedScenario.data };
 
-  try {
-    resolvedStorage.removeItem(RECENT_SCENARIO_STORAGE_KEY);
-  } catch {
-    // The invalid value is ignored even if storage cleanup is blocked.
-  }
-  return { status: "discarded" };
+  return discardStoredScenario(resolvedStorage);
 }
 
 export function saveRecentScenario(
@@ -146,7 +226,9 @@ export function saveRecentScenario(
   const parsedScenario = recentScenarioSchema.safeParse({
     schemaVersion: RECENT_SCENARIO_VERSION,
     savedAt,
-    ...input,
+    tasks: input.tasks,
+    settings: input.settings,
+    response: input.response,
   });
   if (!parsedScenario.success) return { ok: false, reason: "invalid" };
 

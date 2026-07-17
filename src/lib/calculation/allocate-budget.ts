@@ -9,6 +9,7 @@ import type {
   ReasoningDepth,
   TaskAnalysis,
   TaskInput,
+  TaskPriority,
   Uncertainty,
 } from "@/types/domain";
 
@@ -31,6 +32,11 @@ const UNCERTAINTY_ORDER: Record<Uncertainty, number> = {
   medium: 1,
   high: 2,
 };
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
 
 interface WorkingTask {
   index: number;
@@ -38,6 +44,7 @@ interface WorkingTask {
   analysis: TaskAnalysis;
   strategyTargetTier: ModelTier;
   assignedTier: ModelTier;
+  status: "active" | "held";
 }
 
 function shiftTier(tier: ModelTier, offset: -1 | 0 | 1): ModelTier {
@@ -60,11 +67,32 @@ function lowerTier(tier: ModelTier): ModelTier {
 }
 
 function toPlannedTask(item: WorkingTask): PlannedTask {
+  const minimumExpectedCostUsd = estimateTaskCost(item.analysis, "economy").expected.costUsd;
+  if (item.status === "held") {
+    return {
+      taskId: item.task.id,
+      taskName: item.task.name,
+      priority: item.task.priority,
+      analysis: item.analysis,
+      strategyTargetTier: item.strategyTargetTier,
+      minimumExpectedCostUsd,
+      status: "held",
+      assignedTier: null,
+      modelId: null,
+      cost: null,
+      wasDowngradedForBudget: false,
+      holdReason: "insufficient-budget",
+    };
+  }
+
   return {
     taskId: item.task.id,
     taskName: item.task.name,
+    priority: item.task.priority,
     analysis: item.analysis,
     strategyTargetTier: item.strategyTargetTier,
+    minimumExpectedCostUsd,
+    status: "active",
     assignedTier: item.assignedTier,
     modelId: MODEL_PRICING[item.assignedTier].modelId,
     cost: estimateTaskCost(item.analysis, item.assignedTier),
@@ -75,11 +103,14 @@ function toPlannedTask(item: WorkingTask): PlannedTask {
 
 function sumTotals(tasks: PlannedTask[]): CostTotals {
   const totalsMicroUsd = tasks.reduce(
-    (totals, task) => ({
-      low: totals.low + toMicroUsd(task.cost.low.costUsd),
-      expected: totals.expected + toMicroUsd(task.cost.expected.costUsd),
-      high: totals.high + toMicroUsd(task.cost.high.costUsd),
-    }),
+    (totals, task) =>
+      task.status === "held"
+        ? totals
+        : {
+            low: totals.low + toMicroUsd(task.cost.low.costUsd),
+            expected: totals.expected + toMicroUsd(task.cost.expected.costUsd),
+            high: totals.high + toMicroUsd(task.cost.high.costUsd),
+          },
     { low: 0, expected: 0, high: 0 },
   );
 
@@ -90,7 +121,10 @@ function sumTotals(tasks: PlannedTask[]): CostTotals {
   };
 }
 
-function compareForDowngrade(a: WorkingTask, b: WorkingTask): number {
+function compareForBudgetRelief(a: WorkingTask, b: WorkingTask): number {
+  const priorityDifference = PRIORITY_ORDER[a.task.priority] - PRIORITY_ORDER[b.task.priority];
+  if (priorityDifference !== 0) return priorityDifference;
+
   const tierDifference =
     TIER_ORDER.indexOf(a.analysis.recommendedModelTier) -
     TIER_ORDER.indexOf(b.analysis.recommendedModelTier);
@@ -115,17 +149,27 @@ function compareForDowngrade(a: WorkingTask, b: WorkingTask): number {
 function expectedTotalMicroUsd(working: WorkingTask[]): number {
   return working.reduce(
     (total, item) =>
-      total + toMicroUsd(estimateTaskCost(item.analysis, item.assignedTier).expected.costUsd),
+      item.status === "held"
+        ? total
+        : total + toMicroUsd(estimateTaskCost(item.analysis, item.assignedTier).expected.costUsd),
     0,
   );
 }
 
-function minimumExpectedTotalMicroUsd(working: WorkingTask[]): number {
+function activeMinimumExpectedTotalMicroUsd(working: WorkingTask[]): number {
   return working.reduce(
     (total, item) =>
-      total + toMicroUsd(estimateTaskCost(item.analysis, "economy").expected.costUsd),
+      item.status === "held"
+        ? total
+        : total + toMicroUsd(estimateTaskCost(item.analysis, "economy").expected.costUsd),
     0,
   );
+}
+
+function resetActiveTiers(working: WorkingTask[]): void {
+  working.forEach((item) => {
+    if (item.status === "active") item.assignedTier = item.strategyTargetTier;
+  });
 }
 
 function assertInputs(tasks: TaskInput[], analyses: TaskAnalysis[], settings: PlanningSettings): void {
@@ -168,28 +212,50 @@ export function allocateBudget(
       analysis,
       strategyTargetTier: target,
       assignedTier: target,
+      status: "active",
     };
   });
 
-  while (expectedTotalMicroUsd(working) > budgetMicroUsd) {
-    const candidate = working
-      .filter((item) => item.assignedTier !== "economy")
-      .sort(compareForDowngrade)[0];
-    if (!candidate) break;
-    candidate.assignedTier = lowerTier(candidate.assignedTier);
+  const minimumExpectedCostUsd = fromMicroUsd(activeMinimumExpectedTotalMicroUsd(working));
+
+  while (true) {
+    resetActiveTiers(working);
+
+    while (expectedTotalMicroUsd(working) > budgetMicroUsd) {
+      const candidate = working
+        .filter((item) => item.status === "active" && item.assignedTier !== "economy")
+        .sort(compareForBudgetRelief)[0];
+      if (!candidate) break;
+      candidate.assignedTier = lowerTier(candidate.assignedTier);
+    }
+
+    if (expectedTotalMicroUsd(working) <= budgetMicroUsd) break;
+
+    const holdCandidate = working
+      .filter((item) => item.status === "active")
+      .sort(compareForBudgetRelief)[0];
+    if (!holdCandidate) break;
+    holdCandidate.status = "held";
   }
 
   const plannedTasks = working.map(toPlannedTask);
   const totals = sumTotals(plannedTasks);
-  const minimumExpectedCostUsd = fromMicroUsd(minimumExpectedTotalMicroUsd(working));
   const expectedWithinBudget = toMicroUsd(totals.expectedUsd) <= budgetMicroUsd;
   const highExceedsBudget = toMicroUsd(totals.highUsd) > budgetMicroUsd;
+  const activeTaskCount = plannedTasks.filter((task) => task.status === "active").length;
+  const heldTaskCount = plannedTasks.length - activeTaskCount;
   const downgradedTaskCount = plannedTasks.filter((task) => task.wasDowngradedForBudget).length;
   const warnings: string[] = [];
 
   if (!expectedWithinBudget) {
-    warnings.push("Economy 등급만 사용해도 Expected 비용이 예산을 초과합니다.");
-  } else if (downgradedTaskCount > 0) {
+    warnings.push("실행 작업의 Expected 비용을 예산 안으로 조정하지 못했습니다.");
+  }
+  if (heldTaskCount > 0) {
+    warnings.push(
+      `${heldTaskCount}개 작업을 예산 부족으로 보류했습니다. 보류 작업 비용은 합계에서 제외됩니다.`,
+    );
+  }
+  if (downgradedTaskCount > 0) {
     warnings.push(`${downgradedTaskCount}개 작업의 등급을 예산에 맞춰 낮췄습니다.`);
   }
   if (highExceedsBudget) {
@@ -207,6 +273,8 @@ export function allocateBudget(
     remainingBudgetUsd: fromMicroUsd(budgetMicroUsd - toMicroUsd(totals.expectedUsd)),
     expectedWithinBudget,
     highExceedsBudget,
+    activeTaskCount,
+    heldTaskCount,
     downgradedTaskCount,
     warnings,
   };

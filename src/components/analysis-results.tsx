@@ -10,6 +10,7 @@ import type {
   PlanExportContext,
   PlanningStrategy,
   TaskInput,
+  TaskPriority,
 } from "@/types/domain";
 
 import { CostChart } from "./cost-chart";
@@ -33,6 +34,12 @@ const STRATEGY_LABELS: Record<PlanningStrategy, string> = {
   "cost-saver": "비용 절감",
   balanced: "균형",
   "quality-first": "품질 우선",
+};
+
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  high: "High · 높음",
+  medium: "Medium · 보통",
+  low: "Low · 낮음",
 };
 
 const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -109,7 +116,7 @@ export function AnalysisResults({
           <SummaryCard
             label="Expected"
             value={formatCurrency(plan.totals.expectedUsd)}
-            detail={`예산 사용 ${utilization.toFixed(1)}%`}
+            detail={`예산 사용 ${utilization.toFixed(1)}% · 실행 ${plan.activeTaskCount} / 보류 ${plan.heldTaskCount}`}
             emphasized
           />
           <SummaryCard
@@ -140,7 +147,7 @@ export function AnalysisResults({
           </div>
         ) : (
           <div className="rounded-2xl border border-[#9ed0b8]/20 bg-[#9ed0b8]/10 p-4 text-sm text-[#d9ebe1]">
-            Expected와 High 시나리오가 모두 입력 예산 안에 있습니다.
+            모든 작업의 Expected와 High 시나리오가 입력 예산 안에 있습니다.
           </div>
         )}
 
@@ -150,110 +157,161 @@ export function AnalysisResults({
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <h3 className="text-lg font-semibold">작업별 배분</h3>
             <p className="text-xs text-white/70">
-              Expected 잔여 예산 {formatCurrency(plan.remainingBudgetUsd)}
+              실행 {plan.activeTaskCount} · 보류 {plan.heldTaskCount} · Expected 잔여 예산{" "}
+              {formatCurrency(plan.remainingBudgetUsd)}
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
-            {plan.tasks.map((task, index) => (
-              <article key={task.taskId} className="min-w-0 rounded-2xl border border-white/10 bg-[#1b4a39] p-4 sm:p-5">
-                <div className="flex min-w-0 items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="font-mono text-xs font-bold text-[#9ed0b8]">
-                      TASK {String(index + 1).padStart(2, "0")}
-                    </p>
-                    <h4 className="mt-1 break-words text-lg font-semibold leading-6">{task.taskName}</h4>
-                  </div>
-                  {task.wasDowngradedForBudget ? (
-                    <span className="shrink-0 rounded-full bg-[#efb28b]/15 px-2.5 py-1 text-xs font-bold text-[#ffd8bd]">
-                      예산 조정
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-4 rounded-xl bg-white/[0.07] p-3.5">
-                  <div className="flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/70">Assigned model</p>
-                      <p className="mt-1 text-xl font-semibold">{task.modelId}</p>
+            {plan.tasks.map((task, index) => {
+              const titleId = `result-task-title-${task.taskId}`;
+              return (
+                <article
+                  key={task.taskId}
+                  aria-labelledby={titleId}
+                  data-task-id={task.taskId}
+                  data-allocation-status={task.status}
+                  className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${
+                    task.status === "held"
+                      ? "border-[#e9b082]/30 bg-[#4a4032]"
+                      : "border-white/10 bg-[#1b4a39]"
+                  }`}
+                >
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs font-bold text-[#9ed0b8]">
+                        TASK {String(index + 1).padStart(2, "0")}
+                      </p>
+                      <h4 id={titleId} className="mt-1 break-words text-lg font-semibold leading-6">
+                        {task.taskName}
+                      </h4>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-white/70">Assigned tier</p>
-                      <p className="font-mono text-sm font-bold text-[#b9ddc9]">
-                        {TIER_LABELS[task.assignedTier]}
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold text-[#d7e9df]">
+                        {PRIORITY_LABELS[task.priority]}
+                      </span>
+                      {task.status === "held" ? (
+                        <span className="rounded-full bg-[#efb28b]/20 px-2.5 py-1 text-xs font-bold text-[#ffe0c9]">
+                          On hold · 보류
+                        </span>
+                      ) : task.wasDowngradedForBudget ? (
+                        <span className="rounded-full bg-[#efb28b]/15 px-2.5 py-1 text-xs font-bold text-[#ffd8bd]">
+                          예산 조정
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {task.status === "held" ? (
+                    <div
+                      id={`held-reason-${task.taskId}`}
+                      className="mt-4 rounded-xl border border-[#efb28b]/25 bg-[#efb28b]/10 p-3.5"
+                    >
+                      <p className="text-sm font-bold text-[#ffe0c9]">이번 계획의 실행 대상에서 제외됨</p>
+                      <p className="mt-1 text-xs leading-5 text-white/75">
+                        전체 작업의 Economy 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다.
+                        이 작업을 실행하려면 Expected 기준 최소 {formatCurrency(task.minimumExpectedCostUsd)}가
+                        필요합니다.
                       </p>
                     </div>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-white/70">
-                    GPT 권장 {TIER_LABELS[task.analysis.recommendedModelTier]} · 전략 목표 {TIER_LABELS[task.strategyTargetTier]}
-                  </p>
-                </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 rounded-xl bg-white/[0.07] p-3.5">
+                        <div className="flex flex-wrap items-end justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/70">
+                              Assigned model
+                            </p>
+                            <p className="mt-1 break-all text-xl font-semibold">{task.modelId}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-white/70">Assigned tier</p>
+                            <p className="font-mono text-sm font-bold text-[#b9ddc9]">
+                              {TIER_LABELS[task.assignedTier]}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-white/70">
+                          GPT 권장 {TIER_LABELS[task.analysis.recommendedModelTier]} · 전략 목표{" "}
+                          {TIER_LABELS[task.strategyTargetTier]}
+                        </p>
+                      </div>
 
-                <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-white/10">
-                  {([
-                    ["Low", task.cost.low.costUsd],
-                    ["Expected", task.cost.expected.costUsd],
-                    ["High", task.cost.high.costUsd],
-                  ] as const).map(([label, value]) => (
-                    <div key={label} className="min-w-0 bg-[#20513f] p-3">
-                      <dt className="truncate text-xs text-white/65">{label}</dt>
-                      <dd className="mt-1 break-all font-mono text-sm font-bold text-[#eef7f2]">
-                        {formatCurrency(value)}
-                      </dd>
+                      <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-white/10">
+                        {([
+                          ["Low", task.cost.low.costUsd],
+                          ["Expected", task.cost.expected.costUsd],
+                          ["High", task.cost.high.costUsd],
+                        ] as const).map(([label, value]) => (
+                          <div key={label} className="min-w-0 bg-[#20513f] p-3">
+                            <dt className="truncate text-xs text-white/65">{label}</dt>
+                            <dd className="mt-1 break-all font-mono text-sm font-bold text-[#eef7f2]">
+                              {formatCurrency(value)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/65">
+                        <p>
+                          Expected 입력 합계{" "}
+                          <strong className="text-white/85">
+                            {formatTokens(task.cost.expected.inputTokens)}
+                          </strong>
+                        </p>
+                        <p>
+                          Expected 출력 합계{" "}
+                          <strong className="text-white/85">
+                            {formatTokens(task.cost.expected.outputTokens)}
+                          </strong>
+                        </p>
+                        <p>
+                          반복 <strong className="text-white/85">{task.cost.expected.iterations}회</strong>
+                        </p>
+                        <p>
+                          불확실성{" "}
+                          <strong className="capitalize text-white/85">{task.analysis.uncertainty}</strong>
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  <dl className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                    {[
+                      ["작업 유형", task.analysis.taskType],
+                      ["복잡도", task.analysis.complexity],
+                      ["추론", task.analysis.reasoningDepth],
+                      [
+                        "크기 구간",
+                        `${task.analysis.estimatedInputSize} → ${task.analysis.estimatedOutputSize}`,
+                      ],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg bg-white/[0.055] px-2.5 py-2">
+                        <dt className="text-white/65">{label}</dt>
+                        <dd className="mt-1 break-words font-mono font-bold text-white/80">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  {task.analysis.riskFactors.length ? (
+                    <div className="mt-4 rounded-xl border border-[#efb28b]/15 bg-[#efb28b]/[0.07] p-3">
+                      <p className="text-xs font-bold text-[#ffd8bd]">위험 요인</p>
+                      <ul className="mt-1.5 space-y-1 text-xs leading-5 text-white/70">
+                        {task.analysis.riskFactors.map((risk, riskIndex) => (
+                          <li key={`${task.taskId}-risk-${riskIndex}`} className="flex gap-2">
+                            <span aria-hidden="true">•</span>
+                            <span>{risk}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  ))}
-                </dl>
+                  ) : null}
 
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/65">
-                  <p>
-                    Expected 입력 합계 <strong className="text-white/85">{formatTokens(task.cost.expected.inputTokens)}</strong>
+                  <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-6 text-white/65">
+                    {task.analysis.rationale}
                   </p>
-                  <p>
-                    Expected 출력 합계 <strong className="text-white/85">{formatTokens(task.cost.expected.outputTokens)}</strong>
-                  </p>
-                  <p>
-                    반복 <strong className="text-white/85">{task.cost.expected.iterations}회</strong>
-                  </p>
-                  <p>
-                    불확실성 <strong className="capitalize text-white/85">{task.analysis.uncertainty}</strong>
-                  </p>
-                </div>
-
-                <dl className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                  {[
-                    ["작업 유형", task.analysis.taskType],
-                    ["복잡도", task.analysis.complexity],
-                    ["추론", task.analysis.reasoningDepth],
-                    [
-                      "크기 구간",
-                      `${task.analysis.estimatedInputSize} → ${task.analysis.estimatedOutputSize}`,
-                    ],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-lg bg-white/[0.055] px-2.5 py-2">
-                      <dt className="text-white/65">{label}</dt>
-                      <dd className="mt-1 break-words font-mono font-bold text-white/80">{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-
-                {task.analysis.riskFactors.length ? (
-                  <div className="mt-4 rounded-xl border border-[#efb28b]/15 bg-[#efb28b]/[0.07] p-3">
-                    <p className="text-xs font-bold text-[#ffd8bd]">위험 요인</p>
-                    <ul className="mt-1.5 space-y-1 text-xs leading-5 text-white/70">
-                      {task.analysis.riskFactors.map((risk, riskIndex) => (
-                        <li key={`${task.taskId}-risk-${riskIndex}`} className="flex gap-2">
-                          <span aria-hidden="true">•</span>
-                          <span>{risk}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-6 text-white/65">
-                  {task.analysis.rationale}
-                </p>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </div>
 
@@ -334,7 +392,8 @@ function PricingAssumptions() {
         <li>Low / Expected / High는 예상 반복 횟수 −1(최소 1) / 동일 / +1을 적용합니다.</li>
         <li>캐시 할인과 도구 호출 비용은 보장할 수 없어 포함하지 않습니다.</li>
         <li>입력 구간은 요청당 256K 이하라 272K 초과 장문 입력 추가요금을 적용하지 않습니다.</li>
-        <li>Expected가 예산을 넘으면 권장 등급·추론·복잡도·불확실성이 낮은 작업부터 한 등급씩 낮춥니다.</li>
+        <li>Expected가 예산을 넘으면 사용자 우선순위를 첫 기준으로 낮은 작업부터 한 등급씩 낮춥니다.</li>
+        <li>모든 실행 작업이 Economy여도 예산을 넘으면 낮은 우선순위부터 보류하고 비용 합계에서 제외합니다.</li>
         <li>불확실성은 하향 순서에만 반영하며 숫자 범위를 임의로 넓히지 않습니다.</li>
         <li>검토 기한은 참고용이며 비용이나 모델 등급에 영향을 주지 않습니다.</li>
       </ul>

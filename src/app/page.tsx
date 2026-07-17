@@ -18,14 +18,23 @@ import type {
   AnalyzeSuccessResponse,
   PlanningSettings,
   TaskInput,
+  TaskPriority,
 } from "@/types/domain";
 
-const INITIAL_TASKS: TaskInput[] = [{ id: "task-1", name: "", description: "" }];
+const INITIAL_TASKS: TaskInput[] = [
+  { id: "task-1", name: "", description: "", priority: "medium" },
+];
 
 const INITIAL_SETTINGS: PlanningFormState = {
   budgetUsd: "5.00",
   deadlineDays: "7",
   strategy: "balanced",
+};
+
+const PRIORITY_NOTICE_LABELS: Record<TaskPriority, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 };
 
 type RequestStatus = "idle" | "loading" | "success" | "error";
@@ -80,9 +89,11 @@ export default function Home() {
   const [storageChecked, setStorageChecked] = useState(false);
   const [hasRecentScenario, setHasRecentScenario] = useState(false);
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
+  const [allocationNotice, setAllocationNotice] = useState("");
   const nextTaskNumber = useRef(2);
 
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
+    setAllocationNotice("");
     const result = loadRecentScenario();
 
     if (result.status === "loaded") {
@@ -187,6 +198,7 @@ export default function Home() {
     setCompleted(null);
     setVisibleError(null);
     setStatus("idle");
+    setAllocationNotice("");
   }
 
   function updateTask(taskId: string, field: "name" | "description", value: string) {
@@ -197,12 +209,43 @@ export default function Home() {
     invalidateAnalysis();
   }
 
+  function updateTaskPriority(taskId: string, priority: TaskPriority) {
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId ? { ...task, priority } : task,
+    );
+    setTasks(updatedTasks);
+    setShowValidation(false);
+    setVisibleError(null);
+
+    if (!completed) return;
+
+    const updatedCompleted = {
+      ...completed,
+      tasks: completed.tasks.map((task) =>
+        task.id === taskId ? { ...task, priority } : task,
+      ),
+    };
+    setCompleted(updatedCompleted);
+    setStatus("success");
+    const changedTask = updatedTasks.find((task) => task.id === taskId);
+    setAllocationNotice(
+      `${changedTask?.name || taskId} 우선순위를 ${PRIORITY_NOTICE_LABELS[priority]}로 바꾸고 API 재호출 없이 계획을 다시 배분했습니다.`,
+    );
+
+    if (hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(updatedCompleted, parsedSettings, false);
+    }
+  }
+
   function addTask() {
     if (tasks.length >= 8) return;
     const availableNumber = nextAvailableTaskNumber(tasks, nextTaskNumber.current);
     const taskId = `task-${availableNumber}`;
     nextTaskNumber.current = availableNumber + 1;
-    setTasks((current) => [...current, { id: taskId, name: "", description: "" }]);
+    setTasks((current) => [
+      ...current,
+      { id: taskId, name: "", description: "", priority: "medium" },
+    ]);
     setShowValidation(false);
     invalidateAnalysis();
     window.requestAnimationFrame(() => document.getElementById(`task-name-${taskId}`)?.focus());
@@ -236,6 +279,13 @@ export default function Home() {
     setVisibleError(null);
     setShowValidation(false);
     const nextPlanningSettings = parsePlanningSettings(value);
+    if (completed && nextPlanningSettings) {
+      setAllocationNotice(
+        `예산 ${nextPlanningSettings.budgetUsd}달러, ${nextPlanningSettings.strategy} 전략을 반영해 API 재호출 없이 계획을 다시 배분했습니다.`,
+      );
+    } else {
+      setAllocationNotice("");
+    }
     if (completed && hasRecentScenario && nextPlanningSettings) {
       persistCompletedScenario(completed, nextPlanningSettings, false);
     }
@@ -279,6 +329,7 @@ export default function Home() {
       setStatus("error");
       setShowValidation(true);
       setVisibleError({ message: "모든 작업과 계획 설정을 확인해 주세요." });
+      setAllocationNotice("");
       window.requestAnimationFrame(() => {
         document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       });
@@ -290,6 +341,7 @@ export default function Home() {
     setShowValidation(false);
     setVisibleError(null);
     setCompleted(null);
+    setAllocationNotice("");
 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 75_000);
@@ -388,6 +440,7 @@ export default function Home() {
             onAdd={addTask}
             onRemove={removeTask}
             onChange={updateTask}
+            onPriorityChange={updateTaskPriority}
             onLoadSample={loadSample}
           />
 
@@ -450,7 +503,7 @@ export default function Home() {
         </form>
 
         <p className="sr-only" aria-live="polite">
-          {statusMessage}
+          {allocationNotice || statusMessage}
         </p>
 
         {storageNotice ? (

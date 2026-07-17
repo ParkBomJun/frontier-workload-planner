@@ -113,3 +113,21 @@ Rechecked the official GPT-5.6 guide and standard pricing on 2026-07-17. The `gp
 ### Separate local readiness from external publication
 
 Pin Node.js `>=20.9.0`, remove internal checkpoint wording from the public UI, and keep the Devpost copy in a local draft. A real API call, GitHub publication, Vercel deployment, and Devpost account update remain incomplete until their respective user-owned credentials and target accounts are available. Do not treat local readiness as a successful deployment.
+
+## 2026-07-17 — final priority and held-work alignment
+
+### Priority belongs to the program, not GPT
+
+Every source task has a user-owned `high`, `medium`, or `low` priority, with Medium as the default for new and migrated work. The API validates it with the source record, but the provider prompt explicitly projects only task ID, name, and description. Priority therefore cannot influence GPT's workload classification and remains an explainable allocation input.
+
+### Use one deterministic relief order
+
+Put user priority first in the existing downgrade comparator, followed by recommended tier, reasoning, complexity, uncertainty, and input order. If every active task is already Economy and still exceeds Expected budget, hold the first task in that same order. Restart remaining active tasks from their strategy targets after each hold so higher-priority work is not unnecessarily stranded at Economy. This remains a simple rule-based recommendation rather than a knapsack search or mathematical optimum.
+
+### Held means no allocation
+
+Represent planned work as an active/held discriminated union. Held tasks keep their analysis and Economy Expected minimum for explanation, but have null tier, model, and cost. All plan totals, utilization, High warnings, and chart costs include active tasks only. Re-running the pure allocator from source tasks means a larger budget can reactivate work without another GPT request.
+
+### Version source state separately from exported results
+
+Raise recent LocalStorage records to schema version 2 and explicitly migrate valid v1 tasks to Medium priority. Do not store held status or another derived plan. Raise JSON results to schema version 2, where priority and active/held allocation are intentional snapshot fields. A damaged v2 is rejected rather than silently defaulted, while an unknown future version remains untouched.

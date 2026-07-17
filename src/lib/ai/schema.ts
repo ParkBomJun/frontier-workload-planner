@@ -5,6 +5,7 @@ import {
   MODEL_TIERS,
   REASONING_DEPTHS,
   SIZE_BANDS,
+  TASK_PRIORITIES,
   TASK_TYPES,
   UNCERTAINTY_LEVELS,
 } from "@/types/domain";
@@ -22,6 +23,7 @@ export const taskInputSchema = z.strictObject({
   id: z.string().trim().min(1).max(MAX_TASK_ID_LENGTH),
   name: z.string().trim().min(1).max(MAX_TASK_NAME_LENGTH),
   description: z.string().trim().min(1).max(MAX_TASK_DESCRIPTION_LENGTH),
+  priority: z.enum(TASK_PRIORITIES),
 });
 
 export const analyzeRequestSchema = z

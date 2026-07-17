@@ -53,6 +53,17 @@
 - [x] Document that public production must keep unauthenticated Live analysis disabled
 - [x] Pass the release-preparation test, lint, TypeScript, build, API, browser, and secret checks
 - [x] Create the checkpoint 4 local release-preparation commit
+
+## Final pre-release scope alignment
+
+- [x] Add High / Medium / Low user priority with Medium defaults
+- [x] Use user priority as the first deterministic budget-relief criterion
+- [x] Hold lower-priority work when active Economy Expected cost still exceeds budget
+- [x] Exclude held work from assigned models, execution costs, totals, and High warnings
+- [x] Reconsider held work locally when budget, strategy, or priority changes
+- [x] Migrate recent scenarios from schema v1 to v2 without persisting derived allocation state
+- [x] Include priority and active/held state in Markdown and version 2 JSON exports
+- [x] Extend allocation, schema, storage, and export regression tests
 - [ ] Complete one real GPT-5.6 Structured Output call with the user's server-side key
 - [ ] Publish the GitHub repository
 - [ ] Configure Vercel environment variables and deploy

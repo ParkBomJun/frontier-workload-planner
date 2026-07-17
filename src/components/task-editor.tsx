@@ -3,7 +3,7 @@ import {
   MAX_TASK_NAME_LENGTH,
   MAX_TASKS,
 } from "@/lib/ai/schema";
-import type { TaskInput } from "@/types/domain";
+import type { TaskInput, TaskPriority } from "@/types/domain";
 
 interface TaskEditorProps {
   tasks: TaskInput[];
@@ -12,6 +12,7 @@ interface TaskEditorProps {
   onAdd: () => void;
   onRemove: (taskId: string) => void;
   onChange: (taskId: string, field: "name" | "description", value: string) => void;
+  onPriorityChange: (taskId: string, priority: TaskPriority) => void;
   onLoadSample: () => void;
 }
 
@@ -22,6 +23,7 @@ export function TaskEditor({
   onAdd,
   onRemove,
   onChange,
+  onPriorityChange,
   onLoadSample,
 }: TaskEditorProps) {
   return (
@@ -31,6 +33,9 @@ export function TaskEditor({
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#748078]">Workload queue</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">분석할 작업</h2>
           <p className="mt-1 text-sm text-[#66736b]">한 요청에서 최대 {MAX_TASKS}개를 함께 분석합니다.</p>
+          <p id="task-priority-help" className="mt-1 text-xs leading-5 text-[#66736b]">
+            우선순위는 GPT의 난이도 판단이 아니라 프로그램의 예산 하향·보류 순서에만 사용됩니다.
+          </p>
         </div>
         <button
           type="button"
@@ -69,7 +74,7 @@ export function TaskEditor({
                   onClick={() => onRemove(task.id)}
                   disabled={disabled || tasks.length === 1}
                   aria-label={`${task.name.trim() || `작업 ${index + 1}`} 삭제`}
-                  className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-[#8a5a48] transition hover:bg-[#fff0e8] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#c66845]/20 disabled:cursor-not-allowed disabled:opacity-35"
+                  className="min-h-11 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-[#8a5a48] transition hover:bg-[#fff0e8] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#c66845]/20 disabled:cursor-not-allowed disabled:opacity-35"
                 >
                   삭제
                 </button>
@@ -92,13 +97,31 @@ export function TaskEditor({
                     aria-invalid={nameInvalid}
                     aria-describedby={nameInvalid ? nameErrorId : undefined}
                     placeholder="예: 고객 지원 대시보드 API 설계"
-                    className="w-full min-w-0 rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-[15px] outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
+                    className="w-full min-w-0 rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-base outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
                   />
                   {nameInvalid ? (
                     <span id={nameErrorId} className="mt-1.5 block text-sm text-[#a6452a]">
                       작업명을 입력해 주세요.
                     </span>
                   ) : null}
+                </label>
+
+                <label htmlFor={`task-priority-${task.id}`} className="block min-w-0 sm:max-w-56">
+                  <span className="mb-2 block text-sm font-bold text-[#34443b]">우선순위</span>
+                  <select
+                    id={`task-priority-${task.id}`}
+                    value={task.priority}
+                    onChange={(event) =>
+                      onPriorityChange(task.id, event.target.value as TaskPriority)
+                    }
+                    disabled={disabled}
+                    aria-describedby="task-priority-help"
+                    className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base font-semibold text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="high">High · 높음</option>
+                    <option value="medium">Medium · 보통</option>
+                    <option value="low">Low · 낮음</option>
+                  </select>
                 </label>
 
                 <label htmlFor={descriptionId} className="block min-w-0">
@@ -118,7 +141,7 @@ export function TaskEditor({
                     aria-describedby={descriptionInvalid ? descriptionErrorId : undefined}
                     rows={4}
                     placeholder="목표, 산출물, 제약, 품질 기준을 구체적으로 적어 주세요."
-                    className="w-full min-w-0 resize-y rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-[15px] leading-6 outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
+                    className="w-full min-w-0 resize-y rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-base leading-6 outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
                   />
                   {descriptionInvalid ? (
                     <span id={descriptionErrorId} className="mt-1.5 block text-sm text-[#a6452a]">

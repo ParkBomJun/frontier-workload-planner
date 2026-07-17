@@ -11,11 +11,12 @@ Frontier Workload Planner turns up to eight task descriptions into an explainabl
 ## Fixed MVP scope
 
 - One-page workflow with up to eight tasks
+- User-owned High / Medium / Low priority for every task
 - One GPT-5.6 request for all tasks
 - GPT recommends a model tier, never a concrete model or price
 - Program maps tier to a fixed model and published pricing
 - Deterministic Low / Expected / High cost calculation
-- Expected-cost budget allocation and a High-cost risk warning
+- Expected-cost budget allocation, low-priority task holding, and a High-cost risk warning
 - One per-task cost bar chart
 - One recent scenario in LocalStorage
 - Markdown copy and JSON export
@@ -30,16 +31,16 @@ The tier mapping for the calculation stage is fixed as follows.
 | `balanced` | `gpt-5.6-terra` |
 | `frontier` | `gpt-5.6-sol` |
 
-## Current implementation — checkpoint 3 release candidate
+## Current implementation — release candidate
 
 This repository currently implements:
 
-1. One to eight task names and descriptions in a single-page UI.
+1. One to eight task names, descriptions, and user priorities in a single-page UI.
 2. Budget, reference deadline, and planning-strategy controls.
 3. Explicit Mock or Live submission to `POST /api/analyze`.
 4. Server-side validation and one GPT-5.6 Responses API Structured Output for all tasks.
 5. Fixed size-band conversion, published model prices, and deterministic Low / Expected / High costs.
-6. Expected-cost budget allocation, High-cost warnings, task cards, and one cost chart.
+6. Priority-first Expected-cost allocation, explicit active/held work, High-cost warnings, task cards, and one cost chart.
 7. One validated recent scenario in LocalStorage, restored without a new API request.
 8. Markdown clipboard copy and versioned JSON export of the currently displayed plan.
 9. Empty, loading, success, input-error, configuration-error, storage-error, and upstream-error states.
@@ -55,6 +56,7 @@ This repository currently implements:
 | Input and output size bands | Budget-aware allocation rules |
 | Uncertainty and risk factors | Budget warnings and chart values |
 | Recommended model tier | Currency formatting and totals |
+| — | User priority, tier downgrades, and held-work selection |
 
 GPT must not return final token counts, prices, costs, budget allocation, or completion time.
 
@@ -67,6 +69,7 @@ GPT must not return final token counts, prices, costs, budget allocation, or com
 - `tasks[].id`: 1–64 characters
 - `tasks[].name`: 1–100 characters
 - `tasks[].description`: 1–2,000 characters
+- `tasks[].priority`: `high | medium | low`
 - Entire JSON request: at most 96 KiB in UTF-8
 
 Unknown keys are rejected.
@@ -133,9 +136,11 @@ Planning controls accept a budget from $0.01 through $10,000, a reference deadli
 - `balanced`: begin at GPT's recommendation
 - `quality-first`: begin one tier above GPT's recommendation, clamped at Frontier
 
-If the initial Expected total exceeds the budget, lower one eligible task by one tier and recalculate until the plan fits or every task is Economy. The downgrade priority is deterministic: lower GPT-recommended tier, lighter reasoning, lower complexity, lower uncertainty, then earlier input order. The same task may be lowered again if it remains first in that ordering.
+If the initial Expected total exceeds the budget, lower one eligible task by one tier and recalculate until the plan fits or every active task is Economy. The budget-relief order is deterministic: lower user priority (`low`, then `medium`, then `high`), lower GPT-recommended tier, lighter reasoning, lower complexity, lower uncertainty, then earlier input order. The same task may be lowered again if it remains first in that ordering.
 
-Uncertainty only protects higher-uncertainty work from earlier budget downgrades; it does not widen the numeric token bands. If even the all-Economy Expected total exceeds the budget, the plan remains over budget and shows the minimum-cost warning. High is compared after allocation and produces a risk warning only when it is strictly greater than the budget.
+If every active task is already Economy and its Expected total still exceeds the budget, move the first task in that same order to `held`, then restart the remaining active tasks from their strategy targets. Repeat until active Expected cost fits. Held tasks remain visible in input order but receive no tier, model, or execution cost and are excluded from Low / Expected / High totals and the High warning. Increasing the budget recalculates from the same GPT analysis and can reactivate held work without another API request.
+
+Uncertainty only protects higher-uncertainty work from earlier budget relief; it does not widen the numeric token bands. `minimumExpectedCostUsd` remains the Economy Expected lower bound for running every submitted task before any holds. High is compared after allocation for active tasks only and produces a risk warning only when it is strictly greater than the budget.
 
 The deadline is reference information. It does not alter token estimates, costs, or assigned tiers, and this MVP does not claim detailed duration prediction.
 
@@ -143,16 +148,16 @@ The deadline is reference information. It does not alter token estimates, costs,
 
 The app keeps at most one recent successful scenario under the fixed browser key `frontier-workload-planner:recent-scenario`. A new successful analysis overwrites the previous record. A valid settings change updates the record without another GPT request.
 
-Stored schema version 1 contains only:
+Stored schema version 2 contains only:
 
 - `schemaVersion` and `savedAt`
-- the submitted task names and descriptions
+- the submitted task names, descriptions, and priorities
 - valid budget, deadline, and strategy settings
 - the sanitized successful analysis response
 
 The derived `BudgetAllocationPlan` is not stored. Restore validates the full schema, unique task IDs, and exact task/analysis order, then recalculates the plan with the current price table and calculation rules. Restore never calls `/api/analyze` and never triggers Live analysis.
 
-Malformed JSON or a damaged current-version record is ignored and removed on a best-effort basis. An unknown future schema version is preserved but not loaded. Storage access or quota errors remain non-blocking, and the user can explicitly delete the record. After deletion, settings-only edits do not recreate it; only another successful analysis enables recent-scenario persistence again.
+Valid schema version 1 records are migrated explicitly by assigning `medium` priority to each task and are rewritten as version 2 on a best-effort basis. Malformed JSON or a damaged current-version record is ignored and removed. An unknown future schema version is preserved but not loaded. Storage access or quota errors remain non-blocking, and the user can explicitly delete the record. After deletion, settings-only edits do not recreate it; only another successful analysis enables recent-scenario persistence again.
 
 Task content is stored as plaintext in the current browser origin. API keys, prompts, raw provider errors, and server configuration are never included.
 
@@ -160,7 +165,7 @@ Task content is stored as plaintext in the current browser origin. API keys, pro
 
 Markdown copy and JSON export use the currently displayed plan, including any valid settings-only recalculation after analysis. Both include original task descriptions, analysis metadata, Low / Expected / High results, task allocations, warnings, price source, price date, and the non-optimization disclaimer.
 
-JSON uses schema version 1 and an explicit allowlist projection rather than serializing application state wholesale. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
+JSON uses schema version 2 and an explicit allowlist projection rather than serializing application state wholesale. Both formats include priority and active/held status; held JSON allocations use explicit `null` values and Markdown uses em dashes instead of inventing a model or cost. The filename uses only a UTC timestamp. Markdown escapes table delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are isolated to the export controls.
 
 Exports contain task descriptions and leave the app through the clipboard or a local file. They never contain `OPENAI_API_KEY` or another server secret.
 

@@ -35,6 +35,8 @@ export function createPlanMarkdown(context: PlanExportContext): string {
     `- 전체 예산: ${formatUsd(plan.settings.budgetUsd)}`,
     `- 참고 기한: ${plan.settings.deadlineDays}일`,
     `- 배분 전략: \`${plan.settings.strategy}\``,
+    `- 실행 작업: ${plan.activeTaskCount}개`,
+    `- 보류 작업: ${plan.heldTaskCount}개`,
     "",
     "## 비용 요약",
     "",
@@ -44,13 +46,23 @@ export function createPlanMarkdown(context: PlanExportContext): string {
     "",
     "## 작업별 배분",
     "",
-    "| # | 작업 | GPT 권장 | 전략 목표 | 배정 모델 | Low | Expected | High |",
-    "| ---: | --- | --- | --- | --- | ---: | ---: | ---: |",
+    "| # | 작업 | 우선순위 | 상태 | GPT 권장 | 전략 목표 | 배정 모델 | Low | Expected | High |",
+    "| ---: | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
   ];
 
   plan.tasks.forEach((task, index) => {
+    const allocation =
+      task.status === "held"
+        ? { status: "On hold", model: "—", low: "—", expected: "—", high: "—" }
+        : {
+            status: "Active",
+            model: `\`${task.modelId}\``,
+            low: formatUsd(task.cost.low.costUsd),
+            expected: formatUsd(task.cost.expected.costUsd),
+            high: formatUsd(task.cost.high.costUsd),
+          };
     lines.push(
-      `| ${index + 1} | ${escapeMarkdownCell(task.taskName)} | ${task.analysis.recommendedModelTier} | ${task.strategyTargetTier} | \`${task.modelId}\` | ${formatUsd(task.cost.low.costUsd)} | ${formatUsd(task.cost.expected.costUsd)} | ${formatUsd(task.cost.high.costUsd)} |`,
+      `| ${index + 1} | ${escapeMarkdownCell(task.taskName)} | ${task.priority} | ${allocation.status} | ${task.analysis.recommendedModelTier} | ${task.strategyTargetTier} | ${allocation.model} | ${allocation.low} | ${allocation.expected} | ${allocation.high} |`,
     );
   });
 
@@ -61,12 +73,23 @@ export function createPlanMarkdown(context: PlanExportContext): string {
       `### ${index + 1}. ${escapeMarkdownCell(task.taskName)}`,
       "",
       `- 설명: ${sourceTask ? escapeMarkdownCell(sourceTask.description) : "저장된 설명 없음"}`,
+      `- 사용자 우선순위: \`${task.priority}\``,
+      `- 배분 상태: \`${task.status}\``,
       `- 분류: \`${task.analysis.taskType}\` / 복잡도 \`${task.analysis.complexity}\` / 추론 \`${task.analysis.reasoningDepth}\``,
       `- 크기 구간: 입력 \`${task.analysis.estimatedInputSize}\` / 출력 \`${task.analysis.estimatedOutputSize}\``,
-      `- Expected 반복 및 토큰 합계: ${task.cost.expected.iterations}회 / 입력 ${task.cost.expected.inputTokens.toLocaleString("en-US")} / 출력 ${task.cost.expected.outputTokens.toLocaleString("en-US")}`,
       `- 불확실성: \`${task.analysis.uncertainty}\``,
       `- 설명 근거: ${escapeMarkdownCell(task.analysis.rationale)}`,
     );
+
+    if (task.status === "held") {
+      lines.push(
+        `- 보류 사유: 전체 작업의 Economy 최소비용이 예산을 넘어 우선순위가 낮은 작업부터 보류했습니다. 이 작업의 Economy Expected 최소 필요액은 ${formatUsd(task.minimumExpectedCostUsd)}입니다.`,
+      );
+    } else {
+      lines.push(
+        `- Expected 반복 및 토큰 합계: ${task.cost.expected.iterations}회 / 입력 ${task.cost.expected.inputTokens.toLocaleString("en-US")} / 출력 ${task.cost.expected.outputTokens.toLocaleString("en-US")}`,
+      );
+    }
 
     if (task.analysis.riskFactors.length) {
       lines.push("- 위험 요인:");
@@ -98,6 +121,7 @@ export function createPlanMarkdown(context: PlanExportContext): string {
   });
   lines.push(
     "- 토큰 크기 구간은 반복 1회당 고정 표이며, 표시 토큰은 모든 반복을 합친 값입니다.",
+    "- 비용 합계는 실행 작업만 포함하며 보류 작업에는 모델이나 실행 비용을 배정하지 않습니다.",
     "- 캐시 할인, 도구 호출 비용, 정교한 시간 예측은 포함하지 않습니다.",
     "",
   );

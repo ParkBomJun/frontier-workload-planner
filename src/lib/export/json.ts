@@ -5,7 +5,7 @@ import {
 } from "@/config/model-pricing";
 import type { ModelTier, PlanExportContext } from "@/types/domain";
 
-export const PLAN_JSON_SCHEMA_VERSION = 1;
+export const PLAN_JSON_SCHEMA_VERSION = 2;
 
 export function createPlanJson(
   context: PlanExportContext,
@@ -24,6 +24,53 @@ export function createPlanJson(
       ];
     }),
   );
+  const inputTasks = context.sourceTasks.map((task) => ({
+    id: task.id,
+    name: task.name,
+    description: task.description,
+    priority: task.priority,
+  }));
+  const resultTasks = context.plan.tasks.map((task) => {
+    const base = {
+      taskId: task.taskId,
+      taskName: task.taskName,
+      priority: task.priority,
+      status: task.status,
+      analysis: {
+        taskId: task.analysis.taskId,
+        taskType: task.analysis.taskType,
+        complexity: task.analysis.complexity,
+        reasoningDepth: task.analysis.reasoningDepth,
+        expectedIterations: task.analysis.expectedIterations,
+        estimatedInputSize: task.analysis.estimatedInputSize,
+        estimatedOutputSize: task.analysis.estimatedOutputSize,
+        uncertainty: task.analysis.uncertainty,
+        recommendedModelTier: task.analysis.recommendedModelTier,
+        riskFactors: task.analysis.riskFactors,
+        rationale: task.analysis.rationale,
+      },
+      strategyTargetTier: task.strategyTargetTier,
+      minimumExpectedCostUsd: task.minimumExpectedCostUsd,
+    };
+
+    return task.status === "held"
+      ? {
+          ...base,
+          assignedTier: null,
+          modelId: null,
+          cost: null,
+          wasDowngradedForBudget: false,
+          holdReason: task.holdReason,
+        }
+      : {
+          ...base,
+          assignedTier: task.assignedTier,
+          modelId: task.modelId,
+          cost: task.cost,
+          wasDowngradedForBudget: task.wasDowngradedForBudget,
+          holdReason: null,
+        };
+  });
 
   return JSON.stringify(
     {
@@ -37,8 +84,12 @@ export function createPlanJson(
         generatedAt: context.generatedAt,
       },
       input: {
-        tasks: context.sourceTasks,
-        settings: context.plan.settings,
+        tasks: inputTasks,
+        settings: {
+          budgetUsd: context.plan.settings.budgetUsd,
+          deadlineDays: context.plan.settings.deadlineDays,
+          strategy: context.plan.settings.strategy,
+        },
       },
       result: {
         totals: context.plan.totals,
@@ -46,9 +97,11 @@ export function createPlanJson(
         remainingBudgetUsd: context.plan.remainingBudgetUsd,
         expectedWithinBudget: context.plan.expectedWithinBudget,
         highExceedsBudget: context.plan.highExceedsBudget,
+        activeTaskCount: context.plan.activeTaskCount,
+        heldTaskCount: context.plan.heldTaskCount,
         downgradedTaskCount: context.plan.downgradedTaskCount,
         warnings: context.plan.warnings,
-        tasks: context.plan.tasks,
+        tasks: resultTasks,
       },
       pricing: {
         lastUpdated: MODEL_PRICING_LAST_UPDATED,

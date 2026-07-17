@@ -15,6 +15,7 @@ export const SIZE_BANDS = ["xs", "s", "m", "l", "xl"] as const;
 export const UNCERTAINTY_LEVELS = ["low", "medium", "high"] as const;
 export const MODEL_TIERS = ["economy", "balanced", "frontier"] as const;
 export const PLANNING_STRATEGIES = ["cost-saver", "balanced", "quality-first"] as const;
+export const TASK_PRIORITIES = ["high", "medium", "low"] as const;
 
 export type TaskType = (typeof TASK_TYPES)[number];
 export type Complexity = (typeof COMPLEXITY_LEVELS)[number];
@@ -23,12 +24,14 @@ export type SizeBand = (typeof SIZE_BANDS)[number];
 export type Uncertainty = (typeof UNCERTAINTY_LEVELS)[number];
 export type ModelTier = (typeof MODEL_TIERS)[number];
 export type PlanningStrategy = (typeof PLANNING_STRATEGIES)[number];
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type AnalysisMode = "mock" | "live";
 
 export interface TaskInput {
   id: string;
   name: string;
   description: string;
+  priority: TaskPriority;
 }
 
 export interface TaskAnalysis {
@@ -93,16 +96,33 @@ export interface CostTotals {
   highUsd: number;
 }
 
-export interface PlannedTask {
+interface PlannedTaskBase {
   taskId: string;
   taskName: string;
+  priority: TaskPriority;
   analysis: TaskAnalysis;
   strategyTargetTier: ModelTier;
+  minimumExpectedCostUsd: number;
+}
+
+export interface ActivePlannedTask extends PlannedTaskBase {
+  status: "active";
   assignedTier: ModelTier;
   modelId: string;
   cost: TaskCostEstimate;
   wasDowngradedForBudget: boolean;
 }
+
+export interface HeldPlannedTask extends PlannedTaskBase {
+  status: "held";
+  assignedTier: null;
+  modelId: null;
+  cost: null;
+  wasDowngradedForBudget: false;
+  holdReason: "insufficient-budget";
+}
+
+export type PlannedTask = ActivePlannedTask | HeldPlannedTask;
 
 export interface BudgetAllocationPlan {
   settings: PlanningSettings;
@@ -112,6 +132,8 @@ export interface BudgetAllocationPlan {
   remainingBudgetUsd: number;
   expectedWithinBudget: boolean;
   highExceedsBudget: boolean;
+  activeTaskCount: number;
+  heldTaskCount: number;
   downgradedTaskCount: number;
   warnings: string[];
 }

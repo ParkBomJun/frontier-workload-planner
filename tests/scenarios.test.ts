@@ -26,8 +26,18 @@ class MemoryStorage {
 }
 
 const tasks: TaskInput[] = [
-  { id: "task-1", name: "API 설계", description: "입력 검증이 있는 API를 설계한다." },
-  { id: "task-2", name: "안내문", description: "짧은 안내문을 작성한다." },
+  {
+    id: "task-1",
+    name: "API 설계",
+    description: "입력 검증이 있는 API를 설계한다.",
+    priority: "high",
+  },
+  {
+    id: "task-2",
+    name: "안내문",
+    description: "짧은 안내문을 작성한다.",
+    priority: "low",
+  },
 ];
 const settings: PlanningSettings = {
   budgetUsd: 5,
@@ -53,7 +63,7 @@ describe("recent scenario storage", () => {
     expect(loaded).toMatchObject({
       status: "loaded",
       scenario: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         savedAt,
         tasks,
         settings,
@@ -107,11 +117,129 @@ describe("recent scenario storage", () => {
 
   it("preserves an unknown future version", () => {
     const storage = new MemoryStorage();
-    const future = JSON.stringify({ schemaVersion: 2, future: true });
+    const future = JSON.stringify({ schemaVersion: 3, future: true });
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, future);
 
     expect(loadRecentScenario(storage)).toEqual({ status: "unsupported" });
     expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBe(future);
+  });
+
+  it("discards invalid non-future numeric versions", () => {
+    for (const schemaVersion of [0, -1, 2.5]) {
+      const storage = new MemoryStorage();
+      storage.setItem(
+        RECENT_SCENARIO_STORAGE_KEY,
+        JSON.stringify({ schemaVersion, future: false }),
+      );
+
+      expect(loadRecentScenario(storage)).toEqual({ status: "discarded" });
+      expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
+    }
+  });
+
+  it("migrates a valid v1 scenario to v2 with medium priorities", () => {
+    const storage = new MemoryStorage();
+    const legacyTasks = tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      description: task.description,
+    }));
+    const legacy = {
+      schemaVersion: 1,
+      savedAt,
+      tasks: legacyTasks,
+      settings,
+      response,
+    };
+    storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadRecentScenario(storage);
+
+    expect(loaded).toMatchObject({
+      status: "loaded",
+      scenario: {
+        schemaVersion: 2,
+        savedAt,
+        tasks: legacyTasks.map((task) => ({ ...task, priority: "medium" })),
+        settings,
+        response,
+      },
+    });
+    expect(JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}")).toMatchObject({
+      schemaVersion: 2,
+      tasks: legacyTasks.map((task) => ({ ...task, priority: "medium" })),
+    });
+  });
+
+  it("restores a validated v1 migration even when rewriting storage fails", () => {
+    const legacyTasks = tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      description: task.description,
+    }));
+    const rawLegacy = JSON.stringify({
+      schemaVersion: 1,
+      savedAt,
+      tasks: legacyTasks,
+      settings,
+      response,
+    });
+    const storage = {
+      getItem: () => rawLegacy,
+      setItem: () => {
+        throw new Error("quota");
+      },
+      removeItem: () => undefined,
+    };
+
+    const loaded = loadRecentScenario(storage);
+
+    expect(loaded.status).toBe("loaded");
+    if (loaded.status === "loaded") {
+      expect(loaded.scenario.tasks.map((task) => task.priority)).toEqual(["medium", "medium"]);
+    }
+  });
+
+  it("discards v2 data with a missing or invalid priority", () => {
+    for (const priority of [undefined, "urgent"]) {
+      const storage = new MemoryStorage();
+      const saved = saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+      expect(saved.ok).toBe(true);
+      const raw = JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
+        tasks: Array<Record<string, unknown>>;
+      };
+      if (priority === undefined) delete raw.tasks[0].priority;
+      else raw.tasks[0].priority = priority;
+      storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(raw));
+
+      expect(loadRecentScenario(storage)).toEqual({ status: "discarded" });
+      expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
+    }
+  });
+
+  it("persists only source scenario fields and never derived allocation state", () => {
+    const storage = new MemoryStorage();
+    saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+
+    const raw = JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
+      tasks: Array<Record<string, unknown>>;
+      [key: string]: unknown;
+    };
+    expect(Object.keys(raw).sort()).toEqual([
+      "response",
+      "savedAt",
+      "schemaVersion",
+      "settings",
+      "tasks",
+    ]);
+    expect(Object.keys(raw.tasks[0]).sort()).toEqual([
+      "description",
+      "id",
+      "name",
+      "priority",
+    ]);
+    expect(JSON.stringify(raw)).not.toContain('"held"');
+    expect(JSON.stringify(raw)).not.toContain('"assignedTier"');
   });
 
   it("rejects invalid input before writing", () => {
