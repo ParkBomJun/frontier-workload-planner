@@ -2,7 +2,10 @@
 
 여러 작업 설명을 구조화된 워크로드 등급으로 바꾸고, 고정 규칙으로 모델·가격·예산에 매핑하는 도구입니다.
 
-현재 구현은 공개 배포를 준비한 MVP 출시 후보입니다.
+현재 구현은 공개 배포와 실제 GPT-5.6 검증을 마친 MVP 출시 후보입니다.
+
+- 공개 데모: <https://frontier-workload-planner.vercel.app>
+- GitHub: <https://github.com/ParkBomJun/frontier-workload-planner>
 
 > 작업 최대 8개 입력 → Mock 또는 서버 측 GPT-5.6 구조화 분석 → 고정 비용 계산 → 예산 기반 모델 배분 → 저장·복원·내보내기
 
@@ -94,7 +97,9 @@ API Route Handler는 `Content-Length`만 신뢰하지 않고 실제 본문 스�
 
 ## 배포
 
-Vercel에 저장소를 연결한 뒤 필요한 서버 환경 변수를 설정합니다. 공개 production은 인증이나 호출별 rate limit이 없는 현재 MVP에서 OpenAI 비용이 노출되지 않도록 `ENABLE_LIVE_ANALYSIS=false`를 유지합니다. 실제 Live 검증은 로컬 또는 접근이 제한된 preview에서 한 번만 수행하고, 검증 뒤 다시 비활성화합니다. Mock 전체 흐름은 API 키 없이 배포할 수 있습니다.
+공개 production은 <https://frontier-workload-planner.vercel.app>에 배포되어 있습니다. 인증이나 호출별 rate limit이 없는 현재 MVP에서 OpenAI 비용이 노출되지 않도록 Vercel에는 API 키를 등록하지 않았고 `ENABLE_LIVE_ANALYSIS=false`를 유지합니다. 공개 Mock 전체 흐름은 정상 작동하며 Live 요청은 `403 LIVE_ANALYSIS_DISABLED`로 차단됩니다.
+
+실제 GPT-5.6 Structured Output은 서버 전용 키를 사용해 로컬에서 한 번 검증했으며 `gpt-5.6-sol` 응답과 스키마 검증을 확인한 뒤 로컬 Live 설정도 다시 비활성화했습니다. 현재 production 배포는 Vercel CLI로 만들었고, GitHub push 기반 자동 배포 연결은 Vercel 계정의 GitHub Login Connection을 추가한 뒤 설정할 수 있습니다.
 
 ## 문서
 

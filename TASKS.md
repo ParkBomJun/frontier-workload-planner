@@ -73,9 +73,10 @@
 - [x] Expose cache-write assumptions in the UI, Markdown, JSON, and specification
 - [x] Disclose automatic plaintext LocalStorage persistence before first submission
 - [x] Hide stale export feedback after plan changes, including delayed clipboard completion
-- [ ] Complete one real GPT-5.6 Structured Output call with the user's server-side key
-- [ ] Publish the GitHub repository
-- [ ] Configure Vercel environment variables and deploy
+- [x] Complete one real GPT-5.6 Structured Output call with the user's server-side key
+- [x] Publish the GitHub repository
+- [x] Configure Vercel environment variables and deploy
+- [x] Verify the public page, Mock `200`, disabled-Live `403`, and 390px production flow
 - [ ] Copy the local draft into Devpost and add the GitHub and deployment URLs
 
 ## Explicitly deferred

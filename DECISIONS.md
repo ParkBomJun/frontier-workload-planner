@@ -149,3 +149,17 @@ Keep the agreed automatic single-scenario save, but state before submission that
 ### Bind export feedback to its plan
 
 Tag copy/download feedback with the exact plan reference and analysis timestamp that initiated it. Show the message only while that context remains current, so settings or priority changes hide stale success text and a delayed clipboard promise cannot claim success for a newer plan.
+
+## 2026-07-17 — external release validation
+
+### Validate Live locally, keep production Mock-only
+
+The server-side `gpt-5.6` alias returned `gpt-5.6-sol` in one real Structured Output request, and the response passed the application schema and task-identity checks. Disable local Live again after that single validation. Do not place the OpenAI API key in Vercel while the public route has no authentication or per-user rate limit.
+
+### Publish one stable release surface
+
+Publish the clean `main` history at <https://github.com/ParkBomJun/frontier-workload-planner> and deploy the Mock-capable production build at <https://frontier-workload-planner.vercel.app>. Configure production with `ENABLE_LIVE_ANALYSIS=false` and `OPENAI_ANALYSIS_MODEL=gpt-5.6`; a public Live request must return `403 LIVE_ANALYSIS_DISABLED`.
+
+### Treat Git-based continuous deployment as separate plumbing
+
+The first production deployment uses the authenticated Vercel CLI. Vercel could not attach the GitHub repository until the account receives a GitHub Login Connection, but that does not block the current public deployment. Add the connection later for automatic deploys without changing the application or exposing the API key.
