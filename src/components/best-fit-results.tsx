@@ -3,6 +3,7 @@
 import { useLanguage } from "@/components/language-provider";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { fromMicroUsd } from "@/lib/calculation/micro-usd";
+import type { BestFitPlanExportContext } from "@/lib/export/best-fit";
 import {
   BEST_FIT_UI_COPY,
   isBestFitExclusionReasonCode,
@@ -14,10 +15,13 @@ import type {
 import type { RouteIdentity } from "@/types/offerings";
 import type { TaskInput } from "@/types/domain";
 
+import { BestFitExportActions } from "./best-fit-export-actions";
+
 interface BestFitResultsProps {
   result: BestFitUiPlan;
   tasks: readonly TaskInput[];
   generatedAt: string;
+  exportContext: BestFitPlanExportContext;
 }
 
 function sameRoute(left: RouteIdentity, right: RouteIdentity): boolean {
@@ -67,6 +71,7 @@ export function BestFitResults({
   result,
   tasks,
   generatedAt,
+  exportContext,
 }: BestFitResultsProps) {
   const { locale, copy: coreCopy, localeMeta } = useLanguage();
   const copy = BEST_FIT_UI_COPY[locale];
@@ -97,12 +102,17 @@ export function BestFitResults({
             {copy.results.authorityNotice}
           </p>
         </div>
-        <div className="rounded-full bg-[#edf4ee] px-3.5 py-2 text-xs font-bold text-[#365649]">
-          {copy.results.activeHeldInfeasible(
-            plan.activeTaskCount,
-            plan.heldTaskCount,
-            plan.infeasibleTaskCount,
-          )}
+        <div className="min-w-0 space-y-3 sm:max-w-md sm:text-right">
+          <div>
+            <span className="inline-flex rounded-full bg-[#edf4ee] px-3.5 py-2 text-xs font-bold text-[#365649]">
+              {copy.results.activeHeldInfeasible(
+                plan.activeTaskCount,
+                plan.heldTaskCount,
+                plan.infeasibleTaskCount,
+              )}
+            </span>
+          </div>
+          <BestFitExportActions context={exportContext} />
         </div>
       </div>
 

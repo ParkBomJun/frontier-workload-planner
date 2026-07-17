@@ -7,6 +7,11 @@ import {
   getProviderRegistryEntryById,
 } from "@/config/versioned-provider-registry";
 import { normalizeStandardTextRate } from "@/lib/calculation/micro-usd";
+import {
+  API_CATALOG_OVERRIDE_SOURCE_VERSION,
+  apiCatalogOverrideSourceSchema,
+  apiCatalogOverrideSourcesSchema,
+} from "@/lib/storage/best-fit-sources";
 import { MODEL_TIERS, PROVIDER_IDS, type ModelTier, type ProviderId } from "@/types/domain";
 import { PLANNING_QUALITY_TIERS } from "@/types/offerings";
 import type {
@@ -34,6 +39,8 @@ type OverrideValidationResult =
 export type OverrideMutationResult =
   | { ok: true; overrides: readonly ApiCatalogOverride[] }
   | { ok: false; reasonCode: ApiOverrideValidationFailureCode };
+
+export type OverrideSourceRemovalResult = OverrideMutationResult;
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
@@ -75,6 +82,39 @@ function compareTargets(
     if (left[key] > right[key]) return 1;
   }
   return 0;
+}
+
+function normalizeExistingOverrideSources(
+  current: readonly ApiCatalogOverride[],
+): OverrideMutationResult {
+  const normalized: ApiCatalogOverride[] = [];
+  for (const existing of current) {
+    const resolved = validateApiCatalogOverride(existing);
+    if (resolved.ok) {
+      normalized.push(resolved.override);
+      continue;
+    }
+    if (resolved.reasonCode !== "override-target-unresolved") return resolved;
+
+    const source = apiCatalogOverrideSourceSchema.safeParse(existing);
+    if (!source.success) {
+      return { ok: false, reasonCode: "invalid-user-override" };
+    }
+    normalized.push(deepFreeze(source.data));
+  }
+  return finalizeOverrideSources(normalized);
+}
+
+function finalizeOverrideSources(
+  overrides: readonly ApiCatalogOverride[],
+): OverrideMutationResult {
+  const parsed = apiCatalogOverrideSourcesSchema.safeParse({
+    contractVersion: API_CATALOG_OVERRIDE_SOURCE_VERSION,
+    overrides,
+  });
+  return parsed.success
+    ? { ok: true, overrides: deepFreeze(parsed.data.overrides) }
+    : { ok: false, reasonCode: "invalid-user-override" };
 }
 
 export function validateApiCatalogOverride(value: unknown): OverrideValidationResult {
@@ -182,17 +222,13 @@ export function upsertApiCatalogOverride(
 ): OverrideMutationResult {
   const validated = validateApiCatalogOverride(value);
   if (!validated.ok) return validated;
-  const normalizedCurrent: ApiCatalogOverride[] = [];
-  for (const existing of current) {
-    const normalized = validateApiCatalogOverride(existing);
-    if (!normalized.ok) return normalized;
-    normalizedCurrent.push(normalized.override);
-  }
-  const overrides = normalizedCurrent
+  const normalizedCurrent = normalizeExistingOverrideSources(current);
+  if (!normalizedCurrent.ok) return normalizedCurrent;
+  const overrides = normalizedCurrent.overrides
     .filter((override) => !sameTarget(override.target, validated.override.target))
     .concat(validated.override)
     .sort((left, right) => compareTargets(left.target, right.target));
-  return { ok: true, overrides: deepFreeze(overrides) };
+  return finalizeOverrideSources(overrides);
 }
 
 export function restoreApiCatalogDefaults(
@@ -208,16 +244,42 @@ export function restoreApiCatalogDefaults(
   ) {
     return { ok: false, reasonCode: "override-target-unresolved" };
   }
-  const normalizedCurrent: ApiCatalogOverride[] = [];
-  for (const existing of current) {
-    const normalized = validateApiCatalogOverride(existing);
-    if (!normalized.ok) return normalized;
-    normalizedCurrent.push(normalized.override);
-  }
-  return {
-    ok: true,
-    overrides: deepFreeze(
-      normalizedCurrent.filter((override) => !sameTarget(override.target, target)),
+  const normalizedCurrent = normalizeExistingOverrideSources(current);
+  if (!normalizedCurrent.ok) return normalizedCurrent;
+  return finalizeOverrideSources(
+    normalizedCurrent.overrides.filter(
+      (override) => !sameTarget(override.target, target),
     ),
-  };
+  );
+}
+
+export function removeApiCatalogOverrideSource(
+  current: readonly ApiCatalogOverride[],
+  target: ApiCatalogOverride["target"],
+): OverrideSourceRemovalResult {
+  const normalizedCurrent = normalizeExistingOverrideSources(current);
+  if (!normalizedCurrent.ok) return normalizedCurrent;
+  const targetKeys = Object.keys(target);
+  if (
+    targetKeys.length !== TARGET_KEYS.length ||
+    targetKeys.some(
+      (key) =>
+        key !== "registryId" &&
+        key !== "registryVersion" &&
+        key !== "entryId",
+    ) ||
+    TARGET_KEYS.some(
+      (key) =>
+        typeof target[key] !== "string" ||
+        target[key].length < 1 ||
+        target[key].length > 200,
+    )
+  ) {
+    return { ok: false, reasonCode: "invalid-user-override" };
+  }
+  return finalizeOverrideSources(
+    normalizedCurrent.overrides.filter(
+      (override) => !sameTarget(override.target, target),
+    ),
+  );
 }

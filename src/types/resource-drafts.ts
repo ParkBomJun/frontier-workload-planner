@@ -1,7 +1,4 @@
-import type {
-  SubscriptionPresetId,
-  SUBSCRIPTION_PRESET_VERSION,
-} from "@/config/subscription-presets";
+import type { SubscriptionPresetId } from "@/config/subscription-presets";
 import type {
   ModelOpaqueSubscriptionOffering,
   WorkSurface,
@@ -15,8 +12,8 @@ import type {
 } from "@/types/subscriptions";
 
 export interface AvailableAiResourceDraftPreset {
-  id: SubscriptionPresetId;
-  version: typeof SUBSCRIPTION_PRESET_VERSION;
+  id: string;
+  version: string;
 }
 
 export interface AvailableAiResourceObservedConsumptionDraft {

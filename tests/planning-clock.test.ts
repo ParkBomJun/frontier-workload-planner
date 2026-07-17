@@ -105,6 +105,31 @@ describe("Best-fit planning clock", () => {
     expect(afterAnalysis).toBe(afterManualRestore);
   });
 
+  it("folds restored resource and override source clocks before either source is removed", () => {
+    const restored = resolveRestoredPlanningRevisionAt({
+      restoredAt: "2026-09-01T00:05:00.000Z",
+      generatedAt: "2026-08-31T23:50:00.000Z",
+      confirmedAt: null,
+      resourceEvidenceObservedAt: ["2026-09-03T00:00:00.000Z"],
+      overrideRecordedAt: ["2026-09-02T00:00:00.000Z"],
+    });
+    const afterRemovingSources = advancePlanningRevisionAt(
+      restored,
+      "2026-09-01T00:10:00.000Z",
+    );
+
+    expect(restored).toBe("2026-09-03T00:00:00.000Z");
+    expect(
+      resolveBestFitPlanningAsOf({
+        revisionAt: afterRemovingSources,
+        resourceEvidenceObservedAt: [],
+        overrideRecordedAt: [],
+        generatedAt: "2026-08-31T23:50:00.000Z",
+        confirmedAt: null,
+      }),
+    ).toBe("2026-09-03T00:00:00.000Z");
+  });
+
   it("retains a removed source candidate in the revision high-water", () => {
     const withResource = resolveBestFitPlanningAsOf({
       revisionAt: "2026-09-01T00:00:00.000Z",

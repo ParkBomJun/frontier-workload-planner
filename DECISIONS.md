@@ -768,3 +768,80 @@ complete Korean, English, and Japanese UI copy with an explicit Korean-capable f
 Translate every closed exclusion reason before presentation. For subscription routes, label the
 task-level cash range as reservation-order marginal attribution; the complete-plan cash ledger is
 the authoritative total and may not equal a sum of independently priced tasks.
+
+## 2026-07-18 — Ver3 checkpoint 8 source persistence and route/resource export
+
+### Keep checkpoint 7 as the accepted UI and restore-clock baseline
+
+Retain checkpoint 7's localized resource/override editors, route-first result presentation,
+separate cash and quota ledgers, and monotonic calculation clock. Automatic and manual restore use
+the latest actual instant among the captured restore time, analysis `generatedAt`, confirmed-budget
+`confirmedAt`, resource observation times, and override recording times; `scenario.savedAt` remains
+storage metadata and never becomes a calculation or pricing clock candidate. Checkpoint 8 changes
+the temporary session-only persistence/export boundary, not those accepted rules.
+
+Real ChatGPT-like, coding-plan, rolling-quota, and Custom presets remain non-authoritative input
+hints. Their names and editable observations do not prove access, capability, eligibility, quota,
+or consumption. They therefore remain conditional or excluded unless an exact allowlisted resolver
+produces the required evidence. Confirmed subscription routes used by deterministic tests and the
+scripted test-evidence shot are normalized allocator fixtures, not resolver evidence, product
+inputs, or claims about a real provider account or preset.
+
+### Add a frozen source-only LocalStorage v6 boundary
+
+Raise the recent-scenario record to v6 and retain complete, frozen v1, v2, v3, v4, and v5 parsers.
+Adapt sequentially as `v1 → v2 → v3 → v4 → v5 → v6`; a valid historical record receives an
+explicit empty `best-fit-source-state-v1` value rather than invented resource or override facts.
+Keep the established rule that malformed declared records may be rejected, while adaptation,
+target-validation, rewrite, write, and unknown-future-version failures do not destructively erase
+the original bytes.
+
+Persist only raw source needed for a new calculation:
+
+- at most four bounded `available-ai-resource-sources-v1` drafts;
+- independent availability, commitment, quota, reset, and surface observation instants;
+- at most nine exact `api-catalog-override-sources-v1` entries with user values and recording data.
+
+Do not persist resolved/branded evidence, route assignments, quota or cash ledgers, commitment,
+paid overage, fallback, compatibility, Premium baseline, or UI labels. Bounded invalid drafts stay
+available for repair after restore. Re-run the current preset, resource, and exact-version catalog
+resolvers, preserve unresolved source without promoting it, and recalculate all projections on
+every restore.
+
+### Separate official defaults from user override source
+
+Keep the immutable catalog default and its official evidence independent from the user override.
+An override is visibly user-supplied, affects only the Best-fit candidate resolver, and cannot
+change identity, invocation limits, access, capabilities, or authority. The API-family
+compatibility view continues to use verified defaults. “Restore default” deletes the override
+source; it never rewrites the official snapshot or launders the override into official provenance.
+
+### Version expanded results independently as JSON v5 and Markdown
+
+Leave historical JSON v3 and workload JSON v4 unchanged. Add a separate allowlisted document with
+schema version 5 and `resultKind: "best-fit-route-plan"`, plus a parallel localized Markdown projection.
+Include structured primary/fallback/baseline route identities and stable keys, activated resource,
+planning/pricing dates, task outcomes, separated cash/quota/commitment/paid-overage ledgers,
+compatible all-Premium baseline, and the raw resource/override source needed for re-resolution.
+
+Resolved resource and official API-catalog snapshots may appear only in an audit section marked
+`purpose: "audit-only"` and `importAuthority: false`. Export audit is explanatory evidence, not a
+receipt, cache, or authority transfer. Only raw source can seed reconstruction, and it must be
+validated and re-resolved before calculation. Continue the explicit allowlist, localized Markdown,
+secret exclusion, stable identity, escaping, and isolated export-error rules.
+
+### Lock the release story to six truthful demonstrations
+
+Demonstrate six distinct outcomes: Chat subscription, coding route, Batch API work surface,
+selective Premium upgrade, budget-held work, and avoided spend. Label the fixture-only confirmed
+subscription branch as test evidence and keep it separate from the product UI. “Batch” means the
+workload/API surface; this planner still
+excludes discounted provider Batch processing, caching, tool fees, and long-context surcharges.
+Selective Premium follows the minimum floor and closed upgrade triggers, not a provider benchmark.
+Held work remains feasible but deferred for budget, unlike excluded/infeasible work. Avoided spend
+is the disclosed compatible all-Premium API counterfactual, never money received or a fabricated
+`$0 saved` value.
+
+Align README, SPEC, DEVPOST, VIDEO_SCRIPT, and Korean/English/Japanese disclosure copy to these
+boundaries. Do not describe the feature branch as merged, publicly deployed, or verified against a
+real subscription merely because all deterministic paths and exports pass locally.

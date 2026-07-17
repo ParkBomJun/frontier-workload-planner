@@ -60,6 +60,39 @@ function createHistoricalPlanningSettingsSchema() {
   });
 }
 
+function createHistoricalPlanningSettingsSchemaV5() {
+  const budgetUsdSchema = z.number().finite().min(0.01).max(10_000);
+  return z
+    .strictObject({
+      budgetUsd: budgetUsdSchema,
+      deadlineDays: z.number().int().min(1).max(90),
+      strategy: z.enum(PLANNING_STRATEGIES_V1),
+      incrementalCashBudget: z.discriminatedUnion("status", [
+        z.strictObject({
+          status: z.literal("legacy-api-only-unconfirmed"),
+          legacyBudgetUsd: budgetUsdSchema,
+        }),
+        z.strictObject({
+          status: z.literal("confirmed"),
+          incrementalCashBudgetUsd: budgetUsdSchema,
+          confirmedAt: z.iso.datetime(),
+        }),
+      ]),
+    })
+    .superRefine(({ budgetUsd, incrementalCashBudget }, context) => {
+      if (
+        incrementalCashBudget.status === "legacy-api-only-unconfirmed" &&
+        incrementalCashBudget.legacyBudgetUsd !== budgetUsd
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["incrementalCashBudget", "legacyBudgetUsd"],
+          message: "Historical v5 unconfirmed budget must preserve the API-only amount.",
+        });
+      }
+    });
+}
+
 function createHistoricalTaskSchemaV4() {
   return z.strictObject({
     id: z.string().trim().min(1).max(MAX_TASK_ID_LENGTH_V1),
@@ -257,6 +290,41 @@ export const historicalRecentScenarioV4Schema = z
     }
   });
 
+export const historicalRecentScenarioV5Schema = z
+  .strictObject({
+    schemaVersion: z.literal(5),
+    savedAt: z.iso.datetime(),
+    selectedProvider: z.enum(PROVIDER_IDS_V3),
+    tasks: z.array(createHistoricalTaskSchemaV4()).min(1).max(MAX_TASKS_V1),
+    settings: createHistoricalPlanningSettingsSchemaV5(),
+    analysisSnapshot: createHistoricalAnalysisSnapshotV4Schema(),
+  })
+  .superRefine(({ tasks, analysisSnapshot }, context) => {
+    const taskIds = new Set<string>();
+    tasks.forEach((task, index) => {
+      if (taskIds.has(task.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index, "id"],
+          message: "Stored task IDs must be unique.",
+        });
+      }
+      taskIds.add(task.id);
+    });
+
+    const analyses = analysisSnapshot.response.analysis.tasks;
+    const identitiesMatch =
+      analyses.length === tasks.length &&
+      analyses.every((analysis, index) => analysis.taskId === tasks[index].id);
+    if (!identitiesMatch) {
+      context.addIssue({
+        code: "custom",
+        path: ["analysisSnapshot", "response", "analysis", "tasks"],
+        message: "Stored analyses must preserve task order and identity.",
+      });
+    }
+  });
+
 export const frozenAnalyzeSuccessResponseV1Schema =
   createHistoricalSuccessResponseSchema();
 
@@ -271,5 +339,8 @@ export type HistoricalRecentScenarioV3 = z.infer<
 >;
 export type HistoricalRecentScenarioV4 = z.infer<
   typeof historicalRecentScenarioV4Schema
+>;
+export type HistoricalRecentScenarioV5 = z.infer<
+  typeof historicalRecentScenarioV5Schema
 >;
 export type FrozenAnalyzeSuccessResponseV1 = HistoricalRecentScenarioV3["response"];

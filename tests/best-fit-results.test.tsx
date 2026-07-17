@@ -20,12 +20,14 @@ vi.mock("@/components/language-provider", async () => {
 });
 
 import { BestFitResults } from "@/components/best-fit-results";
+import type { BestFitPlanExportContext } from "@/lib/export/best-fit";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import {
   createCustomAccessProviderId,
   registeredAccessProviderId,
 } from "@/lib/offerings/route-identity";
 import type { BestFitUiPlan } from "@/lib/planning/best-fit-ui-plan";
+import { createEmptyBestFitSourceState } from "@/lib/storage/best-fit-sources";
 import type { TaskInput } from "@/types/domain";
 import type { UiLocale } from "@/lib/i18n/ui-copy";
 
@@ -167,15 +169,48 @@ function resultFixture(): BestFitUiPlan {
   };
 }
 
+function rendererProps() {
+  const result = resultFixture();
+  const generatedAt = "2026-07-18T12:00:00.000Z";
+  const exportContext: BestFitPlanExportContext = {
+    sourceTasks: tasks,
+    uiPlan: result,
+    sourceState: createEmptyBestFitSourceState(),
+    analysisMode: "mock",
+    analysisModel: "mock-fixture-v2",
+    generatedAt,
+  };
+  return { result, tasks, generatedAt, exportContext };
+}
+
 describe("Best-fit results renderer", () => {
+  it("renders the Best-fit export controls and authority disclosure accessibly in every locale", () => {
+    for (const locale of ["ko", "en", "ja"] as readonly UiLocale[]) {
+      languageState.locale = locale;
+      const markup = renderToStaticMarkup(
+        createElement(BestFitResults, {
+          ...rendererProps(),
+        }),
+      );
+      const bestFitCopy = BEST_FIT_UI_COPY[locale];
+
+      expect(markup).toContain(bestFitCopy.results.exportDisclosure);
+      expect(markup).toContain('aria-live="polite"');
+      expect(markup.match(/min-h-11/g)).toHaveLength(2);
+      expect(markup).toContain('focus-visible:ring-4');
+      expect(markup).toContain('flex flex-wrap');
+      expect(markup).toContain('min-w-0');
+      expect(markup).toContain('break-words');
+      expect(markup).toContain('sm:grid-cols-2');
+    }
+  });
+
   it("renders localized closed exclusion reasons and never leaks raw internal codes", () => {
     for (const locale of ["ko", "en", "ja"] as const) {
       languageState.locale = locale;
       const markup = renderToStaticMarkup(
         createElement(BestFitResults, {
-          result: resultFixture(),
-          tasks,
-          generatedAt: "2026-07-18T12:00:00.000Z",
+          ...rendererProps(),
         }),
       );
       const copy = BEST_FIT_UI_COPY[locale];
@@ -204,9 +239,7 @@ describe("Best-fit results renderer", () => {
       languageState.locale = locale;
       const markup = renderToStaticMarkup(
         createElement(BestFitResults, {
-          result: resultFixture(),
-          tasks,
-          generatedAt: "2026-07-18T12:00:00.000Z",
+          ...rendererProps(),
         }),
       );
       const results = BEST_FIT_UI_COPY[locale].results;

@@ -4,6 +4,7 @@ import {
 } from "@/lib/calculation/invocation-feasibility";
 import { toMicroUsd } from "@/lib/calculation/micro-usd";
 import { resolveOfferingEligibility } from "@/lib/offerings/eligibility";
+import { validateApiCatalogOverride } from "@/lib/offerings/catalog-overrides";
 import { allocateResolvedBestFitPlan } from "@/lib/planning/best-fit-allocator";
 import {
   resolveBestFitTaskCandidates,
@@ -258,6 +259,18 @@ export function buildBestFitUiPlan(
     throw new Error("Best-fit UI planning budget exceeds the safe micro-USD range.");
   }
 
+  const applicableApiOverrides: ApiCatalogOverride[] = [];
+  for (const override of input.apiOverrides) {
+    const validated = validateApiCatalogOverride(override);
+    if (!validated.ok) {
+      if (validated.reasonCode === "override-target-unresolved") continue;
+      throw new Error(
+        `Best-fit API catalog override is invalid: ${validated.reasonCode}.`,
+      );
+    }
+    applicableApiOverrides.push(validated.override);
+  }
+
   const resources = resolveResourceDrafts(
     input.resourceDrafts,
     input.resourceEvidenceObservedAtById,
@@ -273,7 +286,7 @@ export function buildBestFitUiPlan(
       planningAsOf: input.planningAsOf,
       pricingAsOf: input.pricingAsOf,
       subscriptions: subscriptionInputsForTask(resources.resolved, analysis),
-      apiOverrides: input.apiOverrides,
+      apiOverrides: applicableApiOverrides,
     });
   });
 
@@ -283,7 +296,7 @@ export function buildBestFitUiPlan(
     planningAsOf: input.planningAsOf,
     pricingAsOf: input.pricingAsOf,
     incrementalCashBudgetMicroUsd: budgetMicroUsd,
-    apiOverrides: input.apiOverrides,
+    apiOverrides: applicableApiOverrides,
   });
 
   return {

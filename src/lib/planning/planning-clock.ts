@@ -21,6 +21,8 @@ export interface RestoredPlanningRevisionInput {
   restoredAt: string;
   generatedAt: string;
   confirmedAt: string | null;
+  resourceEvidenceObservedAt?: readonly string[];
+  overrideRecordedAt?: readonly string[];
 }
 
 export interface BestFitPlanningAsOfInput {
@@ -57,6 +59,8 @@ export function resolveRestoredPlanningRevisionAt(
     input.restoredAt,
     input.generatedAt,
     input.confirmedAt,
+    ...(input.resourceEvidenceObservedAt ?? []),
+    ...(input.overrideRecordedAt ?? []),
   );
   if (latest === null) {
     throw new Error("A restored planning revision requires a valid timestamp.");

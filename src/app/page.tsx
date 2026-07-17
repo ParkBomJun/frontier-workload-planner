@@ -22,6 +22,7 @@ import type { SubscriptionPresetId } from "@/config/subscription-presets";
 import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
 import { MAX_TASKS } from "@/lib/ai/schema";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
+import type { BestFitPlanExportContext } from "@/lib/export/best-fit";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
@@ -47,6 +48,10 @@ import {
   saveRecentScenario,
   type IncrementalCashBudget,
 } from "@/lib/storage/scenarios";
+import {
+  createBestFitSourceState,
+  type BestFitSourceStateInput,
+} from "@/lib/storage/best-fit-sources";
 import type {
   AnalysisMode,
   AnalyzeApiResponse,
@@ -248,6 +253,16 @@ function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
   return candidate;
 }
 
+function nextAvailableResourceNumber(
+  drafts: readonly AvailableAiResourceDraft[],
+  startAt = 1,
+): number {
+  const uiIds = new Set(drafts.map(({ uiId }) => uiId));
+  let candidate = Math.max(1, startAt);
+  while (uiIds.has(`resource-${candidate}`)) candidate += 1;
+  return candidate;
+}
+
 function planningFormState(settings: PlanningSettings): PlanningFormState {
   return {
     budgetUsd: String(settings.budgetUsd),
@@ -280,6 +295,7 @@ export default function Home() {
   const [showValidation, setShowValidation] = useState(false);
   const [storageChecked, setStorageChecked] = useState(false);
   const [hasRecentScenario, setHasRecentScenario] = useState(false);
+  const [scenarioRestoreEpoch, setScenarioRestoreEpoch] = useState(0);
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
   const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
   const nextTaskNumber = useRef(2);
@@ -297,6 +313,18 @@ export default function Home() {
       const restoredAt = new Date().toISOString();
       const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
       const restoredSnapshot = result.scenario.analysisSnapshot;
+      const restoredResourceDrafts =
+        result.scenario.bestFitSources.availableAiResources.drafts.map((draft) =>
+          structuredClone(draft),
+        );
+      const restoredResourceEvidenceObservedAtById = structuredClone(
+        result.scenario.bestFitSources.availableAiResources
+          .evidenceObservedAtById,
+      );
+      const restoredApiOverrides =
+        result.scenario.bestFitSources.apiCatalogOverrides.overrides.map(
+          (override) => structuredClone(override),
+        );
       lastValidBestFitSettings.current = {
         budgetUsd: result.scenario.settings.budgetUsd,
         strategy: result.scenario.settings.strategy,
@@ -304,6 +332,12 @@ export default function Home() {
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
       setIncrementalCashBudget(result.scenario.settings.incrementalCashBudget);
+      setResourceDrafts(restoredResourceDrafts);
+      setResourceEvidenceObservedAtById(
+        restoredResourceEvidenceObservedAtById,
+      );
+      setApiOverrides(restoredApiOverrides);
+      setScenarioRestoreEpoch((current) => current + 1);
       const restoredRevisionAt = resolveRestoredPlanningRevisionAt({
         restoredAt,
         generatedAt: restoredSnapshot.response.generatedAt,
@@ -311,6 +345,12 @@ export default function Home() {
           result.scenario.settings.incrementalCashBudget.status === "confirmed"
             ? result.scenario.settings.incrementalCashBudget.confirmedAt
             : null,
+        resourceEvidenceObservedAt: Object.values(
+          restoredResourceEvidenceObservedAtById,
+        ).flatMap((timestamps) => Object.values(timestamps)),
+        overrideRecordedAt: restoredApiOverrides.map(
+          (override) => override.recordedAt,
+        ),
       });
       advancePlanningRevision(restoredRevisionAt);
       setSelectedProvider(result.scenario.selectedProvider);
@@ -324,6 +364,9 @@ export default function Home() {
       setShowValidation(false);
       setHasRecentScenario(true);
       nextTaskNumber.current = nextAvailableTaskNumber(restoredTasks);
+      nextResourceNumber.current = nextAvailableResourceNumber(
+        restoredResourceDrafts,
+      );
       setStorageNotice({
         tone:
           restoredSnapshot.compatibility === "legacy-api-only" ? "warning" : "success",
@@ -408,6 +451,15 @@ export default function Home() {
   );
   const pricingAsOf =
     planningAsOf?.slice(0, 10) ?? PROVIDER_CATALOG.openai.verifiedAt;
+  const bestFitSourceState = useMemo(
+    () =>
+      createBestFitSourceState({
+        resourceDrafts,
+        resourceEvidenceObservedAtById,
+        apiOverrides,
+      }),
+    [apiOverrides, resourceDrafts, resourceEvidenceObservedAtById],
+  );
   const providerPlanning = useMemo(() => {
     if (!completed || !parsedSettings) return null;
     return compareProviderPlans(
@@ -460,6 +512,24 @@ export default function Home() {
     resourceDrafts,
     resourceEvidenceObservedAtById,
   ]);
+  const bestFitExportContext = useMemo<BestFitPlanExportContext | null>(() => {
+    if (
+      !completed ||
+      completed.analysisSnapshot.compatibility !== "best-fit" ||
+      !bestFitPlanning?.ok ||
+      bestFitSourceState === null
+    ) {
+      return null;
+    }
+    return {
+      sourceTasks: completed.tasks,
+      uiPlan: bestFitPlanning.result,
+      sourceState: bestFitSourceState,
+      analysisMode: completed.analysisSnapshot.response.mode,
+      analysisModel: completed.analysisSnapshot.response.model,
+      generatedAt: completed.analysisSnapshot.response.generatedAt,
+    };
+  }, [bestFitPlanning, bestFitSourceState, completed]);
 
   function persistCompletedScenario(
     snapshot: CompletedAnalysis,
@@ -467,7 +537,21 @@ export default function Home() {
     providerId: ProviderId,
     announceSuccess: boolean,
     nextIncrementalCashBudget: IncrementalCashBudget | null = incrementalCashBudget,
+    nextBestFitSources: BestFitSourceStateInput = {
+      resourceDrafts,
+      resourceEvidenceObservedAtById,
+      apiOverrides,
+    },
   ) {
+    const bestFitSources = createBestFitSourceState(nextBestFitSources);
+    if (bestFitSources === null) {
+      setStorageNotice({
+        tone: "warning",
+        kind: "invalid",
+        canClear: hasRecentScenario,
+      });
+      return;
+    }
     const saved = saveRecentScenario({
       tasks: snapshot.tasks,
       settings: {
@@ -478,6 +562,7 @@ export default function Home() {
       },
       selectedProvider: providerId,
       analysisSnapshot: snapshot.analysisSnapshot,
+      bestFitSources,
     });
 
     if (saved.ok) {
@@ -731,23 +816,40 @@ export default function Home() {
     while (ids.has(`resource-${candidate}`)) candidate += 1;
     nextResourceNumber.current = candidate + 1;
     const changedAt = new Date().toISOString();
-    setResourceDrafts((current) => [
-      ...current,
-      {
-        ...createDefaultAvailableAiResourceDraft({
-          uiId: `resource-${candidate}`,
-          presetId,
-        }),
-        displayName: bestFitCopy.resources.presets[presetId].name,
-        surface: "",
-      },
-    ]);
-    setResourceEvidenceObservedAtById((current) => ({
-      ...current,
+    const nextDraft: AvailableAiResourceDraft = {
+      ...createDefaultAvailableAiResourceDraft({
+        uiId: `resource-${candidate}`,
+        presetId,
+      }),
+      displayName: bestFitCopy.resources.presets[presetId].name,
+      surface: "",
+    };
+    const nextResourceDrafts = [...resourceDrafts, nextDraft];
+    const nextResourceEvidenceObservedAtById = {
+      ...resourceEvidenceObservedAtById,
       [`resource-${candidate}`]:
         createAvailableAiResourceEvidenceObservedAt(changedAt),
-    }));
+    };
+    setResourceDrafts(nextResourceDrafts);
+    setResourceEvidenceObservedAtById(
+      nextResourceEvidenceObservedAtById,
+    );
     markPlanningRevision(changedAt);
+    if (completed && hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(
+        completed,
+        parsedSettings,
+        selectedProvider,
+        false,
+        incrementalCashBudget,
+        {
+          resourceDrafts: nextResourceDrafts,
+          resourceEvidenceObservedAtById:
+            nextResourceEvidenceObservedAtById,
+          apiOverrides,
+        },
+      );
+    }
     window.requestAnimationFrame(() =>
       document.getElementById(`resource-name-resource-${candidate}`)?.focus(),
     );
@@ -764,14 +866,33 @@ export default function Home() {
       currentObservedAt,
       changedAt,
     );
-    setResourceDrafts((current) =>
-      current.map((item) => (item.uiId === uiId ? draft : item)),
+    const nextResourceDrafts = resourceDrafts.map((item) =>
+      item.uiId === uiId ? draft : item,
     );
-    setResourceEvidenceObservedAtById((current) => ({
-      ...current,
+    const nextResourceEvidenceObservedAtById = {
+      ...resourceEvidenceObservedAtById,
       [uiId]: evidenceUpdate.observedAt,
-    }));
+    };
+    setResourceDrafts(nextResourceDrafts);
+    setResourceEvidenceObservedAtById(
+      nextResourceEvidenceObservedAtById,
+    );
     if (evidenceUpdate.evidenceChanged) markPlanningRevision(changedAt);
+    if (completed && hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(
+        completed,
+        parsedSettings,
+        selectedProvider,
+        false,
+        incrementalCashBudget,
+        {
+          resourceDrafts: nextResourceDrafts,
+          resourceEvidenceObservedAtById:
+            nextResourceEvidenceObservedAtById,
+          apiOverrides,
+        },
+      );
+    }
   }
 
   function removeResource(uiId: string) {
@@ -779,13 +900,33 @@ export default function Home() {
       (draft) => draft.uiId === uiId,
     )?.preset.id;
     const changedAt = new Date().toISOString();
-    setResourceDrafts((current) => current.filter((draft) => draft.uiId !== uiId));
-    setResourceEvidenceObservedAtById((current) => {
-      const next = { ...current };
-      delete next[uiId];
-      return next;
-    });
+    const nextResourceDrafts = resourceDrafts.filter(
+      (draft) => draft.uiId !== uiId,
+    );
+    const nextResourceEvidenceObservedAtById = {
+      ...resourceEvidenceObservedAtById,
+    };
+    delete nextResourceEvidenceObservedAtById[uiId];
+    setResourceDrafts(nextResourceDrafts);
+    setResourceEvidenceObservedAtById(
+      nextResourceEvidenceObservedAtById,
+    );
     markPlanningRevision(changedAt);
+    if (completed && hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(
+        completed,
+        parsedSettings,
+        selectedProvider,
+        false,
+        incrementalCashBudget,
+        {
+          resourceDrafts: nextResourceDrafts,
+          resourceEvidenceObservedAtById:
+            nextResourceEvidenceObservedAtById,
+          apiOverrides,
+        },
+      );
+    }
     window.requestAnimationFrame(() =>
       (removedPresetId
         ? document.getElementById(`add-resource-${removedPresetId}`)
@@ -800,6 +941,20 @@ export default function Home() {
   ) {
     setApiOverrides(overrides);
     markPlanningRevision(changedAt);
+    if (completed && hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(
+        completed,
+        parsedSettings,
+        selectedProvider,
+        false,
+        incrementalCashBudget,
+        {
+          resourceDrafts,
+          resourceEvidenceObservedAtById,
+          apiOverrides: overrides,
+        },
+      );
+    }
   }
 
   function updateProvider(providerId: ProviderId) {
@@ -1054,6 +1209,7 @@ export default function Home() {
         />
 
         <CatalogOverrideEditor
+          key={scenarioRestoreEpoch}
           overrides={apiOverrides}
           pricingAsOf={pricingAsOf}
           disabled={status === "loading"}
@@ -1169,11 +1325,12 @@ export default function Home() {
                   {bestFitCopy.results.budgetRequiredDescription}
                 </p>
               </section>
-            ) : bestFitPlanning?.ok ? (
+            ) : bestFitPlanning?.ok && bestFitExportContext ? (
               <BestFitResults
                 result={bestFitPlanning.result}
                 tasks={completed.tasks}
                 generatedAt={planningAsOf ?? completed.analysisSnapshot.response.generatedAt}
+                exportContext={bestFitExportContext}
               />
             ) : (
               <section role="alert" className="rounded-2xl border border-[#cf6845]/25 bg-[#fff5ef] p-5 text-[#7c331f]">

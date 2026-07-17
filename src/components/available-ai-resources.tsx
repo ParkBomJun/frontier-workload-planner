@@ -205,7 +205,10 @@ export function AvailableAiResources({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-[#294638]">
-                      {copy.resources.resourceLegend(index + 1)} · {copy.resources.presets[draft.preset.id].name}
+                      {copy.resources.resourceLegend(index + 1)} ·{" "}
+                      {preset
+                        ? copy.resources.presets[preset.id].name
+                        : draft.preset.id}
                     </p>
                     <span
                       className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${

@@ -203,6 +203,26 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     expect(result.plan.activeTaskCount).toBe(0);
   });
 
+  it("ignores an unresolved historical override target without promoting it", () => {
+    const baseline = buildBestFitUiPlan(planInput());
+    const input = planInput();
+    input.apiOverrides = [
+      {
+        kind: "api-catalog-override",
+        provenance: "user-supplied",
+        target: {
+          ...catalogOverrideTargetFor("openai", "economy"),
+          registryVersion: "retired-provider-registry-v0",
+        },
+        effectiveFrom: "2026-07-18",
+        recordedAt: PLANNING_AS_OF,
+        planningTier: "premium",
+      },
+    ];
+
+    expect(buildBestFitUiPlan(input)).toEqual(baseline);
+  });
+
   it("rejects a mismatched analysis identity and invalid budget", () => {
     const source = planInput();
     const mismatched: BuildBestFitUiPlanInput = {

@@ -1,6 +1,6 @@
 # Frontier Workload Planner — MVP Specification
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 Internal target: 2026-07-21
 
@@ -22,8 +22,8 @@ heuristic, not a quality ranking, benchmark, quote, or mathematically optimal al
 - OpenAI, Anthropic, and Google comparison summaries plus a selected product-family plan
 - Expected-cost budget allocation, low-priority task holding, and a High-cost risk warning
 - One per-task cost bar chart
-- One recent scenario in LocalStorage
-- Markdown copy and JSON export
+- One recent source-only scenario in LocalStorage v6, with frozen v1–v5 migration
+- Legacy comparison exports plus separate Best-fit JSON v5 and localized Markdown
 - Mock and Live modes
 - Server-only OpenAI API key
 
@@ -52,8 +52,10 @@ and redeployed:
 6. Deterministic Low / Expected / High costs and complete budget plans for every provider.
 7. Product-family selection that swaps the displayed plan without another API request.
 8. Priority-first Expected-cost allocation, explicit active/held work, High-cost warnings, task cards, and one cost chart.
-9. One validated recent scenario in LocalStorage, restored without a new API request.
-10. Markdown clipboard copy and versioned JSON export of the selected plan and comparison summaries.
+9. One validated recent source-only scenario in LocalStorage v6, restored by re-resolving evidence
+   and recalculating without a new API request; frozen v1–v5 records migrate sequentially.
+10. Historical JSON v3/v4 comparison exports plus a separate Best-fit JSON v5 and localized
+    Markdown projection for structured routes, resource/override source, and audit-only evidence.
 11. Empty, loading, success, input-error, configuration-error, storage-error, and upstream-error states.
 
 ## Responsibility boundary
@@ -296,21 +298,39 @@ locale only when the user explicitly loads them.
 
 ## Export contract
 
-Markdown copy and JSON export use the currently selected provider plan, including any valid local recalculation after analysis. Both include original task descriptions, analysis metadata, selected-provider Low / Expected / High results, task allocations, all three provider summaries, warnings, source URLs, verification date, price conditions, exclusions, and the heuristic/non-optimization disclaimer. Human-readable Markdown labels and explanations follow the current UI locale; user and GPT content remains unchanged.
+Every export is an explicit allowlist projection rather than a serialization of browser or React
+state. Historical provider-comparison exports keep their existing meanings: JSON schema version 3
+for `api-analysis-v1`, and JSON schema version 4 for `best-fit-analysis-v2` workload fields shown
+through the API-family compatibility planner. They continue to include the selected provider,
+Low / Expected / High costs, allocations, all three provider summaries, warnings, catalog sources,
+price conditions, invocation limits, and exclusions. Those schemas are not widened in place.
 
-JSON uses an explicit allowlist projection rather than serializing application state wholesale.
-Historical `api-analysis-v1` plans retain unchanged JSON schema version 3. A
-`best-fit-analysis-v2` workload uses JSON schema version 4 so its task deadline, failure impact,
-work mode, hard minimum quality, required capabilities, upgrade conditions, and failure risk are
-not silently omitted. Markdown adds the same workload contract fields with localized labels.
-JSON keys, enums, and schema values are locale-independent. Its pricing snapshot records the three
-catalogs, provider-native invocation limits, limit sources, and verification dates used for the
-comparison, not a promise that those APIs were called. Both formats include selected provider,
-priority and active/held/infeasible status. Held and infeasible allocations use explicit `null`
-model/cost values; infeasible entries also preserve `no-compatible-offering` and structured
-per-model scenario failures. The filename uses only a UTC timestamp. Markdown escapes table
-delimiters, backslashes, and line breaks from user text. Clipboard rejection and file-generation
-errors are isolated to the export controls.
+Best-fit route/resource results use a separate JSON schema version 5 with `resultKind`
+`best-fit-route-plan`, plus a parallel localized Markdown projection. The v5 document contains:
+
+- structured primary, fallback, and baseline `RouteIdentity` values and stable route keys;
+- task status, explanations, conditional/exclusion reasons, and activated resource identity;
+- cash, commitment, paid-overage, native quota, avoided-spend, and compatible all-Premium baseline
+  ledgers without collapsing them into one number;
+- `planningAsOf`, `pricingAsOf`, source-recording instants, and the catalog facts used by the plan;
+- the restorable raw resource drafts, per-fact observation instants, and exact API override source;
+- resolved resource and official API-catalog snapshots under an explicitly audit-only section whose
+  purpose is `audit-only` and whose `importAuthority` is `false`.
+
+Only the source-state projection is eligible to reconstruct inputs. Resolved audit evidence,
+derived routes, ledgers, labels, provenance text, and exported “official” classifications are never
+restore authority. An importer or LocalStorage restore must validate and re-resolve the stored
+preset, resource, and exact catalog references, preserve unresolved source, and recalculate the
+plan. The official catalog default remains immutable and is exported independently from any visibly
+user-supplied override; restoring the default deletes that override source rather than rewriting the
+catalog.
+
+Human-readable Markdown labels and explanations follow the current UI locale; JSON keys, enums,
+schema values, route keys, user text, and GPT content remain locale-independent or untranslated as
+appropriate. Held and infeasible allocations use explicit `null` route/cost values where the
+contract requires them. The filename uses only a UTC timestamp. Markdown escapes table delimiters,
+backslashes, and line breaks from user text. Clipboard rejection and file-generation errors are
+isolated to the export controls.
 
 Exports contain task descriptions and leave the app through the clipboard or a local file. They never contain `OPENAI_API_KEY` or another server secret.
 
@@ -355,14 +375,17 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 - Provider errors are sanitized before reaching the client.
 - Browser persistence is versioned and validated before it reaches the calculation engine.
 - Local persistence and exports contain no API key, raw provider error, or hidden prompt.
+- Resolved export evidence is audit-only and can never be imported or restored as authority.
 
 ## Ver3 checkpoint 1 — Best-fit offering target (design only)
 
-This section defines the staged Ver3 product contract. Checkpoints 2 through 5 now implement
-passive adapters, the versioned workload/storage boundary, generalized API calculation, and the
-internal subscription resource engine on this feature branch. They do not yet replace the live
-API-family allocator or expose subscription input/results in the UI. The reviewed API-only
-provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
+This section defines the staged Ver3 product contract. Checkpoints 2 through 7 provide the passive
+adapters, versioned workload boundary, generalized API calculation, subscription resource engine,
+deterministic Best-fit core, localized source editors, route results, and the monotonic restore
+clock on this feature branch. Checkpoint 7 is the accepted UI/clock baseline. Checkpoint 8 replaces
+its temporary session-only boundary with source-only LocalStorage v6, frozen v1–v5 migration,
+restore-time re-resolution, and separate Best-fit JSON v5/Markdown projections. The reviewed
+API-only provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
 > that satisfies the required planning quality from the user's available subscription and API
@@ -933,8 +956,8 @@ reproduce the plan. Arbitrary API providers and models remain out of scope.
 | `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
 | `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
 | `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
-| source-only LocalStorage | Version 5 retains frozen v1/v2/v3/v4 parsers, preserves either analysis snapshot, and adds only the explicit incremental-cash-budget confirmation source state. |
-| allowlisted JSON and localized Markdown | Preserve projection and secret-safety rules; add a new result schema only when the result meaning actually expands. |
+| source-only LocalStorage | Version 6 retains frozen v1–v5 parsers and adds only raw resource drafts, per-fact observation instants, and exact user override source; restore re-resolves and recalculates. |
+| allowlisted JSON and localized Markdown | Preserve JSON v3/v4 meanings; project expanded routes/resources through separate Best-fit JSON v5 and parallel localized Markdown. |
 
 The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
 with current provider plans; establish the storage safety gate; version the GPT/task contract and
@@ -943,9 +966,10 @@ orchestrator; then migrate UI and exports. The current API-only calculation and
 `compareProviderPlans` must not be deleted or silently change meaning before parity tests pass.
 
 JSON v3 remains the historical API-only result contract. JSON v4 carries the expanded v2 workload
-meaning without changing v3 in place. Derived plans and routes remain recalculated rather than
-persisted. Version 5 does not persist subscription resources, override resolutions, route
-assignments, or ledgers; those source and projection contracts remain checkpoints 7 and 8 work.
+meaning without changing v3 in place. Best-fit JSON v5 is a different result document rather than
+a mutation of either historical schema. LocalStorage v6 persists raw resource/override source, not
+resolved evidence, routes, assignments, or ledgers; those projections are recalculated after every
+restore.
 
 ### Storage-version safety gate
 
@@ -953,7 +977,7 @@ Checkpoint 3 owns the first Ver3 LocalStorage migration. It must land before or 
 first `TaskInput` or GPT analysis contract change; persistence migration cannot wait until
 checkpoint 8.
 
-Storage parsers for versions 1, 2, 3, and 4 are immutable historical contracts. Each owns its complete
+Storage parsers for versions 1, 2, 3, 4, and 5 are immutable historical contracts. Each owns its complete
 task, settings, provider, response, analysis, enum, and length-limit schema. They must not import or
 compose mutable live schemas such as `taskInputSchema`, `taskAnalysisSchema`,
 `analysisDocumentSchema`, current provider/strategy enums, or the current success-response schema.
@@ -980,7 +1004,7 @@ snapshot in v4. Later source-state versions extend this chain. A legacy snapshot
 continue through the reviewed API-only planner, but it cannot enter Best-fit allocation until the
 user explicitly requests a new Mock or Live analysis. Restore never triggers analysis itself.
 
-Storage version 5 extends the chain as `v1 → v2 → v3 → v4 → v5` and adds this source-only budget
+Storage version 5 historically extends the chain as `v1 → v2 → v3 → v4 → v5` and adds this source-only budget
 meaning union:
 
 ```ts
@@ -998,17 +1022,36 @@ type IncrementalCashBudgetSource =
 
 Migration always copies the historical `settings.budgetUsd` into the unconfirmed arm, and the two
 amounts must remain exactly equal there. Only the explicit pure confirmation operation can create
-the confirmed arm; restore and migration never do so. The page continues to run the legacy
-API-only plan until checkpoint 7 presents that confirmation. Adapter, target-validation, rewrite,
-and future-version failures retain the original stored bytes under the existing safety rules.
+the confirmed arm; restore and migration never do so. A legacy-unconfirmed record remains in the
+API-only compatibility view until the user confirms or reanalyzes as required. Adapter,
+target-validation, rewrite, and future-version failures retain the original stored bytes under the
+existing safety rules.
+
+Storage version 6 extends the frozen chain as `v1 → v2 → v3 → v4 → v5 → v6`. Its additional
+`bestFitSources` value has source version `best-fit-source-state-v1` and contains two independently
+versioned source sets:
+
+- `available-ai-resource-sources-v1`: at most four bounded raw resource drafts plus the exact
+  availability, commitment, quota, reset, and surface observation instants recorded for each fact;
+- `api-catalog-override-sources-v1`: at most nine exact catalog-entry override drafts, recording
+  user-supplied tier/price values, `effectiveFrom`, and their source-recording metadata.
+
+The v6 parser accepts bounded invalid drafts so the user can repair them after restore; validation
+diagnostics are derived, not persisted. Migrating any valid v1–v5 scenario creates an explicit
+empty v6 source state instead of inventing resources, observations, or overrides. Version 6 stores
+neither branded/resolved evidence nor route, ledger, baseline, compatibility, or display results.
+Automatic and manual restore rerun the current preset, resource, and exact-version catalog
+resolvers over the raw source, preserve unresolved references without promoting them, and
+recalculate the full route, quota, commitment, paid-overage, and Premium-baseline result. `savedAt`
+remains write metadata, not a planning/pricing clock candidate.
 
 Adapters must not synthesize `workMode`, `requiredQualityTier`, capabilities, upgrade signals,
 `failureRisk`, or another GPT-derived value from a legacy tier, task type, free-form risk text,
 empty array, or default. User-owned fields added later use an explicit legacy/unspecified state when
 needed rather than pretending the user chose a value.
 
-Future source-state records persist only `StoredEvidenceInput`, never branded `EvidenceRef` or a
-resolved result snapshot. Restore re-runs the exact-version registry and connector resolvers before
+Current v6 source-state records persist only untrusted source input, never branded `EvidenceRef` or
+a resolved result snapshot. Restore re-runs the exact-version registry and connector resolvers before
 calculation. Resolution failure preserves the reference and produces a recoverable conditional
 state; it does not delete the scenario, trust exported provenance, or copy a claimed official kind
 into the internal domain.
@@ -1376,18 +1419,21 @@ contain no invented fee, quota, reset interval, or evidence. Connector code curr
 untrusted diagnostic after registered-adapter, authenticated binding, freshness, replay, and
 receipt checks; no deployed backend evidence issuer exists. Likewise, the bundled registry has no
 subscription consumption, initial-capacity, overage, or complete subscription-eligibility claim.
-Consequently all currently constructible subscription routes remain conditional or unavailable;
-the engine does not fabricate a confirmed positive path.
+Consequently the real presets available in the production-facing editor remain conditional or
+unavailable; the engine does not fabricate a confirmed positive path. Test-only normalized
+allocator fixtures may exercise a confirmed subscription path in tests and scripted test-evidence
+shots, but they are not resolver evidence, product inputs, or claims about an actual user's
+subscription.
 
 Existing subscription use and API spend remain separate ledgers. A commitment ledger records owned
 use as zero incremental cash and deduplicates a selected candidate resource's full plan-period fee
 once. The commitment primitive does not choose which resource to activate. Checkpoint 6 now
 composes it with resolver-issued candidates, independent scenario quota ledgers, complete-plan
-comparison, budget relief, and the deterministic add-one subscription heuristic. LocalStorage v5
-stores only the budget-meaning confirmation source state; it still stores no resources or derived
-routes. Checkpoint 7 owns resource input and result presentation, while checkpoint 8 owns resource
-and override persistence, resolver rehydration, and route-result export. JSON v3/v4 remain
-unchanged.
+comparison, budget relief, and the deterministic add-one subscription heuristic. LocalStorage v6
+now stores the raw resource and override source alongside the budget-meaning source; it still stores
+no resolved evidence or derived routes. Checkpoint 7 supplies the accepted input/result UI and
+monotonic restore clock. Checkpoint 8 adds source rehydration and the separate route-result export.
+JSON v3/v4 remain unchanged.
 
 ### Checkpoint-7 UI input and result presentation contract
 
@@ -1411,11 +1457,12 @@ return to a valid state it compares against that snapshot, ensuring a strategy o
 made while `deadlineDays` was invalid contributes one captured Best-fit revision. The session clock
 max-merges that revision, so a clock-skewed older instant cannot rewind the existing high-water mark.
 Automatic and manual restore capture one `restoredAt` value and rebuild the Best-fit calculation
-clock as the latest actual instant among `restoredAt`, the analysis `generatedAt`, and the confirmed
-incremental-cash budget `confirmedAt` when present. `savedAt` is storage-write metadata and is never
-a calculation-clock candidate because reference-deadline and selected-provider edits can update it
-without changing Best-fit inputs. `pricingAsOf` is derived from the restored clock's UTC date, so a
-restore cannot roll dated pricing back behind the restore, analysis, or budget-confirmation instant.
+clock as the latest actual instant among `restoredAt`, the analysis `generatedAt`, the confirmed
+incremental-cash budget `confirmedAt` when present, restored resource observations, and restored
+override recording times. `savedAt` is storage-write metadata and is never a calculation-clock
+candidate because reference-deadline and selected-provider edits can update it without changing
+Best-fit inputs. `pricingAsOf` is derived from the restored clock's UTC date, so a restore cannot
+roll dated pricing back behind any calculation-clock candidate.
 Every later calculation-clock write is monotonic: a task, setting, resource, override, restore, or
 new-analysis event merges its timestamp with the current revision instead of replacing it. The
 effective `planningAsOf` independently takes the latest revision, analysis `generatedAt`, confirmed
@@ -1475,17 +1522,70 @@ English and Japanese use equivalent complete interface copy rather than mixed-la
 Technical terms and model/product names remain untranslated where precision requires it. The UI
 uses an explicit Korean-capable font stack and avoids isolated heading line breaks.
 
-Resource drafts and API overrides remain session-only in checkpoint 7. They are deliberately absent
-from LocalStorage v5 and JSON/Markdown exports. The result UI may show derived route, cash, quota,
-commitment, overage, conditional, and exclusion information, but none of those projections is
-restored as authority. Checkpoint 8 introduces the next source schema, re-resolution on restore,
-and a new route/resource export version together.
+Checkpoint 7 originally ended at a session-only resource/override boundary: those sources were
+deliberately absent from LocalStorage v5 and exports, and no derived projection could be restored as
+authority. The checkpoint-8 contract below supersedes only that persistence/export boundary; it
+does not weaken checkpoint 7's evidence or calculation-clock rules.
+
+### Checkpoint-8 source persistence and route/resource export contract
+
+Checkpoint 8 stores the exact raw source needed to reproduce a Best-fit calculation in one recent
+LocalStorage v6 scenario. It does not store the answer. Resource drafts, independent per-fact
+observation instants, and user API override source are saved automatically with the tasks, settings,
+analysis snapshot, and confirmed budget meaning. A v1–v5 restore runs every frozen migration in
+order and receives an explicit empty Best-fit source state. Invalid but bounded v6 drafts remain
+editable. Structurally malformed records are discarded under the existing safety rule; a valid
+historical record whose adaptation, target validation, or rewrite fails keeps its original bytes,
+and an unknown future version is left untouched.
+
+Both automatic and manual restore capture one restore instant, reconstruct the monotonic calculation
+clock from that instant, analysis generation, confirmed budget time, resource observation times,
+and override recording times, then re-resolve all raw resource and override source through current
+preset, resource, and exact-version catalog resolvers. The planner recalculates route
+eligibility, fallback, native quota, commitment, paid overage, incremental cash, and compatible
+all-Premium baseline. A failed resource resolution preserves the source and yields
+conditional/excluded output; it never copies a prior resolved snapshot into authority. An unresolved
+override source is preserved but not applied, is labeled as unresolved in the editor, and can be
+removed with a source-delete action distinct from restoring a current catalog default.
+`scenario.savedAt` remains storage metadata because provider selection and the legacy global
+reference deadline can update it without changing a Best-fit input.
+
+Official catalog defaults and user overrides are distinct records and distinct UI claims. An
+override affects only the Best-fit candidate resolver, is visibly user-supplied, and cannot alter
+identity, invocation limits, access, capability, or evidence authority. Restoring the default
+deletes the override. The reviewed API-family compatibility comparison continues to use only the
+official catalog default.
+
+Best-fit JSON v5 and localized Markdown are the release projections for route/resource results.
+They include structured routes and route keys, restorable resource/override source, planning and
+pricing dates, separated cash/quota/commitment ledgers, and resolved evidence snapshots for audit.
+Every resolved snapshot is marked `purpose: "audit-only"` and `importAuthority: false`. Import or
+restore may use the source section only and must re-resolve it; audit data is explanatory evidence,
+not a receipt, resolver result cache, or authority transfer. Legacy JSON v3/v4 and their Markdown
+meaning remain unchanged.
+
+The release demo matrix fixes six distinct outcomes and their truthfulness boundaries:
+
+| Demo | Required visible result | Truthfulness boundary |
+| --- | --- | --- |
+| Chat subscription | A subscription branch consumes native quota before avoidable API cash | Show a separately labeled test-only normalized allocator fixture; do not imply it was loaded into the UI, and keep real ChatGPT-like presets conditional/excluded. |
+| Coding route | A coding-agent task selects a compatible coding surface and shows fallback identity | A preset name or model family never proves tool/access capability; production input remains conditional until exact claims resolve. |
+| Batch API | A `batch` work-mode task can route to a compatible standard API surface | “Batch” describes the work surface only. Pricing still excludes discounted provider Batch processing, caching, tools, and long-context surcharges. |
+| Selective Premium | Only tasks whose floor/trigger requires Premium are upgraded | This is a deterministic quality-floor/closed-trigger policy, not a model benchmark or universal “best model” recommendation. |
+| Held work | Feasible lower-priority work is visibly held when incremental cash exceeds budget | Held is budget deferral, not infeasibility; tasks with no compatible route are separately excluded/infeasible. |
+| Avoided spend | Savings compare the selected complete plan with the disclosed compatible all-Premium API baseline | Avoided spend is a counterfactual projection, not cash received; missing baseline compatibility stays unavailable rather than becoming `$0 saved`. |
+
+The six demonstrations may combine deterministic Mock UI analysis and separately shown test-only
+normalized allocator fixtures. Any fixture-only confirmed subscription branch is labeled as test
+evidence and is never presented as a UI-loaded scenario. No actual preset, connector, public
+deployment, or external provider account is presented as verified merely because the code path can
+be demonstrated.
 
 ### Phase and checkpoint boundary
 
 The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions,
 credit-based coding plans, rolling-quota plans, and `Custom subscription` are non-authoritative
-preset metadata exposed through the checkpoint-7 session-only input UI.
+preset metadata exposed through the checkpoint-7 input UI and persisted as raw source in v6.
 A cloud subscription for a model family that can also run
 locally is represented only as `Custom subscription`. This user-defined subscription metadata does
 not authorize an arbitrary API provider, custom model catalog, local-inference claim, or
@@ -1500,9 +1600,9 @@ Sonnet 5 pricing, OpenAI's independent input cap, 320px provider-card readabilit
 descriptions, and locale-bound Markdown feedback. This design checkpoint neither fixes them nor
 claims that `provider-comparison-stable` is P2-complete.
 
-Checkpoint 1 is complete only when these three planning documents agree, the current API-only
-behavior is still described accurately, the staged compatibility path is explicit, and no runtime
-file or schema has changed.
+Checkpoint 8 is releasable only when source-only v6 migration/restore, re-resolution, JSON v5 and
+Markdown allowlists, the six-demo matrix, localized disclosure copy, and regression coverage all
+agree with the implementation, while the stable public deployment is still described accurately.
 
 ## Deferred
 

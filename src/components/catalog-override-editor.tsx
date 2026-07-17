@@ -7,6 +7,7 @@ import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import {
   catalogOverrideTargetFor,
+  removeApiCatalogOverrideSource,
   restoreApiCatalogDefaults,
   upsertApiCatalogOverride,
 } from "@/lib/offerings/catalog-overrides";
@@ -30,7 +31,19 @@ interface CatalogOverrideEditorProps {
   onChange: (overrides: readonly ApiCatalogOverride[], changedAt: string) => void;
 }
 
-type Feedback = "applied" | "restored" | "invalid" | null;
+type Feedback = "applied" | "restored" | "removed" | "invalid" | null;
+
+export interface CatalogOverrideEditorValues {
+  planningTier: PlanningQualityTier | "";
+  inputPrice: string;
+  outputPrice: string;
+  effectiveFrom: string;
+}
+
+interface CatalogOverrideEditorDraftState {
+  sourceKey: string;
+  values: CatalogOverrideEditorValues;
+}
 
 function matchesTarget(
   override: ApiCatalogOverride,
@@ -43,6 +56,34 @@ function matchesTarget(
     override.target.registryVersion === target.registryVersion &&
     override.target.entryId === target.entryId
   );
+}
+
+export function resolveCatalogOverrideEditorValues(
+  overrides: readonly ApiCatalogOverride[],
+  providerId: ProviderId,
+  tier: ModelTier,
+  pricingAsOf: string,
+): CatalogOverrideEditorValues {
+  const existing = overrides.find((override) =>
+    matchesTarget(override, providerId, tier),
+  );
+  return {
+    planningTier: existing?.planningTier ?? "",
+    inputPrice:
+      existing?.standardTextPrice?.inputUsdPerMillion.toString() ?? "",
+    outputPrice:
+      existing?.standardTextPrice?.outputUsdPerMillion.toString() ?? "",
+    effectiveFrom: existing?.effectiveFrom ?? pricingAsOf,
+  };
+}
+
+function catalogOverrideEditorSourceKey(
+  providerId: ProviderId,
+  tier: ModelTier,
+  pricingAsOf: string,
+  values: CatalogOverrideEditorValues,
+): string {
+  return JSON.stringify([providerId, tier, pricingAsOf, values]);
 }
 
 export function isImmediateOverrideDateAllowed(
@@ -62,10 +103,22 @@ export function CatalogOverrideEditor({
   const copy = BEST_FIT_UI_COPY[locale];
   const [providerId, setProviderId] = useState<ProviderId>("openai");
   const [tier, setTier] = useState<ModelTier>("economy");
-  const [planningTier, setPlanningTier] = useState<PlanningQualityTier | "">("");
-  const [inputPrice, setInputPrice] = useState("");
-  const [outputPrice, setOutputPrice] = useState("");
-  const [effectiveFrom, setEffectiveFrom] = useState(pricingAsOf);
+  const initialEditorValues = resolveCatalogOverrideEditorValues(
+    overrides,
+    "openai",
+    "economy",
+    pricingAsOf,
+  );
+  const [editorDraft, setEditorDraft] =
+    useState<CatalogOverrideEditorDraftState>({
+      sourceKey: catalogOverrideEditorSourceKey(
+        "openai",
+        "economy",
+        pricingAsOf,
+        initialEditorValues,
+      ),
+      values: initialEditorValues,
+    });
   const [feedback, setFeedback] = useState<Feedback>(null);
 
   const official = useMemo(
@@ -82,20 +135,29 @@ export function CatalogOverrideEditor({
   const selectedOverride = overrides.find((override) =>
     matchesTarget(override, providerId, tier),
   );
+  const resolvedEditorValues = resolveCatalogOverrideEditorValues(
+    overrides,
+    providerId,
+    tier,
+    pricingAsOf,
+  );
+  const editorSourceKey = catalogOverrideEditorSourceKey(
+    providerId,
+    tier,
+    pricingAsOf,
+    resolvedEditorValues,
+  );
+  const editorValues =
+    editorDraft.sourceKey === editorSourceKey
+      ? editorDraft.values
+      : resolvedEditorValues;
+  const { planningTier, inputPrice, outputPrice, effectiveFrom } = editorValues;
 
-  function resetEditor(nextProvider = providerId, nextTier = tier) {
-    const existing = overrides.find((override) =>
-      matchesTarget(override, nextProvider, nextTier),
-    );
-    setPlanningTier(existing?.planningTier ?? "");
-    setInputPrice(
-      existing?.standardTextPrice?.inputUsdPerMillion.toString() ?? "",
-    );
-    setOutputPrice(
-      existing?.standardTextPrice?.outputUsdPerMillion.toString() ?? "",
-    );
-    setEffectiveFrom(existing?.effectiveFrom ?? pricingAsOf);
-    setFeedback(null);
+  function updateEditorValues(patch: Partial<CatalogOverrideEditorValues>) {
+    setEditorDraft({
+      sourceKey: editorSourceKey,
+      values: { ...editorValues, ...patch },
+    });
   }
 
   function applyOverride() {
@@ -144,11 +206,18 @@ export function CatalogOverrideEditor({
       return;
     }
     onChange(result.overrides, changedAt);
-    setPlanningTier("");
-    setInputPrice("");
-    setOutputPrice("");
-    setEffectiveFrom(pricingAsOf);
     setFeedback("restored");
+  }
+
+  function removeUnresolvedSource(override: ApiCatalogOverride) {
+    const changedAt = new Date().toISOString();
+    const result = removeApiCatalogOverrideSource(overrides, override.target);
+    if (!result.ok) {
+      setFeedback("invalid");
+      return;
+    }
+    onChange(result.overrides, changedAt);
+    setFeedback("removed");
   }
 
   return (
@@ -184,7 +253,7 @@ export function CatalogOverrideEditor({
             onChange={(event) => {
               const next = event.target.value as ProviderId;
               setProviderId(next);
-              resetEditor(next, tier);
+              setFeedback(null);
             }}
             className={inputClass}
           >
@@ -201,7 +270,7 @@ export function CatalogOverrideEditor({
             onChange={(event) => {
               const next = event.target.value as ModelTier;
               setTier(next);
-              resetEditor(providerId, next);
+              setFeedback(null);
             }}
             className={inputClass}
           >
@@ -218,7 +287,9 @@ export function CatalogOverrideEditor({
             value={planningTier}
             disabled={disabled}
             onChange={(event) =>
-              setPlanningTier(event.target.value as PlanningQualityTier | "")
+              updateEditorValues({
+                planningTier: event.target.value as PlanningQualityTier | "",
+              })
             }
             className={inputClass}
           >
@@ -238,7 +309,9 @@ export function CatalogOverrideEditor({
             value={inputPrice}
             placeholder={officialValue?.standardTextPrice.inputUsdPerMillion.toString()}
             disabled={disabled}
-            onChange={(event) => setInputPrice(event.target.value)}
+            onChange={(event) =>
+              updateEditorValues({ inputPrice: event.target.value })
+            }
             className={inputClass}
           />
         </label>
@@ -252,7 +325,9 @@ export function CatalogOverrideEditor({
             value={outputPrice}
             placeholder={officialValue?.standardTextPrice.outputUsdPerMillion.toString()}
             disabled={disabled}
-            onChange={(event) => setOutputPrice(event.target.value)}
+            onChange={(event) =>
+              updateEditorValues({ outputPrice: event.target.value })
+            }
             className={inputClass}
           />
         </label>
@@ -263,7 +338,9 @@ export function CatalogOverrideEditor({
             value={effectiveFrom}
             max={pricingAsOf}
             disabled={disabled}
-            onChange={(event) => setEffectiveFrom(event.target.value)}
+            onChange={(event) =>
+              updateEditorValues({ effectiveFrom: event.target.value })
+            }
             className={inputClass}
           />
         </label>
@@ -313,24 +390,38 @@ export function CatalogOverrideEditor({
                 MODEL_TIERS.map((modelTier) => ({ id, modelTier })),
               ).find(({ id, modelTier }) => matchesTarget(override, id, modelTier));
               return (
-                <li key={JSON.stringify(override.target)} className="rounded-xl bg-[#edf4ee] px-3.5 py-3 text-xs leading-5 text-[#365649]">
-                  <span className="font-bold">
-                    {entry
-                      ? `${PROVIDER_CATALOG[entry.id].displayName} · ${PROVIDER_CATALOG[entry.id].models[entry.modelTier].displayName}`
-                      : override.target.entryId}
-                  </span>
-                  <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 font-bold">
-                    {copy.overrides.userSupplied}
-                  </span>
-                  <span className="mt-1 block">
-                    {override.planningTier
-                      ? copy.enums.planningTier[override.planningTier]
-                      : copy.overrides.keepDefaultTier}
-                    {override.standardTextPrice
-                      ? ` · $${override.standardTextPrice.inputUsdPerMillion} / $${override.standardTextPrice.outputUsdPerMillion}`
-                      : ""}
-                    {` · ${override.effectiveFrom}`}
-                  </span>
+                <li key={JSON.stringify(override.target)} className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl bg-[#edf4ee] px-3.5 py-3 text-xs leading-5 text-[#365649]">
+                  <div className="min-w-0">
+                    <span className="break-words font-bold">
+                      {entry
+                        ? `${PROVIDER_CATALOG[entry.id].displayName} · ${PROVIDER_CATALOG[entry.id].models[entry.modelTier].displayName}`
+                        : override.target.entryId}
+                    </span>
+                    <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 font-bold">
+                      {entry
+                        ? copy.overrides.userSupplied
+                        : copy.overrides.unresolvedSource}
+                    </span>
+                    <span className="mt-1 block break-words">
+                      {override.planningTier
+                        ? copy.enums.planningTier[override.planningTier]
+                        : copy.overrides.keepDefaultTier}
+                      {override.standardTextPrice
+                        ? ` · $${override.standardTextPrice.inputUsdPerMillion} / $${override.standardTextPrice.outputUsdPerMillion}`
+                        : ""}
+                      {` · ${override.effectiveFrom}`}
+                    </span>
+                  </div>
+                  {entry === undefined ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => removeUnresolvedSource(override)}
+                      className="min-h-11 shrink-0 rounded-xl border border-[#9b4c34]/20 bg-white/70 px-3 py-2 text-xs font-bold text-[#8a3b25] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#9b4c34]/12 disabled:opacity-45"
+                    >
+                      {copy.overrides.removeUnresolved}
+                    </button>
+                  ) : null}
                 </li>
               );
             })}

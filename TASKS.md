@@ -282,30 +282,31 @@ cross-route comparator.
 - [x] Avoid self-hosting or objective model-ranking claims in hero and help copy
 - [x] Apply the approved Best-fit hero message and an explicit Korean-capable font
 
-Checkpoint 7 keeps resource drafts and verified-catalog overrides session-only. LocalStorage v5
-persists only the already-versioned incremental-cash confirmation, tasks, settings, selected legacy
-provider, and analysis snapshot. The Best-fit UI re-resolves source drafts, recalculates routes
-without another GPT request, and presents unknown API access/capability plus unverified subscription
-facts as excluded or conditional—not as confirmed work. Checkpoint 8 owns the next source storage
-version and the route/resource export contract.
+Checkpoint 7 historically kept resource drafts and verified-catalog overrides session-only.
+LocalStorage v5 persisted only the already-versioned incremental-cash confirmation, tasks,
+settings, selected legacy provider, and analysis snapshot. The Best-fit UI re-resolved source
+drafts, recalculated routes without another GPT request, and presented unknown API
+access/capability plus unverified subscription facts as excluded or conditional—not as confirmed
+work. Checkpoint 8 now supersedes that temporary persistence/export boundary with the source-only
+storage and route/resource export contract below.
 
 ### Checkpoint 8 — persistence, export, and release candidate
 
-- [ ] Verify that resource/override source versions extended the checkpoint-3 chain when their shapes changed
-- [ ] Preserve the versioned legacy analysis snapshot while adding default API-only resource state
-- [ ] Persist and export user overrides without overwriting the official default/source snapshot
-- [ ] Preserve source-only persistence and recalculate all derived routes on restore
-- [ ] Persist only evidence references and user observations; re-resolve authority on every restore
-- [ ] Treat exported resolved evidence as audit-only and never as import or restore authority
-- [ ] Preserve historical JSON v3 and workload JSON v4; introduce the next result version for route/resource meaning and update Markdown in parallel
-- [ ] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
-- [ ] Export structured route identities for tasks, fallbacks, activated resources, and Premium baselines
-- [ ] Export paid overage, `planningAsOf`, `pricingAsOf`, and signed cash difference
-- [ ] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
-- [ ] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
-- [ ] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
-- [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
-- [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
+- [x] Verify that resource/override source versions extended the checkpoint-3 chain when their shapes changed
+- [x] Preserve the versioned legacy analysis snapshot while adding default API-only resource state
+- [x] Persist and export user overrides without overwriting the official default/source snapshot
+- [x] Preserve source-only persistence and recalculate all derived routes on restore
+- [x] Persist only evidence references and user observations; re-resolve authority on every restore
+- [x] Treat exported resolved evidence as audit-only and never as import or restore authority
+- [x] Preserve historical JSON v3 and workload JSON v4; introduce the next result version for route/resource meaning and update Markdown in parallel
+- [x] Export route, API cash, subscription use, confidence, alternative, premium baseline, and sources
+- [x] Export structured route identities for tasks, fallbacks, activated resources, and Premium baselines
+- [x] Export paid overage, `planningAsOf`, `pricingAsOf`, and signed cash difference
+- [x] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
+- [x] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
+- [x] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
+- [x] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
+- [x] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
 
 ## Provider-comparison P2 backlog — compatibility-view follow-up
 

@@ -11,11 +11,18 @@ import {
   historicalRecentScenarioV2Schema,
   historicalRecentScenarioV3Schema,
   historicalRecentScenarioV4Schema,
+  historicalRecentScenarioV5Schema,
   type HistoricalRecentScenarioV1,
   type HistoricalRecentScenarioV2,
   type HistoricalRecentScenarioV3,
   type HistoricalRecentScenarioV4,
+  type HistoricalRecentScenarioV5,
 } from "@/lib/storage/historical-schemas";
+import {
+  bestFitSourceStateSchema,
+  createEmptyBestFitSourceState,
+  type BestFitSourceState,
+} from "@/lib/storage/best-fit-sources";
 import {
   PLANNING_STRATEGIES,
   PROVIDER_IDS,
@@ -23,7 +30,7 @@ import {
 } from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 5;
+export const RECENT_SCENARIO_VERSION = 6;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -94,6 +101,7 @@ export const recentScenarioSchema = z
     tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
     settings: planningSettingsSchema,
     analysisSnapshot: storedAnalysisSnapshotSchema,
+    bestFitSources: bestFitSourceStateSchema,
   })
   .superRefine(({ tasks, analysisSnapshot }, context) => {
     const taskIds = new Set<string>();
@@ -136,6 +144,7 @@ export interface RecentScenarioInput {
   tasks: RecentScenario["tasks"];
   settings: RecentScenarioSettingsInput;
   analysisSnapshot: StoredAnalysisSnapshot;
+  bestFitSources?: BestFitSourceState;
 }
 
 export type ConfirmIncrementalCashBudgetResult =
@@ -158,7 +167,8 @@ type HistoricalScenario =
   | HistoricalRecentScenarioV1
   | HistoricalRecentScenarioV2
   | HistoricalRecentScenarioV3
-  | HistoricalRecentScenarioV4;
+  | HistoricalRecentScenarioV4
+  | HistoricalRecentScenarioV5;
 
 type HistoricalMigrationResult =
   | { ok: true; scenario: RecentScenario }
@@ -279,11 +289,11 @@ function adaptV3ToV4(
   return parsed.success ? parsed.data : null;
 }
 
-function adaptV4ToV5Candidate(
+function adaptV4ToV5(
   scenario: HistoricalRecentScenarioV4,
-): unknown {
-  return {
-    schemaVersion: RECENT_SCENARIO_VERSION,
+): HistoricalRecentScenarioV5 | null {
+  const parsed = historicalRecentScenarioV5Schema.safeParse({
+    schemaVersion: 5,
     savedAt: scenario.savedAt,
     selectedProvider: scenario.selectedProvider,
     tasks: scenario.tasks,
@@ -294,37 +304,57 @@ function adaptV4ToV5Candidate(
       ),
     },
     analysisSnapshot: scenario.analysisSnapshot,
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function adaptV5ToV6Candidate(
+  scenario: HistoricalRecentScenarioV5,
+): unknown {
+  return {
+    schemaVersion: RECENT_SCENARIO_VERSION,
+    savedAt: scenario.savedAt,
+    selectedProvider: scenario.selectedProvider,
+    tasks: scenario.tasks,
+    settings: scenario.settings,
+    analysisSnapshot: scenario.analysisSnapshot,
+    bestFitSources: createEmptyBestFitSourceState(),
   };
 }
 
 export function migrateHistoricalScenarioToCurrent(
   source: HistoricalScenario,
 ): HistoricalMigrationResult {
-  let v4: HistoricalRecentScenarioV4 | null;
+  let v5: HistoricalRecentScenarioV5 | null;
 
   if (source.schemaVersion === 1) {
     const v2 = adaptV1ToV2(source);
     if (!v2) return { ok: false, reason: "adaptation-failed" };
     const v3 = adaptV2ToV3(v2);
-    v4 = v3 === null ? null : adaptV3ToV4(v3);
+    const v4 = v3 === null ? null : adaptV3ToV4(v3);
+    v5 = v4 === null ? null : adaptV4ToV5(v4);
   } else if (source.schemaVersion === 2) {
     const v3 = adaptV2ToV3(source);
-    v4 = v3 === null ? null : adaptV3ToV4(v3);
+    const v4 = v3 === null ? null : adaptV3ToV4(v3);
+    v5 = v4 === null ? null : adaptV4ToV5(v4);
   } else if (source.schemaVersion === 3) {
-    v4 = adaptV3ToV4(source);
+    const v4 = adaptV3ToV4(source);
+    v5 = v4 === null ? null : adaptV4ToV5(v4);
+  } else if (source.schemaVersion === 4) {
+    v5 = adaptV4ToV5(source);
   } else {
-    v4 = source;
+    v5 = source;
   }
 
-  if (!v4) return { ok: false, reason: "adaptation-failed" };
-  const parsed = recentScenarioSchema.safeParse(adaptV4ToV5Candidate(v4));
+  if (!v5) return { ok: false, reason: "adaptation-failed" };
+  const parsed = recentScenarioSchema.safeParse(adaptV5ToV6Candidate(v5));
   return parsed.success
     ? { ok: true, scenario: parsed.data }
     : { ok: false, reason: "target-validation-failed" };
 }
 
 function parseHistoricalScenario(
-  version: 1 | 2 | 3 | 4,
+  version: 1 | 2 | 3 | 4 | 5,
   value: unknown,
 ): HistoricalScenario | null {
   const parsed = version === 1
@@ -333,7 +363,9 @@ function parseHistoricalScenario(
       ? historicalRecentScenarioV2Schema.safeParse(value)
       : version === 3
         ? historicalRecentScenarioV3Schema.safeParse(value)
-        : historicalRecentScenarioV4Schema.safeParse(value);
+        : version === 4
+          ? historicalRecentScenarioV4Schema.safeParse(value)
+          : historicalRecentScenarioV5Schema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
@@ -383,7 +415,8 @@ export function loadRecentScenario(
     declaredVersion === 1 ||
     declaredVersion === 2 ||
     declaredVersion === 3 ||
-    declaredVersion === 4
+    declaredVersion === 4 ||
+    declaredVersion === 5
   ) {
     const historicalScenario = parseHistoricalScenario(declaredVersion, parsedJson);
     if (!historicalScenario) return discardStoredScenario(resolvedStorage);
@@ -428,6 +461,7 @@ export function saveRecentScenario(
     tasks: input.tasks,
     settings: normalizePlanningSettingsInput(input.settings),
     analysisSnapshot: input.analysisSnapshot,
+    bestFitSources: input.bestFitSources ?? createEmptyBestFitSourceState(),
   });
   if (!parsedScenario.success) return { ok: false, reason: "invalid" };
 
