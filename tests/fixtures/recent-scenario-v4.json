@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 4,
+  "savedAt": "2026-07-17T10:01:00.000Z",
+  "selectedProvider": "google",
+  "tasks": [
+    {
+      "id": "best-fit-task-1",
+      "name": "Best-fit API design",
+      "description": "Design a validated API with a deterministic route plan.",
+      "priority": "high",
+      "deadlineDate": "2026-07-24",
+      "failureImpact": "high"
+    }
+  ],
+  "settings": {
+    "budgetUsd": 7.5,
+    "deadlineDays": 7,
+    "strategy": "balanced"
+  },
+  "analysisSnapshot": {
+    "contractVersion": "best-fit-analysis-v2",
+    "compatibility": "best-fit",
+    "response": {
+      "ok": true,
+      "mode": "mock",
+      "model": "mock-fixture-v2",
+      "generatedAt": "2026-07-17T10:00:00.000Z",
+      "analysis": {
+        "contractVersion": "best-fit-analysis-v2",
+        "tasks": [
+          {
+            "taskId": "best-fit-task-1",
+            "taskType": "software-development",
+            "complexity": "high",
+            "reasoningDepth": "deep",
+            "expectedIterations": 3,
+            "estimatedInputSize": "m",
+            "estimatedOutputSize": "m",
+            "uncertainty": "medium",
+            "recommendedModelTier": "balanced",
+            "workMode": "coding-agent",
+            "requiredQualityTier": "balanced",
+            "requiredCapabilities": [
+              "code-editing",
+              "structured-output"
+            ],
+            "upgradeConditions": [
+              "deep-reasoning"
+            ],
+            "failureRisk": "high",
+            "riskFactors": [
+              "A failed migration could invalidate persisted plans."
+            ],
+            "rationale": "The task needs a deterministic validated implementation."
+          }
+        ]
+      }
+    }
+  }
+}

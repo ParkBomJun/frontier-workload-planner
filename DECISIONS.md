@@ -657,3 +657,48 @@ once per task. The commitment ledger is an accounting primitive only. Checkpoint
 activations and complete plans, recalculates shared fees/overage, applies the cash budget, and emits
 active/held/infeasible route results. Checkpoints 7 and 8 remain responsible for user-facing
 resource input and LocalStorage/export version changes.
+
+## 2026-07-17 — Ver3 checkpoint 6 deterministic Best-fit core
+
+### Keep resolver authority outside a pure allocation core
+
+Accept only exact resolver-issued candidate sets at the production allocator boundary, including
+the original `planningAsOf` and `pricingAsOf`; copied structural values are rejected and the plan
+preserves both dates. Keep a normalized,
+side-effect-free core for exhaustive integer and ordering tests. Do not invent capability, access,
+quota, or overage claims to create a positive catalog route: with the current incomplete profiles,
+the production candidate resolver honestly returns no confirmed Best-fit API route. Preserve the
+reviewed API-only planner for the existing UI until checkpoint 7.
+
+### Rebuild complete plans with independent scenario ledgers
+
+Start Low, Expected, and High subscription quota from separate copies of source capacity. Preserve
+the demand unit and exact decimal overage coefficient, calculate cumulative overage with BigInt,
+and require the selected route to support all three scenarios under the current conservative result
+shape. Reserve in priority/deadline/impact/risk/index order. Before holding work in the inverse
+relief order, forbid the current route and rebuild quota, fees, and overage from source state.
+Evaluate each new subscription by a complete add-one plan and accept only a strict comparator
+improvement. This remains a bounded, explainable heuristic rather than a global optimum claim.
+Task-level subscription cash is a reservation-order marginal attribution and may be non-monotonic
+after cumulative half-up rounding; only complete-plan scenario totals are the authoritative range.
+Keep those complete-plan totals as BigInt during relief so multiple overflow-range reductions are
+comparable. Feed the same exact Expected and High keys into the full-plan comparator before public
+numeric projection. Expected alone drives holds. Saturate only the public numeric projection and
+attach a scenario overflow flag; High-only overflow remains a warning and never removes executable
+work.
+
+### Version the budget meaning without storing derived routes
+
+Raise LocalStorage to v5 with a fully frozen v4 parser and the sequential
+`v1 → v2 → v3 → v4 → v5` adapter. Migration records the existing API-only amount as
+`legacy-api-only-unconfirmed`; only the explicit pure confirmation helper may create a confirmed
+incremental-cash budget and timestamp. Preserve original bytes on adapter, validation, rewrite, or
+future-version failure. Continue storing source inputs and analysis snapshots, not route, quota,
+fee, or plan projections.
+
+### Leave presentation and expanded persistence at their planned boundaries
+
+Checkpoint 7 owns visible budget confirmation, resource input, localized route results, and ledger
+presentation. Checkpoint 8 owns resource/override persistence, authority re-resolution, the new
+route export schema, and release validation. Checkpoint 6 changes neither JSON v3/v4 nor the current
+public UI.

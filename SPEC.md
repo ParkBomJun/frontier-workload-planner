@@ -933,7 +933,7 @@ reproduce the plan. Arbitrary API providers and models remain out of scope.
 | `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
 | `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
 | `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
-| source-only LocalStorage | Version 4 freezes v1/v2/v3 parsers and atomically stores either the legacy or v2 workload analysis snapshot. |
+| source-only LocalStorage | Version 5 retains frozen v1/v2/v3/v4 parsers, preserves either analysis snapshot, and adds only the explicit incremental-cash-budget confirmation source state. |
 | allowlisted JSON and localized Markdown | Preserve projection and secret-safety rules; add a new result schema only when the result meaning actually expands. |
 
 The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
@@ -944,7 +944,8 @@ orchestrator; then migrate UI and exports. The current API-only calculation and
 
 JSON v3 remains the historical API-only result contract. JSON v4 carries the expanded v2 workload
 meaning without changing v3 in place. Derived plans and routes remain recalculated rather than
-persisted.
+persisted. Version 5 does not persist subscription resources, override resolutions, route
+assignments, or ledgers; those source and projection contracts remain checkpoints 7 and 8 work.
 
 ### Storage-version safety gate
 
@@ -952,7 +953,7 @@ Checkpoint 3 owns the first Ver3 LocalStorage migration. It must land before or 
 first `TaskInput` or GPT analysis contract change; persistence migration cannot wait until
 checkpoint 8.
 
-Storage parsers for versions 1, 2, and 3 are immutable historical contracts. Each owns its complete
+Storage parsers for versions 1, 2, 3, and 4 are immutable historical contracts. Each owns its complete
 task, settings, provider, response, analysis, enum, and length-limit schema. They must not import or
 compose mutable live schemas such as `taskInputSchema`, `taskAnalysisSchema`,
 `analysisDocumentSchema`, current provider/strategy enums, or the current success-response schema.
@@ -978,6 +979,28 @@ the approved OpenAI selection into v3; v3 wraps its unchanged response as a `leg
 snapshot in v4. Later source-state versions extend this chain. A legacy snapshot can
 continue through the reviewed API-only planner, but it cannot enter Best-fit allocation until the
 user explicitly requests a new Mock or Live analysis. Restore never triggers analysis itself.
+
+Storage version 5 extends the chain as `v1 → v2 → v3 → v4 → v5` and adds this source-only budget
+meaning union:
+
+```ts
+type IncrementalCashBudgetSource =
+  | {
+      status: "legacy-api-only-unconfirmed";
+      legacyBudgetUsd: number;
+    }
+  | {
+      status: "confirmed";
+      incrementalCashBudgetUsd: number;
+      confirmedAt: string;
+    };
+```
+
+Migration always copies the historical `settings.budgetUsd` into the unconfirmed arm, and the two
+amounts must remain exactly equal there. Only the explicit pure confirmation operation can create
+the confirmed arm; restore and migration never do so. The page continues to run the legacy
+API-only plan until checkpoint 7 presents that confirmation. Adapter, target-validation, rewrite,
+and future-version failures retain the original stored bytes under the existing safety rules.
 
 Adapters must not synthesize `workMode`, `requiredQualityTier`, capabilities, upgrade signals,
 `failureRisk`, or another GPT-derived value from a legacy tier, task type, free-form risk text,
@@ -1054,13 +1077,14 @@ The initial surface crosswalk is explicit: `interactive` requires `chat`, `codin
 surface; future multi-surface alternatives require an explicit schema and compatibility rule.
 
 Once a hard minimum quality field exists, Cost Saver cannot choose below it. The current
-`recommendedModelTier` and `strategyTargetTier` rules remain the API-only baseline until that
-separate contract is introduced. The current global `deadlineDays` is reference-only and cannot
-order tasks by deadline; task-level urgency must be explicit before a later allocator uses it.
+`recommendedModelTier` and the legacy `strategyTargetTier` remain compatibility-only inputs for the
+reviewed API-family planner. Checkpoint 6 derives its separate Best-fit target from the hard floor,
+strategy, and closed upgrade triggers. The current global `deadlineDays` stays reference-only;
+Best-fit ordering uses only the explicit task-level date.
 
-### Future deterministic Best-fit contract
+### Checkpoint-6 deterministic Best-fit core contract
 
-For each analysis snapshot, the future route engine will:
+For each `best-fit-analysis-v2` snapshot, the deterministic route engine now:
 
 1. Resolve a model definition or complete model-opaque eligibility profile.
 2. Remove surface-, capability-, invocation-, and minimum-quality-incompatible offerings.
@@ -1070,8 +1094,45 @@ For each analysis snapshot, the future route engine will:
 6. Build complete plans from owned subscriptions, API routes, and explicitly activated new
    subscriptions; never decide a shared monthly fee from one task in isolation.
 7. Compare complete plans with the closed ordering below and reserve confirmed quota in task order.
-8. Attach a compatible API fallback to every conditional subscription alternative.
-9. Hold lower-priority work when confirmed quota plus incremental-cash budget cannot execute it.
+8. Requires an exact confirmed API fallback identity for every conditional subscription alternative.
+9. Replays the complete plan with the next confirmed route before holding lower-priority work when
+   confirmed quota plus incremental-cash budget cannot execute it.
+
+The public authority boundary accepts only exact resolver-issued task candidate sets and rejects
+structural clones or a mismatched `planningAsOf` or `pricingAsOf`; the plan preserves both dates.
+A separate normalized pure core exists for closed
+calculation tests; it performs no storage, UI, network, or registry mutation. Current catalog
+access and capability profiles remain incomplete, so the production resolver currently yields no
+confirmed Best-fit API route instead of manufacturing compatibility. The reviewed API-only
+`allocateBudget` and `compareProviderPlans` paths remain unchanged and continue to power the
+existing interface until checkpoint 7 connects confirmed resource inputs.
+
+Every confirmed subscription candidate preserves its native demand unit and exact decimal
+overage-rate coefficient. Low, Expected, and High start from three independent copies of source
+quota; one scenario never consumes another scenario's remainder. A route must be feasible in all
+three scenarios under the current conservative result shape. Expected cash drives route relief
+and holds, High produces the budget-risk warning, and Low remains a reporting bound. Cumulative
+overage is rounded once from integer microunits and an exact decimal rate, with safe-integer and
+inclusive-cap checks before conversion back to numbers. Task-level subscription variable cash is
+the marginal delta at that task's deterministic reservation position; cumulative rounding can make
+those three marginal deltas non-monotonic even though the plan Low/Expected/High totals remain the
+authoritative ordered range. Checkpoint 7 must label this attribution rather than present it as an
+independent task price range.
+
+Complete-plan API, commitment, and overage sums retain exact BigInt scenario totals throughout
+budget relief. Expected alone decides reassignment and hold. If a displayable scenario exceeds the
+safe integer range, the numeric projection saturates at `Number.MAX_SAFE_INTEGER` and the matching
+`cash.scenarioOverflow` flag is `true`; a High-only overflow keeps Expected work active and produces
+the High-risk warning. Multi-step relief compares exact Expected totals even while intermediate
+plans remain above the safe range, and the full-plan comparator consumes the exact Expected and
+High keys before any saturated numeric projection is used for display.
+
+A subscription projection additionally requires the exact resolver-issued resolution for the same
+`planningAsOf`, an available resource, and matching Offering eligibility. Conditional resolution
+and eligibility reasons are normalized together, while hard unavailability or ineligibility wins.
+Paid overage enters the normalized core only after the existing resolver verifies its evidence,
+native unit, route scope, effective dates, and cap; otherwise the confirmed candidate is limited to
+included quota.
 
 Task priority remains the first allocation signal. Ver3 adds an optional user-owned task deadline;
 the user also owns bounded `failureImpact`, while GPT supplies bounded `failureRisk`. Scarce-resource
@@ -1181,11 +1242,12 @@ expectedWithinBudget =
   planIncrementalCash[Expected] <= incrementalCashBudgetUsd
 ```
 
-A legacy `budgetUsd` value keeps its historical API-only meaning after restore. The checkpoint that
-first persists `incrementalCashBudgetUsd` must introduce another atomic storage-version adapter and
-show the restored amount as an unconfirmed legacy draft. Best-fit allocation may use it only after
-the user explicitly confirms the broader total-incremental-cash meaning; cancellation leaves the
-legacy API-only plan usable. Migration must not silently reinterpret or discard the old number.
+A legacy `budgetUsd` value keeps its historical API-only meaning after restore. LocalStorage v5
+atomically stores the restored amount as `legacy-api-only-unconfirmed`; it does not silently create
+an incremental-cash budget. The pure confirmation operation records
+`incrementalCashBudgetUsd` plus `confirmedAt`, while checkpoint 7 still owns the visible user
+confirmation. Cancellation leaves the legacy API-only plan usable. Migration never silently
+reinterprets or discards the old number.
 
 The full monthly/plan-period fee appears once in Low, Expected, and High; it is not divided by task,
 prorated, or projected across future renewals. A fee is absent when a subscription is unused,
@@ -1229,7 +1291,7 @@ Held and infeasible work is excluded from both sides. Conditional subscription s
 selected API fallback cost because they are not confirmed primary routes. Existing subscription
 fees stay excluded as sunk commitments; new subscription fees and paid overage are deducted once
 through selected incremental cash. A negative difference is shown as `additionalSpendUsd`, not
-hidden behind `$0 saved`. Exports record the task set, structured baseline route identities and
+hidden behind `$0 saved`. Checkpoint 8 exports will record the task set, structured baseline route identities and
 costs, `pricingAsOf`, selected cash components, and both signed outcomes. The comparison is a
 planning counterfactual, not realized savings or a claim that Premium objectively performs better.
 
@@ -1319,12 +1381,15 @@ the engine does not fabricate a confirmed positive path.
 
 Existing subscription use and API spend remain separate ledgers. A commitment ledger records owned
 use as zero incremental cash and deduplicates a selected candidate resource's full plan-period fee
-once. This primitive does not choose which resource to activate. Checkpoint 6 still owns complete
-plan construction, shared-fee comparison, cash-budget decisions, active/held status, and the final
-Best-fit route comparator. Checkpoints 7 and 8 own UI and persistence/export integration, so
-LocalStorage v4 and JSON v3/v4 are unchanged here.
+once. The commitment primitive does not choose which resource to activate. Checkpoint 6 now
+composes it with resolver-issued candidates, independent scenario quota ledgers, complete-plan
+comparison, budget relief, and the deterministic add-one subscription heuristic. LocalStorage v5
+stores only the budget-meaning confirmation source state; it still stores no resources or derived
+routes. Checkpoint 7 owns resource input and result presentation, while checkpoint 8 owns resource
+and override persistence, resolver rehydration, and route-result export. JSON v3/v4 remain
+unchanged.
 
-### Future input and result contract
+### Future UI input and result presentation contract
 
 The current task, budget, reference deadline, and strategy flow remains. Ver3 adds an optional
 task-level deadline, bounded failure impact, and the versioned incremental-cash budget. A later

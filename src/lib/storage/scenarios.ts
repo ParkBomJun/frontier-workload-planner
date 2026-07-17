@@ -10,9 +10,11 @@ import {
   historicalRecentScenarioV1Schema,
   historicalRecentScenarioV2Schema,
   historicalRecentScenarioV3Schema,
+  historicalRecentScenarioV4Schema,
   type HistoricalRecentScenarioV1,
   type HistoricalRecentScenarioV2,
   type HistoricalRecentScenarioV3,
+  type HistoricalRecentScenarioV4,
 } from "@/lib/storage/historical-schemas";
 import {
   PLANNING_STRATEGIES,
@@ -21,7 +23,7 @@ import {
 } from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 4;
+export const RECENT_SCENARIO_VERSION = 5;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -29,11 +31,39 @@ interface KeyValueStorage {
   removeItem(key: string): void;
 }
 
-const planningSettingsSchema = z.strictObject({
-  budgetUsd: z.number().finite().min(0.01).max(10_000),
-  deadlineDays: z.number().int().min(1).max(90),
-  strategy: z.enum(PLANNING_STRATEGIES),
-});
+const budgetUsdSchema = z.number().finite().min(0.01).max(10_000);
+
+export const incrementalCashBudgetSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("legacy-api-only-unconfirmed"),
+    legacyBudgetUsd: budgetUsdSchema,
+  }),
+  z.strictObject({
+    status: z.literal("confirmed"),
+    incrementalCashBudgetUsd: budgetUsdSchema,
+    confirmedAt: z.iso.datetime(),
+  }),
+]);
+
+const planningSettingsSchema = z
+  .strictObject({
+    budgetUsd: budgetUsdSchema,
+    deadlineDays: z.number().int().min(1).max(90),
+    strategy: z.enum(PLANNING_STRATEGIES),
+    incrementalCashBudget: incrementalCashBudgetSchema,
+  })
+  .superRefine(({ budgetUsd, incrementalCashBudget }, context) => {
+    if (
+      incrementalCashBudget.status === "legacy-api-only-unconfirmed" &&
+      incrementalCashBudget.legacyBudgetUsd !== budgetUsd
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["incrementalCashBudget", "legacyBudgetUsd"],
+        message: "An unconfirmed incremental-cash draft must preserve the legacy API-only budget.",
+      });
+    }
+  });
 
 const analyzeSuccessResponseV2Schema = z.strictObject({
   ok: z.literal(true),
@@ -92,13 +122,25 @@ export const recentScenarioSchema = z
   });
 
 export type RecentScenario = z.infer<typeof recentScenarioSchema>;
+export type IncrementalCashBudget = z.infer<typeof incrementalCashBudgetSchema>;
+
+export type RecentScenarioSettingsInput = Omit<
+  RecentScenario["settings"],
+  "incrementalCashBudget"
+> & {
+  incrementalCashBudget?: IncrementalCashBudget;
+};
 
 export interface RecentScenarioInput {
   selectedProvider: RecentScenario["selectedProvider"];
   tasks: RecentScenario["tasks"];
-  settings: RecentScenario["settings"];
+  settings: RecentScenarioSettingsInput;
   analysisSnapshot: StoredAnalysisSnapshot;
 }
+
+export type ConfirmIncrementalCashBudgetResult =
+  | { ok: true; settings: RecentScenario["settings"] }
+  | { ok: false; reason: "invalid" };
 
 export type LoadRecentScenarioResult =
   | { status: "loaded"; scenario: RecentScenario }
@@ -115,7 +157,8 @@ export type SaveRecentScenarioResult =
 type HistoricalScenario =
   | HistoricalRecentScenarioV1
   | HistoricalRecentScenarioV2
-  | HistoricalRecentScenarioV3;
+  | HistoricalRecentScenarioV3
+  | HistoricalRecentScenarioV4;
 
 type HistoricalMigrationResult =
   | { ok: true; scenario: RecentScenario }
@@ -145,6 +188,48 @@ function discardStoredScenario(storage: KeyValueStorage): LoadRecentScenarioResu
   return { status: "discarded" };
 }
 
+function unconfirmedIncrementalCashBudget(
+  legacyBudgetUsd: number,
+): IncrementalCashBudget {
+  return {
+    status: "legacy-api-only-unconfirmed",
+    legacyBudgetUsd,
+  };
+}
+
+function normalizePlanningSettingsInput(
+  settings: RecentScenarioSettingsInput,
+): unknown {
+  return {
+    ...settings,
+    incrementalCashBudget:
+      settings.incrementalCashBudget ??
+      unconfirmedIncrementalCashBudget(settings.budgetUsd),
+  };
+}
+
+/**
+ * Applies the user's explicit total-incremental-cash confirmation without
+ * reading or writing storage. Callers still choose when to persist the result.
+ */
+export function confirmIncrementalCashBudget(
+  settings: RecentScenarioSettingsInput,
+  incrementalCashBudgetUsd: number,
+  confirmedAt: string,
+): ConfirmIncrementalCashBudgetResult {
+  const parsed = planningSettingsSchema.safeParse({
+    ...settings,
+    incrementalCashBudget: {
+      status: "confirmed",
+      incrementalCashBudgetUsd,
+      confirmedAt,
+    },
+  });
+  return parsed.success
+    ? { ok: true, settings: parsed.data }
+    : { ok: false, reason: "invalid" };
+}
+
 function adaptV1ToV2(
   scenario: HistoricalRecentScenarioV1,
 ): HistoricalRecentScenarioV2 | null {
@@ -172,9 +257,11 @@ function adaptV2ToV3(
   return parsed.success ? parsed.data : null;
 }
 
-function adaptV3ToV4Candidate(scenario: HistoricalRecentScenarioV3): unknown {
-  return {
-    schemaVersion: RECENT_SCENARIO_VERSION,
+function adaptV3ToV4(
+  scenario: HistoricalRecentScenarioV3,
+): HistoricalRecentScenarioV4 | null {
+  const parsed = historicalRecentScenarioV4Schema.safeParse({
+    schemaVersion: 4,
     savedAt: scenario.savedAt,
     selectedProvider: scenario.selectedProvider,
     tasks: scenario.tasks.map((task) => ({
@@ -188,41 +275,65 @@ function adaptV3ToV4Candidate(scenario: HistoricalRecentScenarioV3): unknown {
       compatibility: "legacy-api-only" as const,
       response: scenario.response,
     },
+  });
+  return parsed.success ? parsed.data : null;
+}
+
+function adaptV4ToV5Candidate(
+  scenario: HistoricalRecentScenarioV4,
+): unknown {
+  return {
+    schemaVersion: RECENT_SCENARIO_VERSION,
+    savedAt: scenario.savedAt,
+    selectedProvider: scenario.selectedProvider,
+    tasks: scenario.tasks,
+    settings: {
+      ...scenario.settings,
+      incrementalCashBudget: unconfirmedIncrementalCashBudget(
+        scenario.settings.budgetUsd,
+      ),
+    },
+    analysisSnapshot: scenario.analysisSnapshot,
   };
 }
 
 export function migrateHistoricalScenarioToCurrent(
   source: HistoricalScenario,
 ): HistoricalMigrationResult {
-  let v3: HistoricalRecentScenarioV3 | null;
+  let v4: HistoricalRecentScenarioV4 | null;
 
   if (source.schemaVersion === 1) {
     const v2 = adaptV1ToV2(source);
     if (!v2) return { ok: false, reason: "adaptation-failed" };
-    v3 = adaptV2ToV3(v2);
+    const v3 = adaptV2ToV3(v2);
+    v4 = v3 === null ? null : adaptV3ToV4(v3);
   } else if (source.schemaVersion === 2) {
-    v3 = adaptV2ToV3(source);
+    const v3 = adaptV2ToV3(source);
+    v4 = v3 === null ? null : adaptV3ToV4(v3);
+  } else if (source.schemaVersion === 3) {
+    v4 = adaptV3ToV4(source);
   } else {
-    v3 = source;
+    v4 = source;
   }
 
-  if (!v3) return { ok: false, reason: "adaptation-failed" };
-  const parsed = recentScenarioSchema.safeParse(adaptV3ToV4Candidate(v3));
+  if (!v4) return { ok: false, reason: "adaptation-failed" };
+  const parsed = recentScenarioSchema.safeParse(adaptV4ToV5Candidate(v4));
   return parsed.success
     ? { ok: true, scenario: parsed.data }
     : { ok: false, reason: "target-validation-failed" };
 }
 
 function parseHistoricalScenario(
-  version: 1 | 2 | 3,
+  version: 1 | 2 | 3 | 4,
   value: unknown,
 ): HistoricalScenario | null {
-  const parsed =
-    version === 1
-      ? historicalRecentScenarioV1Schema.safeParse(value)
-      : version === 2
-        ? historicalRecentScenarioV2Schema.safeParse(value)
-        : historicalRecentScenarioV3Schema.safeParse(value);
+  const parsed = version === 1
+    ? historicalRecentScenarioV1Schema.safeParse(value)
+    : version === 2
+      ? historicalRecentScenarioV2Schema.safeParse(value)
+      : version === 3
+        ? historicalRecentScenarioV3Schema.safeParse(value)
+        : historicalRecentScenarioV4Schema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
@@ -268,7 +379,12 @@ export function loadRecentScenario(
       : discardStoredScenario(resolvedStorage);
   }
 
-  if (declaredVersion === 1 || declaredVersion === 2 || declaredVersion === 3) {
+  if (
+    declaredVersion === 1 ||
+    declaredVersion === 2 ||
+    declaredVersion === 3 ||
+    declaredVersion === 4
+  ) {
     const historicalScenario = parseHistoricalScenario(declaredVersion, parsedJson);
     if (!historicalScenario) return discardStoredScenario(resolvedStorage);
 
@@ -310,7 +426,7 @@ export function saveRecentScenario(
     savedAt,
     selectedProvider: input.selectedProvider,
     tasks: input.tasks,
-    settings: input.settings,
+    settings: normalizePlanningSettingsInput(input.settings),
     analysisSnapshot: input.analysisSnapshot,
   });
   if (!parsedScenario.success) return { ok: false, reason: "invalid" };

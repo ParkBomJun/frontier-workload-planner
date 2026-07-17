@@ -6,15 +6,18 @@ import { describe, expect, it } from "vitest";
 import recentScenarioV1 from "./fixtures/recent-scenario-v1.json";
 import recentScenarioV2 from "./fixtures/recent-scenario-v2.json";
 import recentScenarioV3 from "./fixtures/recent-scenario-v3.json";
+import recentScenarioV4 from "./fixtures/recent-scenario-v4.json";
 import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import {
   historicalRecentScenarioV1Schema,
   historicalRecentScenarioV2Schema,
   historicalRecentScenarioV3Schema,
+  historicalRecentScenarioV4Schema,
 } from "@/lib/storage/historical-schemas";
 import {
   clearRecentScenario,
+  confirmIncrementalCashBudget,
   loadRecentScenario,
   RECENT_SCENARIO_STORAGE_KEY,
   saveRecentScenario,
@@ -85,6 +88,13 @@ const scenarioInput = {
   settings,
   analysisSnapshot: bestFitSnapshot,
 };
+const unconfirmedSettings = {
+  ...settings,
+  incrementalCashBudget: {
+    status: "legacy-api-only-unconfirmed" as const,
+    legacyBudgetUsd: settings.budgetUsd,
+  },
+};
 
 const goldenFiles = [
   {
@@ -105,6 +115,12 @@ const goldenFiles = [
     schema: historicalRecentScenarioV3Schema,
     digest: "dff558e74569dc3df59274d1de956299f8e6b28e27a87fb79c9ec7be4bbcf949",
   },
+  {
+    filename: "recent-scenario-v4.json",
+    fixture: recentScenarioV4,
+    schema: historicalRecentScenarioV4Schema,
+    digest: "dca7eac8e619e9c75cf72048a1067fd63a298cd2640027e5e2c1f8a8f492ee46",
+  },
 ] as const;
 
 function rawFixture(filename: string): string {
@@ -117,9 +133,16 @@ describe("frozen historical scenario contracts", () => {
 
     expect(createHash("sha256").update(raw).digest("hex")).toBe(digest);
     expect(schema.safeParse(fixture).success).toBe(true);
-    expect(raw).not.toContain("best-fit-analysis-v2");
-    expect(raw).not.toContain("requiredQualityTier");
-    expect(raw).not.toContain("failureRisk");
+    if (fixture.schemaVersion < 4) {
+      expect(raw).not.toContain("best-fit-analysis-v2");
+      expect(raw).not.toContain("requiredQualityTier");
+      expect(raw).not.toContain("failureRisk");
+    } else {
+      expect(raw).toContain("best-fit-analysis-v2");
+      expect(raw).toContain("requiredQualityTier");
+      expect(raw).toContain("failureRisk");
+      expect(raw).not.toContain("incrementalCashBudget");
+    }
   });
 
   it("does not import mutable live task, analysis, response, enum, or limit schemas", () => {
@@ -135,7 +158,7 @@ describe("frozen historical scenario contracts", () => {
   });
 });
 
-describe("recent scenario storage v4", () => {
+describe("recent scenario storage v5", () => {
   it("round-trips one validated best-fit scenario", () => {
     const storage = new MemoryStorage();
     const saved = saveRecentScenario(scenarioInput, storage, savedAt);
@@ -145,14 +168,100 @@ describe("recent scenario storage v4", () => {
     expect(loaded).toMatchObject({
       status: "loaded",
       scenario: {
-        schemaVersion: 4,
+        schemaVersion: 5,
         savedAt,
         selectedProvider,
         tasks,
-        settings,
+        settings: unconfirmedSettings,
         analysisSnapshot: bestFitSnapshot,
       },
     });
+  });
+
+  it("defaults an omitted incremental-cash field to an unconfirmed legacy API-only draft", () => {
+    const storage = new MemoryStorage();
+
+    const saved = saveRecentScenario(scenarioInput, storage, savedAt);
+
+    expect(saved).toEqual({
+      ok: true,
+      scenario: expect.objectContaining({
+        settings: unconfirmedSettings,
+      }),
+    });
+    expect(
+      JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}").settings,
+    ).toEqual(unconfirmedSettings);
+  });
+
+  it("confirms total incremental cash only through the explicit pure helper", () => {
+    const confirmedAt = "2026-07-17T01:03:00.000Z";
+    const source = structuredClone(unconfirmedSettings);
+
+    const confirmed = confirmIncrementalCashBudget(source, 6.25, confirmedAt);
+
+    expect(confirmed).toEqual({
+      ok: true,
+      settings: {
+        ...settings,
+        incrementalCashBudget: {
+          status: "confirmed",
+          incrementalCashBudgetUsd: 6.25,
+          confirmedAt,
+        },
+      },
+    });
+    expect(source).toEqual(unconfirmedSettings);
+
+    if (!confirmed.ok) return;
+    const storage = new MemoryStorage();
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, settings: confirmed.settings },
+        storage,
+        savedAt,
+      ),
+    ).toMatchObject({
+      ok: true,
+      scenario: {
+        settings: {
+          budgetUsd: settings.budgetUsd,
+          incrementalCashBudget: {
+            status: "confirmed",
+            incrementalCashBudgetUsd: 6.25,
+            confirmedAt,
+          },
+        },
+      },
+    });
+  });
+
+  it("rejects invalid confirmation and mismatched unconfirmed legacy amounts", () => {
+    expect(
+      confirmIncrementalCashBudget(settings, 5, "2026-07-17"),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(
+      confirmIncrementalCashBudget(settings, 0, "2026-07-17T01:03:00.000Z"),
+    ).toEqual({ ok: false, reason: "invalid" });
+
+    const storage = new MemoryStorage();
+    expect(
+      saveRecentScenario(
+        {
+          ...scenarioInput,
+          settings: {
+            ...settings,
+            incrementalCashBudget: {
+              status: "legacy-api-only-unconfirmed",
+              legacyBudgetUsd: settings.budgetUsd + 1,
+            },
+          },
+        },
+        storage,
+        savedAt,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+    expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
   });
 
   it("overwrites only the single source-state record", () => {
@@ -209,7 +318,7 @@ describe("recent scenario storage v4", () => {
 
   it("preserves an unknown future version", () => {
     const storage = new MemoryStorage();
-    const future = JSON.stringify({ schemaVersion: 5, future: true });
+    const future = JSON.stringify({ schemaVersion: 6, future: true });
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, future);
 
     expect(loadRecentScenario(storage)).toEqual({ status: "unsupported" });
@@ -217,7 +326,7 @@ describe("recent scenario storage v4", () => {
   });
 
   it("discards invalid non-future versions", () => {
-    for (const schemaVersion of [0, -1, 3.5, "4"]) {
+    for (const schemaVersion of [0, -1, 4.5, "5"]) {
       const storage = new MemoryStorage();
       storage.setItem(
         RECENT_SCENARIO_STORAGE_KEY,
@@ -229,27 +338,45 @@ describe("recent scenario storage v4", () => {
     }
   });
 
-  it.each(goldenFiles)("migrates $filename sequentially to a legacy API-only v4 snapshot", ({ fixture }) => {
+  it.each(goldenFiles)("migrates $filename sequentially to an unconfirmed v5 snapshot", ({ fixture }) => {
     const storage = new MemoryStorage();
-    const originalResponse = structuredClone(fixture.response);
+    const originalSnapshot = "analysisSnapshot" in fixture
+      ? structuredClone(fixture.analysisSnapshot)
+      : {
+          contractVersion: "api-analysis-v1" as const,
+          compatibility: "legacy-api-only" as const,
+          response: structuredClone(fixture.response),
+        };
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(fixture));
 
     const loaded = loadRecentScenario(storage);
 
     expect(loaded.status).toBe("loaded");
     if (loaded.status !== "loaded") return;
-    expect(loaded.scenario.schemaVersion).toBe(4);
-    expect(loaded.scenario.analysisSnapshot).toEqual({
-      contractVersion: "api-analysis-v1",
-      compatibility: "legacy-api-only",
-      response: originalResponse,
+    expect(loaded.scenario.schemaVersion).toBe(5);
+    expect(loaded.scenario.analysisSnapshot).toEqual(originalSnapshot);
+    expect(loaded.scenario.settings.incrementalCashBudget).toEqual({
+      status: "legacy-api-only-unconfirmed",
+      legacyBudgetUsd: fixture.settings.budgetUsd,
     });
-    expect(loaded.scenario.tasks.every((task) => task.deadlineDate === null)).toBe(true);
-    expect(loaded.scenario.tasks.every((task) => task.failureImpact === "unspecified")).toBe(true);
-    expect(JSON.stringify(loaded.scenario.analysisSnapshot)).not.toContain("requiredQualityTier");
+    expect(loaded.scenario.settings.budgetUsd).toBe(fixture.settings.budgetUsd);
+    if (fixture.schemaVersion < 4) {
+      expect(loaded.scenario.tasks.every((task) => task.deadlineDate === null)).toBe(true);
+      expect(loaded.scenario.tasks.every((task) => task.failureImpact === "unspecified")).toBe(true);
+      expect(JSON.stringify(loaded.scenario.analysisSnapshot)).not.toContain("requiredQualityTier");
+    } else {
+      expect(loaded.scenario.tasks).toEqual(fixture.tasks);
+      expect(JSON.stringify(loaded.scenario.analysisSnapshot)).toContain("requiredQualityTier");
+    }
     expect(JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}")).toMatchObject({
-      schemaVersion: 4,
-      analysisSnapshot: { compatibility: "legacy-api-only" },
+      schemaVersion: 5,
+      settings: {
+        budgetUsd: fixture.settings.budgetUsd,
+        incrementalCashBudget: {
+          status: "legacy-api-only-unconfirmed",
+          legacyBudgetUsd: fixture.settings.budgetUsd,
+        },
+      },
     });
 
     if (fixture.schemaVersion === 1) {
@@ -257,16 +384,18 @@ describe("recent scenario storage v4", () => {
       expect(loaded.scenario.selectedProvider).toBe("openai");
     } else if (fixture.schemaVersion === 2) {
       expect(loaded.scenario.selectedProvider).toBe("openai");
-    } else {
+    } else if (fixture.schemaVersion === 3) {
       expect(loaded.scenario.selectedProvider).toBe("anthropic");
+    } else {
+      expect(loaded.scenario.selectedProvider).toBe("google");
     }
   });
 
   it.each(["adaptation-failed", "target-validation-failed"] as const)(
-    "preserves valid v3 bytes when migration reports %s",
+    "preserves valid v4 bytes when migration reports %s",
     (reason) => {
       const storage = new MemoryStorage();
-      const raw = rawFixture("recent-scenario-v3.json");
+      const raw = rawFixture("recent-scenario-v4.json");
       storage.setItem(RECENT_SCENARIO_STORAGE_KEY, raw);
 
       expect(
@@ -280,14 +409,14 @@ describe("recent scenario storage v4", () => {
 
   it("revalidates a successful adapter result before replacing legacy bytes", () => {
     const storage = new MemoryStorage();
-    const raw = rawFixture("recent-scenario-v3.json");
+    const raw = rawFixture("recent-scenario-v4.json");
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, raw);
 
     expect(
       loadRecentScenario(storage, {
         migrateHistoricalScenario: () => ({
           ok: true,
-          scenario: { schemaVersion: 4 } as never,
+          scenario: { schemaVersion: 5 } as never,
         }),
       }),
     ).toEqual({ status: "migration-required", reason: "target-validation-failed" });
@@ -295,7 +424,7 @@ describe("recent scenario storage v4", () => {
   });
 
   it("restores a validated migration in memory while preserving bytes when rewrite fails", () => {
-    const raw = rawFixture("recent-scenario-v3.json");
+    const raw = rawFixture("recent-scenario-v4.json");
     const storage = {
       getItem: () => raw,
       setItem: () => {
@@ -308,17 +437,26 @@ describe("recent scenario storage v4", () => {
 
     expect(loaded.status).toBe("loaded");
     if (loaded.status === "loaded") {
-      expect(loaded.scenario.analysisSnapshot.compatibility).toBe("legacy-api-only");
+      expect(loaded.scenario.analysisSnapshot.compatibility).toBe("best-fit");
+      expect(loaded.scenario.settings.incrementalCashBudget.status).toBe(
+        "legacy-api-only-unconfirmed",
+      );
     }
     expect(storage.getItem()).toBe(raw);
   });
 
   it.each(goldenFiles)("removes a malformed declared historical $filename record", ({ fixture }) => {
     const storage = new MemoryStorage();
-    const damaged = structuredClone(fixture) as typeof fixture & {
-      response: { analysis: { tasks: Array<{ taskId: string }> } };
+    const damaged = structuredClone(fixture) as {
+      response?: { analysis: { tasks: Array<{ taskId: string }> } };
+      analysisSnapshot?: {
+        response: { analysis: { tasks: Array<{ taskId: string }> } };
+      };
     };
-    damaged.response.analysis.tasks[0].taskId = "wrong-id";
+    const analyses = damaged.analysisSnapshot?.response.analysis.tasks ??
+      damaged.response?.analysis.tasks;
+    if (!analyses) throw new Error("Historical fixture must contain an analysis response.");
+    analyses[0].taskId = "wrong-id";
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(damaged));
 
     expect(loadRecentScenario(storage)).toEqual({ status: "discarded" });

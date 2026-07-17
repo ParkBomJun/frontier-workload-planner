@@ -240,34 +240,35 @@ cross-route comparator.
 
 ### Checkpoint 6 — deterministic Best-fit allocation
 
-- [ ] Evaluate compatible offerings above the minimum quality floor
-- [ ] Migrate `budgetUsd` through an atomic storage-version adapter without silently changing its API-only meaning
-- [ ] Require explicit user confirmation before an imported legacy budget becomes `incrementalCashBudgetUsd`
-- [ ] Calculate scenario cash as API + distinct active new-subscription fees + paid overage
-- [ ] Deduplicate shared fees, omit unused/fallback-only fees, and remove a fee after its last active assignment
-- [ ] Test two $6 API tasks versus one $10 shared subscription and the one-task $6 versus $10 boundary
-- [ ] Test fixed fees in Expected fit and High warning plus source-backed paid-overage boundaries
-- [ ] Compare complete plans for each add-one subscription activation before choosing a route set
-- [ ] Select routes with complete strategy comparators ending in the canonical provider/Offering/resource tuple
-- [ ] Implement exact tier/status/budget/route ranks and lexicographic `qualityKey` vector semantics
-- [ ] Apply the documented Cost Saver, Balanced, and Quality First secondary policies
-- [ ] Emit the Premium compatibility-fallback trigger when no compatible sub-Premium Offering remains
-- [ ] Preserve quota according to the documented priority/deadline/impact/risk task order
-- [ ] Test priority → deadline → impact → risk → stable-index reservation and inverse relief boundaries
-- [ ] Test all failure impact/risk triggers, unknown enum rejection, and free-form risk exclusion
-- [ ] Test route and full-plan comparator ties for every strategy and input/object enumeration order
-- [ ] Test directional `qualityKey`: exact target first, equal-distance above beats below, then smallest excess
-- [ ] Apply `qualityKey` in Cost Saver only after equal Expected variable cash
-- [ ] Test Cost Saver cash-first boundaries: `$0` owned Balanced beats `$1` Economy API, while equal cash prefers Economy
-- [ ] Prove untriggered Premium is excluded and triggered Premium participates in the cash comparator
-- [ ] Test Cost Saver full-plan cash before quality after the common budget-fit/status prefix
-- [ ] Test conditional candidate/reason/fallback ordering and exports are invariant to insertion order
-- [ ] Test cheaper API versus owned paid overage and route reassignment before any hold
-- [ ] Hold lower-priority work when compatible quota and incremental-cash budget are unavailable
-- [ ] Generate route rationale, premium non-selection, upgrade trigger, alternative, and hold reason by rule
-- [ ] Resolve the cheapest compatible Premium API per active task at the same `pricingAsOf`
-- [ ] Calculate selected incremental cash, avoided spend, and additional spend with integer micro-USD
-- [ ] Test missing baseline → null, held/infeasible exclusion, fallback cash, and fee/overage deduction once
+- [x] Evaluate resolver-confirmed offerings above the minimum quality floor without promoting conditional catalog knowledge
+- [x] Migrate `budgetUsd` through an atomic storage-version adapter without silently changing its API-only meaning
+- [x] Store an imported legacy budget as unconfirmed and expose an explicit pure confirmation operation; the confirmation UI remains checkpoint 7
+- [x] Calculate scenario cash as API + distinct active new-subscription fees + paid overage
+- [x] Deduplicate shared fees, omit unused/fallback-only fees, and remove a fee after its last active assignment
+- [x] Test two $6 API tasks versus one $10 shared subscription and the one-task $6 versus $10 boundary
+- [x] Test fixed fees in Expected fit and High warning plus source-backed paid-overage boundaries
+- [x] Compare complete plans for each add-one subscription activation before choosing a route set
+- [x] Select routes with complete strategy comparators ending in the canonical provider/Offering/resource tuple
+- [x] Implement exact tier/status/budget/route ranks and lexicographic `qualityKey` vector semantics
+- [x] Apply the documented Cost Saver, Balanced, and Quality First secondary policies
+- [x] Emit the Premium compatibility-fallback trigger when no compatible sub-Premium Offering remains
+- [x] Preserve quota according to the documented priority/deadline/impact/risk task order
+- [x] Test priority → deadline → impact → risk → stable-index reservation and inverse relief boundaries
+- [x] Test all failure impact/risk triggers, unknown enum rejection, and free-form risk exclusion
+- [x] Test route and full-plan comparator ties for every strategy and input/object enumeration order
+- [x] Test directional `qualityKey`: exact target first, equal-distance above beats below, then smallest excess
+- [x] Apply `qualityKey` in Cost Saver only after equal Expected variable cash
+- [x] Test Cost Saver cash-first boundaries: `$0` owned Balanced beats `$1` Economy API, while equal cash prefers Economy
+- [x] Prove untriggered Premium is excluded and triggered Premium participates in the cash comparator
+- [x] Test Cost Saver full-plan cash before quality after the common budget-fit/status prefix
+- [x] Keep full-plan Expected/High comparator keys exact when the public cash projection saturates
+- [x] Test conditional candidate/reason/fallback ordering is invariant to insertion order
+- [x] Test cheaper API versus owned paid overage and route reassignment before any hold
+- [x] Hold lower-priority work when compatible quota and incremental-cash budget are unavailable
+- [x] Generate route rationale, premium non-selection, upgrade trigger, alternative, and hold reason by rule
+- [x] Resolve the cheapest compatible Premium API per active task at the same `pricingAsOf`
+- [x] Calculate selected incremental cash, avoided spend, and additional spend with integer micro-USD
+- [x] Test missing baseline → null, held/infeasible exclusion, fallback cash, and fee/overage deduction once
 
 ### Checkpoint 7 — resource input and route-result UI
 
@@ -294,7 +295,7 @@ cross-route comparator.
 - [ ] Export structured route identities for tasks, fallbacks, activated resources, and Premium baselines
 - [ ] Export paid overage, `planningAsOf`, `pricingAsOf`, and signed cash difference
 - [ ] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
-- [ ] Test task/plan/Markdown/JSON route-key parity and ensure audit snapshots cannot escalate restored authority
+- [ ] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
 - [ ] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
 - [ ] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
 - [ ] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
