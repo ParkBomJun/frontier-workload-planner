@@ -77,7 +77,8 @@
 - [x] Publish the GitHub repository
 - [x] Configure Vercel environment variables and deploy
 - [x] Verify the public page, Mock `200`, disabled-Live `403`, and 390px production flow
-- [ ] Copy the local draft into Devpost and add the GitHub and deployment URLs
+- [x] Add the GitHub and deployment URLs to the local Devpost draft
+- [ ] Copy the local draft into the Devpost project
 
 ## Explicitly deferred
 
