@@ -730,6 +730,8 @@ or override changes without another GPT request. Preserve the global deadline as
 metadata rather than substituting it for the explicit task-level deadline.
 Changing only that global reference deadline does not advance `planningAsOf` or `pricingAsOf`, so
 it cannot refresh quota/reset evidence or activate a different dated price.
+Keep the last valid budget/strategy snapshot while the form is invalid; when validity returns, any
+intervening relevant change advances the calculation clock exactly once.
 
 ### Bound catalog edits and keep expanded source state out of v5
 

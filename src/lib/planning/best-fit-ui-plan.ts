@@ -88,8 +88,18 @@ interface ResolvedDraftForPlanning {
   >;
 }
 
+export type BestFitRelevantSettings = Pick<
+  PlanningSettings,
+  "budgetUsd" | "strategy"
+>;
+
+export interface BestFitRelevantSettingsTransition {
+  changed: boolean;
+  lastValid: BestFitRelevantSettings;
+}
+
 export function hasBestFitRelevantSettingsChange(
-  previous: Pick<PlanningSettings, "budgetUsd" | "strategy"> | null,
+  previous: BestFitRelevantSettings | null,
   next: PlanningSettings,
 ): boolean {
   return (
@@ -97,6 +107,20 @@ export function hasBestFitRelevantSettingsChange(
     previous.budgetUsd !== next.budgetUsd ||
     previous.strategy !== next.strategy
   );
+}
+
+export function reconcileBestFitRelevantSettings(
+  lastValid: BestFitRelevantSettings,
+  next: PlanningSettings | null,
+): BestFitRelevantSettingsTransition {
+  if (next === null) return { changed: false, lastValid };
+  return {
+    changed: hasBestFitRelevantSettingsChange(lastValid, next),
+    lastValid: {
+      budgetUsd: next.budgetUsd,
+      strategy: next.strategy,
+    },
+  };
 }
 
 function resourceRouteIdentity(

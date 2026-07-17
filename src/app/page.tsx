@@ -18,7 +18,8 @@ import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
   buildBestFitUiPlan,
-  hasBestFitRelevantSettingsChange,
+  reconcileBestFitRelevantSettings,
+  type BestFitRelevantSettings,
   type BestFitUiPlan,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
@@ -275,6 +276,10 @@ export default function Home() {
   const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
   const nextTaskNumber = useRef(2);
   const nextResourceNumber = useRef(1);
+  const lastValidBestFitSettings = useRef<BestFitRelevantSettings>({
+    budgetUsd: Number(INITIAL_SETTINGS.budgetUsd),
+    strategy: INITIAL_SETTINGS.strategy,
+  });
 
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
     setAllocationNotice(null);
@@ -283,6 +288,10 @@ export default function Home() {
     if (result.status === "loaded") {
       const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
       const restoredSnapshot = result.scenario.analysisSnapshot;
+      lastValidBestFitSettings.current = {
+        budgetUsd: result.scenario.settings.budgetUsd,
+        strategy: result.scenario.settings.strategy,
+      };
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
       setIncrementalCashBudget(result.scenario.settings.incrementalCashBudget);
@@ -601,26 +610,22 @@ export default function Home() {
   }
 
   function updateSettings(value: PlanningFormState) {
-    const previousBestFitSettings = {
-      budgetUsd: Number(settings.budgetUsd),
-      strategy: settings.strategy,
-    };
     setSettings(value);
     setVisibleError(null);
     setShowValidation(false);
     const nextPlanningSettings = parsePlanningSettings(value);
+    const relevantTransition = reconcileBestFitRelevantSettings(
+      lastValidBestFitSettings.current,
+      nextPlanningSettings,
+    );
+    lastValidBestFitSettings.current = relevantTransition.lastValid;
     const nextIncrementalCashBudget = reconcileIncrementalCashBudget(
       Number(value.budgetUsd),
       incrementalCashBudget,
     );
     setIncrementalCashBudget(nextIncrementalCashBudget);
     if (completed && nextPlanningSettings) {
-      if (
-        hasBestFitRelevantSettingsChange(
-          previousBestFitSettings,
-          nextPlanningSettings,
-        )
-      ) {
+      if (relevantTransition.changed) {
         markPlanningRevision();
         setAllocationNotice({
           kind: "settings",

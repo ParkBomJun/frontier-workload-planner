@@ -5,6 +5,7 @@ import { catalogOverrideTargetFor } from "@/lib/offerings/catalog-overrides";
 import {
   buildBestFitUiPlan,
   hasBestFitRelevantSettingsChange,
+  reconcileBestFitRelevantSettings,
   type BuildBestFitUiPlanInput,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
@@ -69,6 +70,33 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         { budgetUsd: previous.budgetUsd, strategy: previous.strategy },
         { ...previous, deadlineDays: 1 },
       ),
+    ).toBe(false);
+  });
+
+  it("remembers the last valid strategy across an invalid reference deadline", () => {
+    const lastValid = { budgetUsd: 5, strategy: "balanced" as const };
+    const invalidDeadline = reconcileBestFitRelevantSettings(lastValid, null);
+
+    expect(invalidDeadline).toEqual({ changed: false, lastValid });
+
+    const validAgain = reconcileBestFitRelevantSettings(
+      invalidDeadline.lastValid,
+      {
+        budgetUsd: 5,
+        deadlineDays: 30,
+        strategy: "quality-first",
+      },
+    );
+    expect(validAgain).toEqual({
+      changed: true,
+      lastValid: { budgetUsd: 5, strategy: "quality-first" },
+    });
+    expect(
+      reconcileBestFitRelevantSettings(validAgain.lastValid, {
+        budgetUsd: 5,
+        deadlineDays: 7,
+        strategy: "quality-first",
+      }).changed,
     ).toBe(false);
   });
 

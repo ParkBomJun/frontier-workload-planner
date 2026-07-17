@@ -1406,6 +1406,9 @@ Task descriptions still require a new Mock or Live analysis. A restored legacy a
 the compatibility view until the user explicitly reanalyzes it.
 The legacy global `deadlineDays` remains compatibility metadata: changing it alone recalculates the
 legacy view and persists the setting but does not advance Best-fit `planningAsOf` or `pricingAsOf`.
+The UI retains the last valid `{ budgetUsd, strategy }` snapshot across invalid form states. On
+return to a valid state it compares against that snapshot, ensuring a strategy or budget change
+made while `deadlineDays` was invalid still advances the Best-fit clock.
 
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with
