@@ -519,6 +519,7 @@ export interface NumericDerivedQuotaLedger {
   sourceAvailableMicrounits: number;
   remainingMicrounits: number;
   overageUnitsUsed: number;
+  overageMicrounitsUsed: number;
   overageCostMicroUsd: number;
   reservations: readonly SubscriptionQuotaReservation[];
 }

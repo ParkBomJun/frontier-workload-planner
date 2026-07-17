@@ -1,7 +1,7 @@
 import { iterationsForCostScenario } from "@/lib/calculation/scenario-iterations";
 import {
   toSourceSubscriptionMicrounits,
-  toDerivedSubscriptionMicrounits,
+  fromSubscriptionQuotaMicrounits,
 } from "@/lib/subscriptions/fixed-decimal";
 import {
   canonicalizeSubscriptionConsumptionClaimValue,
@@ -26,7 +26,6 @@ import {
   type SubscriptionQuotaUnit,
 } from "@/types/subscriptions";
 
-const COST_SCENARIOS = ["low", "expected", "high"] as const satisfies readonly CostScenario[];
 const MAX_ANALYSIS_ITERATIONS = 5;
 const issuedDemandResults = new WeakSet<object>();
 const demandMetadata = new WeakMap<
@@ -36,8 +35,16 @@ const demandMetadata = new WeakMap<
     analysisDemandKey: string;
     providerId: string | null;
     subjectId: string | null;
+    microunits: QuotaDemandMicrounitRange | null;
   }
 >();
+
+export interface QuotaDemandMicrounitRange {
+  unit: SubscriptionQuotaUnit;
+  low: number;
+  expected: number;
+  high: number;
+}
 
 export interface CalculateQuotaDemandRangeInput {
   unit: SubscriptionQuotaUnit;
@@ -62,6 +69,14 @@ export type QuotaDemandRangeCalculation =
         | "analysis-iteration-count-invalid"
       >;
     };
+
+type ExactQuotaDemandRangeCalculation =
+  | {
+      ok: true;
+      demand: QuotaDemandRange;
+      microunits: QuotaDemandMicrounitRange;
+    }
+  | Exclude<QuotaDemandRangeCalculation, { ok: true }>;
 
 function isQuotaUnit(value: unknown): value is SubscriptionQuotaUnit {
   return (
@@ -89,9 +104,9 @@ function allFinite(values: readonly number[]): boolean {
   return values.every(Number.isFinite);
 }
 
-export function calculateQuotaDemandRange(
+function calculateExactQuotaDemandRange(
   input: CalculateQuotaDemandRangeInput,
-): QuotaDemandRangeCalculation {
+): ExactQuotaDemandRangeCalculation {
   if (!isQuotaUnit(input.unit) || !isConsumptionBasis(input.basis)) {
     return { ok: false, reasonCode: "consumption-unit-mismatch" };
   }
@@ -110,7 +125,12 @@ export function calculateQuotaDemandRange(
   ) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
   }
-  if (values.some((value) => toSourceSubscriptionMicrounits(value) === null)) {
+  const sourceMicrounits = {
+    low: toSourceSubscriptionMicrounits(input.perBasis.low),
+    expected: toSourceSubscriptionMicrounits(input.perBasis.expected),
+    high: toSourceSubscriptionMicrounits(input.perBasis.high),
+  };
+  if (Object.values(sourceMicrounits).some((value) => value === null)) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
   }
 
@@ -118,23 +138,46 @@ export function calculateQuotaDemandRange(
     input.basis === "task"
       ? 1
       : iterationsForCostScenario(input.expectedIterations, scenario);
-  const demand = {
-    unit: input.unit,
-    low: input.perBasis.low * multiplier("low"),
-    expected: input.perBasis.expected * multiplier("expected"),
-    high: input.perBasis.high * multiplier("high"),
+  const multipliedMicrounits = (scenario: CostScenario): number | null => {
+    const source = sourceMicrounits[scenario];
+    if (source === null) return null;
+    const product = BigInt(source) * BigInt(multiplier(scenario));
+    return product <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(product) : null;
   };
-  if (!allFinite(COST_SCENARIOS.map((scenario) => demand[scenario]))) {
-    return { ok: false, reasonCode: "consumption-value-non-finite" };
-  }
+  const lowMicrounits = multipliedMicrounits("low");
+  const expectedMicrounits = multipliedMicrounits("expected");
+  const highMicrounits = multipliedMicrounits("high");
   if (
-    COST_SCENARIOS.some(
-      (scenario) => toDerivedSubscriptionMicrounits(demand[scenario]) === null,
-    )
+    lowMicrounits === null ||
+    expectedMicrounits === null ||
+    highMicrounits === null
   ) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
   }
-  return { ok: true, demand };
+  return {
+    ok: true,
+    demand: {
+      unit: input.unit,
+      low: fromSubscriptionQuotaMicrounits(lowMicrounits),
+      expected: fromSubscriptionQuotaMicrounits(expectedMicrounits),
+      high: fromSubscriptionQuotaMicrounits(highMicrounits),
+    },
+    microunits: {
+      unit: input.unit,
+      low: lowMicrounits,
+      expected: expectedMicrounits,
+      high: highMicrounits,
+    },
+  };
+}
+
+export function calculateQuotaDemandRange(
+  input: CalculateQuotaDemandRangeInput,
+): QuotaDemandRangeCalculation {
+  const calculation = calculateExactQuotaDemandRange(input);
+  return calculation.ok
+    ? { ok: true, demand: calculation.demand }
+    : calculation;
 }
 
 function deepFreeze<T>(value: T): T {
@@ -146,6 +189,7 @@ function deepFreeze<T>(value: T): T {
 function issueDemandResult(
   result: QuotaDemandResult,
   input: QuotaDemandInput,
+  microunits: QuotaDemandMicrounitRange | null = null,
 ): QuotaDemandResult {
   const frozen = deepFreeze(result);
   issuedDemandResults.add(frozen);
@@ -154,8 +198,22 @@ function issueDemandResult(
     analysisDemandKey: `${input.analysis.taskId}\u0000${input.analysis.expectedIterations}`,
     providerId: input.evidenceSubject?.providerId ?? null,
     subjectId: input.evidenceSubject?.subjectId ?? null,
+    microunits:
+      microunits === null ? null : deepFreeze({ ...microunits }),
   });
   return frozen;
+}
+
+export function issuedQuotaDemandMicrounitsFor(
+  value: unknown,
+  quota: SubscriptionQuota,
+  analysis: QuotaDemandInput["analysis"],
+  evidenceSubject: QuotaDemandInput["evidenceSubject"],
+): Readonly<QuotaDemandMicrounitRange> | null {
+  if (!isIssuedQuotaDemandResultFor(value, quota, analysis, evidenceSubject)) {
+    return null;
+  }
+  return demandMetadata.get(value)?.microunits ?? null;
 }
 
 export function isIssuedQuotaDemandResultFor(
@@ -311,7 +369,7 @@ export function estimateQuotaDemand(input: QuotaDemandInput): QuotaDemandResult 
     return unknown(input, "consumption-range-invalid", quota.unit);
   }
 
-  const calculated = calculateQuotaDemandRange({
+  const calculated = calculateExactQuotaDemandRange({
     unit: quota.unit,
     basis: rule.basis,
     perBasis,
@@ -332,6 +390,7 @@ export function estimateQuotaDemand(input: QuotaDemandInput): QuotaDemandResult 
         evidence: { ...rule.evidence },
       },
       input,
+      calculated.microunits,
     );
   }
 
@@ -369,5 +428,6 @@ export function estimateQuotaDemand(input: QuotaDemandInput): QuotaDemandResult 
       evidence: rule.evidence,
     },
     input,
+    calculated.microunits,
   );
 }

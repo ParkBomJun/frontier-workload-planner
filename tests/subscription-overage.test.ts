@@ -222,6 +222,20 @@ describe("paid overage resolution", () => {
       status: "unavailable",
       reasonCode: "overage-cap-exceeded",
     });
+    expect(
+      resolvePaidOverage({
+        ...baseInput(),
+        policy: paidPolicy({ maxOverageUnits: 9_007_199_253.999998 }),
+        deficitUnits: 9_007_199_253.999998,
+        exactMicrounits: {
+          deficit: 9_007_199_253_999_999,
+          alreadyUsed: 0,
+        },
+      }),
+    ).toMatchObject({
+      status: "unavailable",
+      reasonCode: "overage-cap-exceeded",
+    });
   });
 
   it("rejects unit mismatches and malformed dates, ranges, rates, or deficits", () => {

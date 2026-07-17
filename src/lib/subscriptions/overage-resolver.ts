@@ -20,6 +20,7 @@ import {
   type SubscriptionQuotaUnit,
 } from "@/types/subscriptions";
 import {
+  fromSubscriptionQuotaMicrounits,
   toDerivedSubscriptionMicrounits,
   toSourceSubscriptionMicrounits,
 } from "./fixed-decimal";
@@ -110,6 +111,52 @@ export interface ResolvePaidOverageInput {
   planningAsOf: string;
   deficitUnits: number;
   overageUnitsAlreadyUsed: number;
+  exactMicrounits?: {
+    deficit: number;
+    alreadyUsed: number;
+  };
+}
+
+function exactOverageCostMicroUsd(
+  deficitMicrounits: number,
+  usdPerUnit: number,
+): number | null {
+  if (!Number.isSafeInteger(deficitMicrounits) || deficitMicrounits < 0) {
+    return null;
+  }
+  const rate = decimalParts(usdPerUnit);
+  if (!rate || rate.coefficient <= BigInt(0)) return null;
+  const denominator = BigInt(10) ** BigInt(rate.scale);
+  const numerator = BigInt(deficitMicrounits) * rate.coefficient;
+  const rounded = (numerator + denominator / BigInt(2)) / denominator;
+  return rounded <= MAX_SAFE_INTEGER ? Number(rounded) : null;
+}
+
+function normalizedExactMicrounits(
+  input: ResolvePaidOverageInput,
+): { deficit: number; alreadyUsed: number } | null {
+  if (input.exactMicrounits === undefined) {
+    const deficit = toDerivedSubscriptionMicrounits(input.deficitUnits);
+    const alreadyUsed = toDerivedSubscriptionMicrounits(
+      input.overageUnitsAlreadyUsed,
+    );
+    return deficit === null || alreadyUsed === null
+      ? null
+      : { deficit, alreadyUsed };
+  }
+  const { deficit, alreadyUsed } = input.exactMicrounits;
+  if (
+    !Number.isSafeInteger(deficit) ||
+    deficit < 0 ||
+    !Number.isSafeInteger(alreadyUsed) ||
+    alreadyUsed < 0 ||
+    fromSubscriptionQuotaMicrounits(deficit) !== input.deficitUnits ||
+    fromSubscriptionQuotaMicrounits(alreadyUsed) !==
+      input.overageUnitsAlreadyUsed
+  ) {
+    return null;
+  }
+  return { deficit, alreadyUsed };
 }
 
 function decimalParts(value: number): DecimalParts | null {
@@ -243,13 +290,13 @@ function policyAppliesToRoute(
 export function resolvePaidOverage(
   input: ResolvePaidOverageInput,
 ): OverageResolution {
+  const exactMicrounits = normalizedExactMicrounits(input);
   if (
     !validRouteIdentity(input.routeIdentity) ||
     !validQuotaIdentity(input.quotaKind, input.quotaUnit) ||
     !Number.isFinite(input.deficitUnits) ||
     input.deficitUnits < 0 ||
-    toDerivedSubscriptionMicrounits(input.deficitUnits) === null ||
-    toDerivedSubscriptionMicrounits(input.overageUnitsAlreadyUsed) === null ||
+    exactMicrounits === null ||
     !z.iso.datetime().safeParse(input.planningAsOf).success
   ) {
     return {
@@ -348,10 +395,8 @@ export function resolvePaidOverage(
       reasonCode: "overage-unit-mismatch",
     };
   }
-  const deficitMicrounits = toDerivedSubscriptionMicrounits(input.deficitUnits);
-  const usedMicrounits = toDerivedSubscriptionMicrounits(
-    input.overageUnitsAlreadyUsed,
-  );
+  const deficitMicrounits = exactMicrounits.deficit;
+  const usedMicrounits = exactMicrounits.alreadyUsed;
   const capMicrounits =
     policy.maxOverageUnits === undefined
       ? null
@@ -370,7 +415,7 @@ export function resolvePaidOverage(
   }
   if (
     capMicrounits !== null &&
-    usedMicrounits + deficitMicrounits > capMicrounits
+    BigInt(usedMicrounits) + BigInt(deficitMicrounits) > BigInt(capMicrounits)
   ) {
     return {
       status: "unavailable",
@@ -379,8 +424,8 @@ export function resolvePaidOverage(
       reasonCode: "overage-cap-exceeded",
     };
   }
-  const costMicroUsd = calculateOverageCostMicroUsd(
-    input.deficitUnits,
+  const costMicroUsd = exactOverageCostMicroUsd(
+    deficitMicrounits,
     policy.usdPerUnit,
   );
   if (costMicroUsd === null) {

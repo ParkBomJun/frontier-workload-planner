@@ -41,10 +41,17 @@ export function toSourceSubscriptionMicrounits(value: number): number | null {
 /** Converts derived arithmetic while tolerating normal IEEE-754 residue. */
 export function toDerivedSubscriptionMicrounits(value: number): number | null {
   if (!Number.isFinite(value) || value < 0) return null;
+  const exact = toSourceSubscriptionMicrounits(value);
+  if (exact !== null) return exact;
   const scaled = Math.round(value * SUBSCRIPTION_QUOTA_SCALE);
+  const reconstructed = scaled / SUBSCRIPTION_QUOTA_SCALE;
+  const tolerance =
+    Number.EPSILON *
+    Math.max(1, Math.abs(value), Math.abs(reconstructed)) *
+    4;
   if (
     !Number.isSafeInteger(scaled) ||
-    Math.abs(value - scaled / SUBSCRIPTION_QUOTA_SCALE) > 1e-12
+    Math.abs(value - reconstructed) > tolerance
   ) {
     return null;
   }

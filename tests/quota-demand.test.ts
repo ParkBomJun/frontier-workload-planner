@@ -9,6 +9,7 @@ import {
   calculateQuotaDemandRange,
   estimateQuotaDemand,
   isIssuedQuotaDemandResultFor,
+  issuedQuotaDemandMicrounitsFor,
 } from "@/lib/subscriptions/quota-demand";
 import {
   toDerivedSubscriptionMicrounits,
@@ -103,10 +104,103 @@ describe("calculateQuotaDemandRange", () => {
       ok: true,
       demand: {
         unit: "credit",
-        low: 0.1 * 2,
-        expected: 0.1 * 3,
-        high: 0.1 * 4,
+        low: 0.2,
+        expected: 0.3,
+        high: 0.4,
       },
+    });
+  });
+
+  it("multiplies six-decimal source demand as safe integer microunits", () => {
+    for (const [source, expectedDemand] of [
+      [
+        4096.000001,
+        { low: 8192.000002, expected: 12288.000003, high: 16384.000004 },
+      ],
+      [
+        6111.129759,
+        { low: 12222.259518, expected: 18333.389277, high: 24444.519036 },
+      ],
+    ] as const) {
+      const result = calculateQuotaDemandRange({
+        unit: "credit",
+        basis: "analysis-iteration",
+        perBasis: { low: source, expected: source, high: source },
+        expectedIterations: 3,
+      });
+      expect(result).toEqual({
+        ok: true,
+        demand: { unit: "credit", ...expectedDemand },
+      });
+      if (!result.ok) throw new Error("Expected an exact quota demand range.");
+      expect(toDerivedSubscriptionMicrounits(result.demand.expected)).toBe(
+        toSourceSubscriptionMicrounits(source)! * 3,
+      );
+    }
+  });
+
+  it("preserves near-safe source parity and rejects integer multiplication overflow", () => {
+    const source = 9_007_199_253.74097;
+    const sourceMicrounits = 9_007_199_253_740_970;
+    expect(toSourceSubscriptionMicrounits(source)).toBe(sourceMicrounits);
+    expect(toDerivedSubscriptionMicrounits(source)).toBe(sourceMicrounits);
+    expect(
+      calculateQuotaDemandRange({
+        unit: "credit",
+        basis: "task",
+        perBasis: { low: source, expected: source, high: source },
+        expectedIterations: 3,
+      }),
+    ).toEqual({
+      ok: true,
+      demand: { unit: "credit", low: source, expected: source, high: source },
+    });
+    expect(
+      calculateQuotaDemandRange({
+        unit: "credit",
+        basis: "analysis-iteration",
+        perBasis: { low: source, expected: source, high: source },
+        expectedIterations: 2,
+      }),
+    ).toEqual({ ok: false, reasonCode: "consumption-range-invalid" });
+  });
+
+  it("keeps exact issued microunits when display numbers cannot round-trip", () => {
+    const targetAnalysis = { ...analysis, expectedIterations: 2 };
+    const base = observedMeteredQuota();
+    if (base.consumptionRule.kind !== "observed-range-per-basis") {
+      throw new Error("Fixture requires an observed consumption rule.");
+    }
+    const quota = observedMeteredQuota({
+      included: { value: 9_007_199_254, evidence: observedEvidence },
+      remaining: { value: 9_007_199_254, evidence: remainingEvidence },
+      consumptionRule: {
+        ...base.consumptionRule,
+        basis: "analysis-iteration",
+        low: 3_002_399_751.333333,
+        expected: 3_002_399_751.333333,
+        high: 3_002_399_751.333333,
+      },
+    });
+    const demand = estimateQuotaDemand({
+      quota,
+      analysis: targetAnalysis,
+      evidenceSubject,
+    });
+
+    expect(demand.status).toBe("known");
+    expect(
+      issuedQuotaDemandMicrounitsFor(
+        demand,
+        quota,
+        targetAnalysis,
+        evidenceSubject,
+      ),
+    ).toEqual({
+      unit: "credit",
+      low: 3_002_399_751_333_333,
+      expected: 6_004_799_502_666_666,
+      high: 9_007_199_253_999_999,
     });
   });
 

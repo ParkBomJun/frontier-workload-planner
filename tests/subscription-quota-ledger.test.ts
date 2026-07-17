@@ -45,10 +45,12 @@ const observed = (note: string) => ({
 function sourceResource(
   resourceId: string,
   options: {
+    included?: number;
     remaining?: number;
     availability?: "available" | "unavailable" | "uncertain";
     quotaKind?: "metered" | "opaque";
     demand?: { low: number; expected: number; high: number };
+    demandBasis?: "task" | "analysis-iteration";
     resetAt?: string;
   } = {},
 ) {
@@ -57,7 +59,10 @@ function sourceResource(
     : ({
         kind: "metered" as const,
         unit: "credit" as const,
-        included: { value: 100, evidence: observed("Included credits") },
+        included: {
+          value: options.included ?? 100,
+          evidence: observed("Included credits"),
+        },
         remaining: {
           value: options.remaining ?? 10,
           evidence: observed("Remaining credits"),
@@ -65,7 +70,7 @@ function sourceResource(
         consumptionRule: {
           kind: "observed-range-per-basis" as const,
           unit: "credit" as const,
-          basis: "task" as const,
+          basis: options.demandBasis ?? "task",
           low: options.demand?.low ?? 1,
           expected: options.demand?.expected ?? 2,
           high: options.demand?.high ?? 3,
@@ -324,6 +329,116 @@ describe("derived subscription quota ledger", () => {
       remainingMicrounits: 0,
       sourceAvailableUnits: 0.3,
       sourceAvailableMicrounits: 300_000,
+    });
+  });
+
+  it("reserves issued demand microunits without a lossy number round trip", () => {
+    const exactBoundaryResource = resolveResource(
+      "resource.github.near-safe-exact-0001",
+      {
+        included: 9_007_199_254,
+        remaining: 9_007_199_253.74097,
+        demand: {
+          low: 9_007_199_253.74097,
+          expected: 9_007_199_253.74097,
+          high: 9_007_199_253.74097,
+        },
+      },
+    );
+    const exactBoundaryLedger = createDerivedSubscriptionQuotaLedger(
+      exactBoundaryResource,
+      route(exactBoundaryResource),
+      PLANNING_AS_OF,
+    );
+    expect(
+      reserveSubscriptionQuota({
+        resource: exactBoundaryResource,
+        ledger: exactBoundaryLedger,
+        taskId: analysis.taskId,
+        analysis,
+        demand: observedDemand(exactBoundaryResource),
+        planningAsOf: PLANNING_AS_OF,
+      }),
+    ).toMatchObject({
+      status: "conditional",
+      reservation: { reservationBasis: "high-conditional" },
+      ledger: {
+        sourceAvailableMicrounits: 9_007_199_253_740_970,
+        remainingMicrounits: 0,
+      },
+    });
+
+    const resource = resolveResource("resource.github.near-safe-0001", {
+      included: 9_007_199_254,
+      remaining: 9_007_199_254,
+      demand: {
+        low: 3_002_399_751.333333,
+        expected: 3_002_399_751.333333,
+        high: 3_002_399_751.333333,
+      },
+      demandBasis: "analysis-iteration",
+    });
+    const ledger = createDerivedSubscriptionQuotaLedger(
+      resource,
+      route(resource),
+      PLANNING_AS_OF,
+    );
+    const result = reserveSubscriptionQuota({
+      resource,
+      ledger,
+      taskId: analysis.taskId,
+      analysis,
+      demand: observedDemand(resource),
+      planningAsOf: PLANNING_AS_OF,
+    });
+
+    expect(result).toMatchObject({
+      status: "conditional",
+      reservation: { reservationBasis: "high-conditional" },
+      ledger: {
+        sourceAvailableMicrounits: 9_007_199_254_000_000,
+        remainingMicrounits: 1,
+      },
+    });
+
+    const insufficientResource = resolveResource(
+      "resource.github.near-safe-insufficient-0001",
+      {
+        included: 9_007_199_254,
+        remaining: 9_007_199_253.846395,
+        demand: {
+          low: 1_501_199_875.641066,
+          expected: 1_501_199_875.641066,
+          high: 1_501_199_875.641066,
+        },
+        demandBasis: "analysis-iteration",
+      },
+    );
+    const insufficientLedger = createDerivedSubscriptionQuotaLedger(
+      insufficientResource,
+      route(insufficientResource),
+      PLANNING_AS_OF,
+    );
+    const highIterationAnalysis = workload(analysis.taskId, 5);
+    expect(
+      reserveSubscriptionQuota({
+        resource: insufficientResource,
+        ledger: insufficientLedger,
+        taskId: highIterationAnalysis.taskId,
+        analysis: highIterationAnalysis,
+        demand: observedDemand(insufficientResource, highIterationAnalysis),
+        planningAsOf: PLANNING_AS_OF,
+      }),
+    ).toMatchObject({
+      status: "conditional",
+      reservation: null,
+      ledger: {
+        remainingMicrounits: 9_007_199_253_846_395,
+      },
+      reasonCodes: [
+        "consumption-user-observed",
+        "quota-insufficient-observed",
+      ],
     });
   });
 

@@ -636,7 +636,9 @@ Parse source quota and candidate fee decimals exactly with no tolerance; reserve
 residue handling only for derived arithmetic such as `0.1 × 3`. This makes exact fractional
 boundaries deterministic and prevents a positive source amount from becoming zero. Demand results
 are bound to the exact quota object, resource subject, task ID, and demand-driving iteration count.
-Derived reservations never
+Scenario multipliers operate on integer source microunits, and issued demand metadata carries the
+exact range into reservation. Unit-valued numbers are display projections and are not converted
+back into authoritative demand or overage amounts. Derived reservations never
 mutate source remaining quota, never infer numbers for opaque quota, and require re-resolution if
 `planningAsOf` changes. Reset metadata can downgrade a stale snapshot but never refill it.
 

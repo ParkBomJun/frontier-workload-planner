@@ -1284,8 +1284,10 @@ capacity, and deliberately opaque state. Numeric quota uses at most six decimal 
 integer microunits, so repeated fractional reservation does not depend on binary floating-point
 rounding. Source quota and candidate plan-period fee decimals are converted exactly without
 tolerance; only derived arithmetic may absorb ordinary IEEE-754 residue before becoming
-microunits. Low / Expected / High
-demand shares the workload iteration multipliers. Observed,
+microunits. Low / Expected / High demand converts each source value first, multiplies integer
+microunits by the scenario iteration count, and keeps those issued microunits authoritative through
+quota reservation and paid-overage cap checks. Unit-valued numbers are display projections only.
+Observed,
 calibrated, opaque, incomplete, or unverified knowledge stays conditional. An insufficient observed
 account does not hide a later usable account, and duplicate or mismatched route candidates are
 rejected before deterministic canonical selection.

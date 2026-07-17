@@ -17,10 +17,12 @@ import type {
 import { z } from "zod";
 
 import { resolvePaidOverage } from "./overage-resolver";
-import { isIssuedQuotaDemandResultFor } from "./quota-demand";
+import {
+  isIssuedQuotaDemandResultFor,
+  issuedQuotaDemandMicrounitsFor,
+} from "./quota-demand";
 import {
   fromSubscriptionQuotaMicrounits,
-  toDerivedSubscriptionMicrounits,
   toSourceSubscriptionMicrounits,
 } from "./fixed-decimal";
 import {
@@ -160,6 +162,7 @@ export function createDerivedSubscriptionQuotaLedger(
     sourceAvailableMicrounits: availableMicrounits,
     remainingMicrounits: availableMicrounits,
     overageUnitsUsed: 0,
+    overageMicrounitsUsed: 0,
     overageCostMicroUsd: 0,
     reservations: [],
   }, resource);
@@ -235,6 +238,18 @@ export function reserveSubscriptionQuota(
       ]),
     };
   }
+  const demandMicrounits = issuedQuotaDemandMicrounitsFor(
+    demand,
+    resource.quota,
+    analysis,
+    {
+      providerId: resource.offeringRef.providerId,
+      subjectId: resource.id,
+    },
+  );
+  if (demandMicrounits === null || demandMicrounits.unit !== ledger.unit) {
+    return { status: "unavailable", ledger, reasonCode: "demand-unknown" };
+  }
   if (demand.demand.unit !== ledger.unit) {
     return { status: "unavailable", ledger, reasonCode: "quota-unit-mismatch" };
   }
@@ -244,7 +259,7 @@ export function reserveSubscriptionQuota(
     resource.quota.kind === "calibrated" ||
     resource.availability.status === "uncertain";
   if (conditional) {
-    const reservedMicrounits = toDerivedSubscriptionMicrounits(demand.demand.high);
+    const reservedMicrounits = demandMicrounits.high;
     if (reservedMicrounits === null || reservedMicrounits <= 0) {
       return { status: "unavailable", ledger, reasonCode: "demand-unknown" };
     }
@@ -290,9 +305,7 @@ export function reserveSubscriptionQuota(
     };
   }
 
-  const reservedMicrounits = toDerivedSubscriptionMicrounits(
-    demand.demand.expected,
-  );
+  const reservedMicrounits = demandMicrounits.expected;
   if (reservedMicrounits === null || reservedMicrounits <= 0) {
     return { status: "unavailable", ledger, reasonCode: "demand-unknown" };
   }
@@ -310,6 +323,10 @@ export function reserveSubscriptionQuota(
     planningAsOf: input.planningAsOf,
     deficitUnits,
     overageUnitsAlreadyUsed: ledger.overageUnitsUsed,
+    exactMicrounits: {
+      deficit: deficitMicrounits,
+      alreadyUsed: ledger.overageMicrounitsUsed,
+    },
   });
   if (deficitUnits > 0 && overage.status !== "covered") {
     return { status: "unavailable", ledger, reasonCode: "overage-unavailable" };
@@ -323,14 +340,17 @@ export function reserveSubscriptionQuota(
     demand: { ...demand.demand },
     reservationBasis: "expected-confirmed",
   };
-  const nextOverageUnitsUsed =
-    ledger.overageUnitsUsed +
-    (overage.status === "covered" ? overage.overageUnits : 0);
+  const nextOverageMicrounitsUsed =
+    ledger.overageMicrounitsUsed +
+    (overage.status === "covered" ? deficitMicrounits : 0);
+  const nextOverageUnitsUsed = fromSubscriptionQuotaMicrounits(
+    nextOverageMicrounitsUsed,
+  );
   const nextOverageCostMicroUsd =
     ledger.overageCostMicroUsd +
     (overage.status === "covered" ? overage.costMicroUsd : 0);
   if (
-    toDerivedSubscriptionMicrounits(nextOverageUnitsUsed) === null ||
+    !Number.isSafeInteger(nextOverageMicrounitsUsed) ||
     !Number.isSafeInteger(nextOverageCostMicroUsd)
   ) {
     return { status: "unavailable", ledger, reasonCode: "overage-unavailable" };
@@ -345,6 +365,7 @@ export function reserveSubscriptionQuota(
       Math.max(0, ledger.remainingMicrounits - reservedMicrounits),
     ),
     overageUnitsUsed: nextOverageUnitsUsed,
+    overageMicrounitsUsed: nextOverageMicrounitsUsed,
     overageCostMicroUsd: nextOverageCostMicroUsd,
     reservations: [...ledger.reservations, reservation],
   }, resource);
