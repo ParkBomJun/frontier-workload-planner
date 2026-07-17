@@ -358,11 +358,11 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 
 ## Ver3 checkpoint 1 — Best-fit offering target (design only)
 
-This section defines the next product contract; it does not describe functionality already shipped
-or implemented on this branch. The reviewed API-only provider comparison remains frozen at tag
-`provider-comparison-stable` (`d3edd98`). Checkpoint 1 changes only `SPEC.md`, `TASKS.md`, and
-`DECISIONS.md`: no runtime type, GPT schema, catalog, calculation, storage, export, or UI contract
-changes in this checkpoint.
+This section defines the staged Ver3 product contract. Checkpoints 2 through 5 now implement
+passive adapters, the versioned workload/storage boundary, generalized API calculation, and the
+internal subscription resource engine on this feature branch. They do not yet replace the live
+API-family allocator or expose subscription input/results in the UI. The reviewed API-only
+provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
 > that satisfies the required planning quality from the user's available subscription and API
@@ -826,6 +826,7 @@ type ConditionalReasonCode =
   | "consumption-user-observed"
   | "quota-calibrated"
   | "quota-opaque"
+  | "quota-insufficient-observed"
   | "initial-capacity-unpublished";
 
 type ConditionalAlternative = {
@@ -1267,6 +1268,57 @@ than writing official values back as a user override. Checkpoint 7 owns the loca
 checkpoint 8 owns versioned persistence and export; checkpoint 4 does not mutate LocalStorage v4 or
 JSON v3/v4.
 
+### Checkpoint-5 subscription resource engine seam
+
+Checkpoint 5 adds a strict internal `StoredSubscriptionResourceInput` parser and a separate
+resolver-issued resource type. Stored input may contain only catalog/preset/connector references
+or timestamped user observations; it cannot deserialize provider-published or connector authority.
+Ownership and commitment are a discriminated contract: an owned resource carries an informational
+existing fee, while a candidate resource carries one exact, safe micro-USD plan-period fee.
+Provider, Offering, and resource IDs remain one canonical route tuple. Supported surfaces and
+capabilities stay on the Offering eligibility contract rather than being duplicated as mutable
+resource facts.
+
+Quota supports metered requests/credits, observed percentage calibration, candidate initial
+capacity, and deliberately opaque state. Numeric quota uses at most six decimal places and derived
+integer microunits, so repeated fractional reservation does not depend on binary floating-point
+rounding. Low / Expected / High demand shares the workload iteration multipliers. Observed,
+calibrated, opaque, incomplete, or unverified knowledge stays conditional. An insufficient observed
+account does not hide a later usable account, and duplicate or mismatched route candidates are
+rejected before deterministic canonical selection.
+
+Resolution and every derived quota ledger are bound to the exact explicit `planningAsOf`. Crossing
+a fixed or rolling reset boundary requires re-resolution; reset metadata never replenishes source
+quota. Planning creates immutable derived ledgers only. The saved remaining amount is never
+decremented. Expected confirmed demand is the reservation basis; observed conditional suggestions
+reserve High when possible. Paid overage validates the exact provider claim value, route scope,
+effective dates, unit, cumulative cap, and safe micro-USD cost. Opaque, unverified, expired,
+out-of-scope, over-cap, or altered policies cannot provide capacity.
+
+Eligibility, API cost, quota demand, resource resolution, resource, and derived-ledger objects must
+be exact resolver/evaluator-issued values; structurally similar clones are rejected. Quota demand
+is also bound to the task ID and demand-driving iteration count, while fallback eligibility and
+pricing are bound to one canonical workload requirement and pricing date. A conditional
+subscription suggestion accepts only a resolver-issued eligible API Offering paired with the exact
+evaluated priced API route. Price alone is not compatibility. Current API adapters still have
+unknown access/capability knowledge, so they do not become guaranteed fallbacks merely to exercise
+a success test. Pure cash-boundary arithmetic is tested separately.
+
+ChatGPT-like, Copilot-like, GLM-like, and Custom presets are non-authoritative input hints. They
+contain no invented fee, quota, reset interval, or evidence. Connector code currently produces an
+untrusted diagnostic after registered-adapter, authenticated binding, freshness, replay, and
+receipt checks; no deployed backend evidence issuer exists. Likewise, the bundled registry has no
+subscription consumption, initial-capacity, overage, or complete subscription-eligibility claim.
+Consequently all currently constructible subscription routes remain conditional or unavailable;
+the engine does not fabricate a confirmed positive path.
+
+Existing subscription use and API spend remain separate ledgers. A commitment ledger records owned
+use as zero incremental cash and deduplicates a selected candidate resource's full plan-period fee
+once. This primitive does not choose which resource to activate. Checkpoint 6 still owns complete
+plan construction, shared-fee comparison, cash-budget decisions, active/held status, and the final
+Best-fit route comparator. Checkpoints 7 and 8 own UI and persistence/export integration, so
+LocalStorage v4 and JSON v3/v4 are unchanged here.
+
 ### Future input and result contract
 
 The current task, budget, reference deadline, and strategy flow remains. Ver3 adds an optional
@@ -1306,9 +1358,10 @@ and video copy adopt this product definition only when the corresponding functio
 
 ### Phase and checkpoint boundary
 
-The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions, credit-based
-coding plans, rolling-quota plans, and `Custom subscription` are future presets or inputs, not
-implemented checkpoint-1 features. A cloud subscription for a model family that can also run
+The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions,
+credit-based coding plans, rolling-quota plans, and `Custom subscription` now exist only as
+checkpoint-5 internal, non-authoritative preset metadata; their user-facing input is checkpoint 7.
+A cloud subscription for a model family that can also run
 locally is represented only as `Custom subscription`. This user-defined subscription metadata does
 not authorize an arbitrary API provider, custom model catalog, local-inference claim, or
 provider-published evidence. Unless its facts resolve through an allowlisted preset or verified

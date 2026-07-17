@@ -1,4 +1,7 @@
-import { PROVIDER_IDS, type ProviderId } from "@/types/domain";
+import {
+  isRegisteredAccessProviderId,
+  type RegisteredAccessProviderId,
+} from "@/config/access-provider-registry";
 import {
   CONDITIONAL_REASON_CODES,
   type AccessProviderId,
@@ -15,7 +18,6 @@ import {
 const STABLE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
 const CUSTOM_PROVIDER_SUFFIX_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
 const CUSTOM_PROVIDER_PREFIX = "custom.";
-const registeredProviderIds = new Set<string>(PROVIDER_IDS);
 const conditionalReasonRank = new Map<ConditionalReasonCode, number>(
   CONDITIONAL_REASON_CODES.map((reason, index) => [reason, index]),
 );
@@ -26,7 +28,9 @@ function assertStableId(value: string, label: string): void {
   }
 }
 
-export function registeredAccessProviderId(providerId: ProviderId): AccessProviderId {
+export function registeredAccessProviderId(
+  providerId: RegisteredAccessProviderId,
+): AccessProviderId {
   return providerId as AccessProviderId;
 }
 
@@ -38,7 +42,7 @@ export function createCustomAccessProviderId(stableId: string): AccessProviderId
 }
 
 export function parseAccessProviderId(value: string): AccessProviderId {
-  if (registeredProviderIds.has(value)) return value as AccessProviderId;
+  if (isRegisteredAccessProviderId(value)) return value as AccessProviderId;
   if (
     value.startsWith(CUSTOM_PROVIDER_PREFIX) &&
     CUSTOM_PROVIDER_SUFFIX_PATTERN.test(value.slice(CUSTOM_PROVIDER_PREFIX.length))

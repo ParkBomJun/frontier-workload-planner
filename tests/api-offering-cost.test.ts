@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
-import { evaluateApiOfferingCost } from "@/lib/calculation/evaluate-api-offering";
+import {
+  evaluateApiOfferingCost,
+  isEvaluatedApiOfferingCost,
+  isEvaluatedApiOfferingCostFor,
+} from "@/lib/calculation/evaluate-api-offering";
 import { estimateTaskCost } from "@/lib/calculation/estimate-cost";
 import { catalogOverrideTargetFor } from "@/lib/offerings/catalog-overrides";
 import {
@@ -40,6 +44,46 @@ const mediumAnalysis: TaskAnalysis = {
 };
 
 describe("evaluateApiOfferingCost", () => {
+  it("issues and freezes only the exact evaluated result", () => {
+    const evaluated = evaluateApiOfferingCost({
+      providerId: "openai",
+      tier: "economy",
+      analysis: mediumAnalysis,
+      pricingAsOf: "2026-07-17",
+    });
+    expect(isEvaluatedApiOfferingCost(evaluated)).toBe(true);
+    expect(
+      isEvaluatedApiOfferingCostFor(
+        evaluated,
+        mediumAnalysis,
+        "2026-07-17",
+      ),
+    ).toBe(true);
+    expect(
+      isEvaluatedApiOfferingCostFor(
+        evaluated,
+        { ...mediumAnalysis, expectedIterations: 3 },
+        "2026-07-17",
+      ),
+    ).toBe(false);
+    expect(
+      isEvaluatedApiOfferingCostFor(
+        evaluated,
+        mediumAnalysis,
+        "2026-07-18",
+      ),
+    ).toBe(false);
+    expect(Object.isFrozen(evaluated)).toBe(true);
+    expect(isEvaluatedApiOfferingCost({ ...evaluated })).toBe(false);
+    expect(
+      isEvaluatedApiOfferingCostFor(
+        { ...evaluated },
+        mediumAnalysis,
+        "2026-07-17",
+      ),
+    ).toBe(false);
+  });
+
   it("matches all nine compatibility-view costs at the catalog verification date", () => {
     for (const providerId of PROVIDER_IDS) {
       for (const tier of MODEL_TIERS) {

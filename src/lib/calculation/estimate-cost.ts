@@ -17,23 +17,21 @@ import {
   normalizeStandardTextRate,
   tokenCostMicroUsd,
 } from "./micro-usd";
+import { iterationsForCostScenario } from "./scenario-iterations";
 
 export { MICRO_USD_PER_USD, fromMicroUsd, toMicroUsd } from "./micro-usd";
 
 type Scenario = keyof TaskCostEstimate;
-
-function iterationsForScenario(expectedIterations: number, scenario: Scenario): number {
-  if (scenario === "low") return Math.max(1, expectedIterations - 1);
-  if (scenario === "high") return expectedIterations + 1;
-  return expectedIterations;
-}
 
 function estimateScenario(
   analysis: PlannerTaskAnalysis,
   scenario: Scenario,
   price: NormalizedStandardTextRate,
 ): { estimate: ScenarioEstimate; costMicroUsd: number } {
-  const iterations = iterationsForScenario(analysis.expectedIterations, scenario);
+  const iterations = iterationsForCostScenario(
+    analysis.expectedIterations,
+    scenario,
+  );
   const inputTokensPerIteration = INPUT_TOKEN_BANDS[analysis.estimatedInputSize][scenario];
   const inputTokens = inputTokensPerIteration * iterations;
   const outputTokens = OUTPUT_TOKEN_BANDS[analysis.estimatedOutputSize][scenario] * iterations;

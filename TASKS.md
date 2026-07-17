@@ -202,30 +202,41 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 
 ### Checkpoint 5 — subscription resource engine
 
-- [ ] Add owned/new subscription input with provider, fee, remaining quota, reset, surfaces, and overage
-- [ ] Require ownership-aligned commitment amount, USD basis, plan period, and evidence
-- [ ] Implement available/unavailable/uncertain state and pure same-unit Low/Expected/High demand estimation
-- [ ] Support metered, user-calibrated, and opaque quota without fake precision
-- [ ] Validate finite bounds, range ordering, sample size, units, dates, evidence, reset, and overage
-- [ ] Require sourced included capacity plus timestamped user/connector remaining-capacity snapshots
-- [ ] Model candidate-new initial capacity separately from owned remaining snapshots
-- [ ] Treat reset as metadata only; never auto-replenish and downgrade post-reset stale snapshots to uncertain
-- [ ] Resolve paid overage by Offering scope, effective dates, same unit, deficit, and optional cap
-- [ ] Reject opaque-quota paid overage and unknown/expired/out-of-scope overage as confirmed capacity
-- [ ] Keep observed/calibrated/opaque paths conditional and require a compatible budgeted API fallback
-- [ ] Resolve connector references only through registered adapters with authenticated account/resource binding and replay checks
-- [ ] Downgrade unresolved registry/connector evidence to conditional without deleting its source state
-- [ ] Emit closed conditional and fallback-failure reason codes in a fixed versioned order
-- [ ] Reserve only a derived ledger; never mutate saved remaining quota during planning
-- [ ] Count a new subscription commitment once and existing included use as `$0` incremental cash
-- [ ] Keep subscription consumption and API spend in separate ledgers
-- [ ] Reject surface-incompatible routes and provide an API fallback for uncertain capacity
-- [ ] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
-- [ ] Test exact quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
-- [ ] Test valid/oversized/missing initial capacity and ensure activation depletes only a derived ledger
-- [ ] Prove conditional-only routes cannot set active/all-active; fallback budget failure holds and missing fallback is infeasible
-- [ ] Test forged/offline/cross-account/stale/replayed connector snapshots and authenticated refresh behavior
-- [ ] Test two resources for one Offering select the same canonical resource regardless of input order
+- [x] Add owned/new subscription source input with provider/Offering binding, fee, remaining quota, reset, and overage; surfaces stay on Offering eligibility
+- [x] Require ownership-aligned commitment amount, USD basis, plan period, and evidence
+- [x] Implement available/unavailable/uncertain state and pure same-unit Low/Expected/High demand estimation
+- [x] Support metered, user-calibrated, and opaque quota without fake precision
+- [x] Validate finite bounds, fixed decimal precision, range ordering, sample size, units, dates, evidence, reset, and overage
+- [x] Require sourced included capacity plus timestamped user/connector remaining-capacity snapshots
+- [x] Model candidate-new initial capacity separately from owned remaining snapshots
+- [x] Treat reset as metadata only; never auto-replenish and downgrade post-reset stale snapshots to uncertain
+- [x] Bind resolved resources and derived ledgers to explicit `planningAsOf`; require re-resolution across that boundary
+- [x] Resolve paid overage by Offering scope, effective dates, same unit, cumulative deficit, and optional cap
+- [x] Reject opaque-quota paid overage and unknown/expired/out-of-scope overage as confirmed capacity
+- [x] Keep observed/calibrated/opaque paths conditional and require a resolver-issued compatible budgeted API fallback
+- [x] Diagnose connector references only through registered adapters with authenticated account/resource binding, freshness, replay, and receipt checks
+- [x] Downgrade unresolved registry/connector evidence to conditional without deleting its source state
+- [x] Emit closed conditional and fallback-failure reason codes in a fixed versioned order
+- [x] Reserve only a derived fixed-decimal ledger; never mutate saved remaining quota during planning
+- [x] Count a new subscription commitment once and existing included use as `$0` incremental cash
+- [x] Keep subscription consumption and API spend in separate ledgers
+- [x] Reject resolver-issued hard-ineligible routes and require an API fallback for uncertain capacity
+- [x] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
+- [x] Test exact and fractional quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
+- [x] Test valid/oversized/unresolved initial capacity without fabricating a provider-published positive source
+- [x] Prove conditional-only routes cannot set active/all-active; fallback budget arithmetic has an exact boundary and missing/unconfirmed fallback is infeasible
+- [x] Test forged/offline/cross-account/stale/replayed connector snapshots and exact authenticated diagnostic behavior
+- [x] Test two resources for one Offering select the same usable canonical resource regardless of input order
+- [x] Reject cloned eligibility, cost, demand, resource, resolution, and ledger values at resolver boundaries
+
+Checkpoint 5 is an internal source-resolution and accounting engine. It does not add the
+`Available AI resources` UI, LocalStorage/exports, or final route/plan selection. The current
+catalog intentionally publishes no subscription consumption, initial-capacity, overage, or
+complete subscription-eligibility claims, and no authenticated connector evidence issuer is
+deployed. Therefore current presets and user observations remain conditional; tests exercise pure
+boundary arithmetic without manufacturing a confirmed subscription path. Checkpoint 6 owns the
+complete Best-fit plan, shared-fee activation heuristic, budget relief, active/held decisions, and
+cross-route comparator.
 
 ### Checkpoint 6 — deterministic Best-fit allocation
 

@@ -40,6 +40,8 @@ export const REGISTRY_CLAIM_IDS = [
   "subscription-access-limits",
   "subscription-access-capabilities",
   "subscription-eligibility-profile",
+  "subscription-consumption",
+  "subscription-overage",
 ] as const;
 
 export type RegistryClaimId = (typeof REGISTRY_CLAIM_IDS)[number];
@@ -79,6 +81,30 @@ export interface SubscriptionEligibilityProfileClaimValue {
   invocationLimits: InvocationLimits;
 }
 
+export interface SubscriptionConsumptionClaimValue {
+  kind: "fixed-per-basis";
+  unit: "request" | "credit";
+  basis: "task" | "analysis-iteration";
+  units: number;
+}
+
+export type SubscriptionOverageApplicabilityClaimValue =
+  | { kind: "whole-resource" }
+  | {
+      kind: "offering-list";
+      offeringRefs: readonly { providerId: string; offeringId: string }[];
+    };
+
+export interface SubscriptionOverageClaimValue {
+  kind: "paid";
+  unit: "request" | "credit" | "percent-point";
+  usdPerUnit: number;
+  appliesTo: SubscriptionOverageApplicabilityClaimValue;
+  effectiveFrom: string;
+  effectiveThrough?: string;
+  maxOverageUnits?: number;
+}
+
 export interface StandardTextPriceClaimValue {
   inputUsdPerMillion: number;
   outputUsdPerMillion: number;
@@ -108,6 +134,8 @@ export interface RegistryClaimValueById {
   "subscription-access-limits": AccessLimitPolicyClaimValue;
   "subscription-access-capabilities": AccessCapabilityPolicyClaimValue;
   "subscription-eligibility-profile": SubscriptionEligibilityProfileClaimValue;
+  "subscription-consumption": SubscriptionConsumptionClaimValue;
+  "subscription-overage": SubscriptionOverageClaimValue;
 }
 
 export type RegistryClaimValue = RegistryClaimValueById[RegistryClaimId];
@@ -149,6 +177,61 @@ function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.values(value).forEach((child) => deepFreeze(child));
   return Object.freeze(value);
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function canonicalizeSubscriptionConsumptionClaimValue(
+  value: SubscriptionConsumptionClaimValue,
+): SubscriptionConsumptionClaimValue {
+  return deepFreeze({
+    kind: "fixed-per-basis",
+    unit: value.unit,
+    basis: value.basis,
+    units: value.units,
+  });
+}
+
+/**
+ * Produces the one canonical value shape used by future versioned overage
+ * claims and by the runtime claim verifier. No current registry snapshot
+ * publishes such a claim.
+ */
+export function canonicalizeSubscriptionOverageClaimValue(
+  value: SubscriptionOverageClaimValue,
+): SubscriptionOverageClaimValue {
+  const appliesTo: SubscriptionOverageApplicabilityClaimValue =
+    value.appliesTo.kind === "whole-resource"
+      ? { kind: "whole-resource" }
+      : {
+          kind: "offering-list",
+          offeringRefs: [...value.appliesTo.offeringRefs]
+            .map((reference) => ({ ...reference }))
+            .sort((left, right) => {
+              const providerDifference = compareStrings(
+                left.providerId,
+                right.providerId,
+              );
+              return providerDifference !== 0
+                ? providerDifference
+                : compareStrings(left.offeringId, right.offeringId);
+            }),
+        };
+  return deepFreeze({
+    kind: "paid",
+    unit: value.unit,
+    usdPerUnit: value.usdPerUnit,
+    appliesTo,
+    effectiveFrom: value.effectiveFrom,
+    ...(value.effectiveThrough === undefined
+      ? {}
+      : { effectiveThrough: value.effectiveThrough }),
+    ...(value.maxOverageUnits === undefined
+      ? {}
+      : { maxOverageUnits: value.maxOverageUnits }),
+  });
 }
 
 function cloneModel(model: ProviderModelPrice): ProviderModelPrice {
@@ -218,6 +301,17 @@ function claim<I extends RegistryClaimId>(
   value: RegistryClaimValueById[I],
   sourceUrl: string,
 ): ProviderRegistryClaim<I> {
+  const canonicalValue = (
+    claimId === "subscription-consumption"
+      ? canonicalizeSubscriptionConsumptionClaimValue(
+          value as SubscriptionConsumptionClaimValue,
+        )
+      : claimId === "subscription-overage"
+        ? canonicalizeSubscriptionOverageClaimValue(
+            value as SubscriptionOverageClaimValue,
+          )
+        : value
+  ) as RegistryClaimValueById[I];
   return deepFreeze({
     catalogId: API_CATALOG_REGISTRY_ID,
     catalogVersion,
@@ -228,7 +322,7 @@ function claim<I extends RegistryClaimId>(
       subjectId: model.catalogId,
       fieldPath,
     },
-    value,
+    value: canonicalValue,
     sourceUrl,
     verifiedAt: provider.verifiedAt,
   });

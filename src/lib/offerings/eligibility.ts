@@ -1,4 +1,5 @@
 import { validateInvocationLimits } from "@/lib/calculation/invocation-feasibility";
+import type { CostScenario } from "@/types/domain";
 import type {
   AccessCapabilityPolicyClaimValue,
   AccessLimitPolicyClaimValue,
@@ -48,6 +49,96 @@ const ineligibleReasonRank = new Map(
   OFFERING_INELIGIBLE_REASON_CODES.map((reason, index) => [reason, index]),
 );
 const capabilityRank = new Map(CAPABILITY_IDS.map((capability, index) => [capability, index]));
+const issuedOfferingEligibilityResults = new WeakSet<object>();
+const eligibilityRequirementKeys = new WeakMap<object, string>();
+
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    return value;
+  }
+
+  const object = value as object;
+  if (seen.has(object)) return value;
+  seen.add(object);
+  for (const key of Reflect.ownKeys(object)) {
+    deepFreeze(Reflect.get(object, key), seen);
+  }
+  return Object.freeze(value);
+}
+
+function issueOfferingEligibilityResult(
+  result: OfferingEligibilityResult,
+  offering: Offering,
+  requirement: OfferingEligibilityRequirement,
+): OfferingEligibilityResult {
+  const frozen = deepFreeze(result);
+  issuedOfferingEligibilityResults.add(frozen);
+  eligibilityRequirementKeys.set(
+    frozen,
+    eligibilityRequirementKey(offering.providerId, offering.id, requirement),
+  );
+  return frozen;
+}
+
+function eligibilityRequirementKey(
+  providerId: string,
+  offeringId: string,
+  requirement: OfferingEligibilityRequirement,
+): string {
+  const capabilityOrder = new Map(
+    CAPABILITY_IDS.map((capability, index) => [capability, index]),
+  );
+  const scenarioOrder = new Map<CostScenario, number>([
+    ["low", 0],
+    ["expected", 1],
+    ["high", 2],
+  ]);
+  return JSON.stringify({
+    providerId,
+    offeringId,
+    surface: requirement.surface,
+    minimumQualityTier: requirement.minimumQualityTier,
+    requiredCapabilities: [...new Set(requirement.requiredCapabilities)].sort(
+      (left, right) =>
+        (capabilityOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (capabilityOrder.get(right) ?? Number.MAX_SAFE_INTEGER),
+    ),
+    tokenScenarios: [...requirement.tokenScenarios]
+      .map(({ scenario, inputTokens, outputTokens }) => ({
+        scenario,
+        inputTokens,
+        outputTokens,
+      }))
+      .sort(
+        (left, right) =>
+          (scenarioOrder.get(left.scenario) ?? Number.MAX_SAFE_INTEGER) -
+          (scenarioOrder.get(right.scenario) ?? Number.MAX_SAFE_INTEGER),
+      ),
+  });
+}
+
+export function isResolverIssuedOfferingEligibilityResult(
+  value: unknown,
+): value is OfferingEligibilityResult {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    issuedOfferingEligibilityResults.has(value)
+  );
+}
+
+export function isResolverIssuedOfferingEligibilityResultFor(
+  value: unknown,
+  providerId: string,
+  offeringId: string,
+  requirement: OfferingEligibilityRequirement,
+): value is OfferingEligibilityResult {
+  return (
+    isResolverIssuedOfferingEligibilityResult(value) &&
+    eligibilityRequirementKeys.get(value) ===
+      eligibilityRequirementKey(providerId, offeringId, requirement)
+  );
+}
 
 interface LimitKnowledge {
   complete: boolean;
@@ -714,7 +805,11 @@ export function resolveOfferingEligibility(
   requirement: OfferingEligibilityRequirement,
 ): OfferingEligibilityResult {
   validateRequirement(requirement);
-  return offering.kind === "model-bound"
-    ? resolveModelBoundEligibility(offering, modelsById, requirement)
-    : resolveModelOpaqueEligibility(offering, requirement);
+  return issueOfferingEligibilityResult(
+    offering.kind === "model-bound"
+      ? resolveModelBoundEligibility(offering, modelsById, requirement)
+      : resolveModelOpaqueEligibility(offering, requirement),
+    offering,
+    requirement,
+  );
 }

@@ -86,6 +86,26 @@ output을 사용합니다. Google 3종은 1,048,576 max input과 65,536 max outp
 화면·LocalStorage·Markdown·JSON에는 연결하지 않았습니다. 편집 UI는 체크포인트 7,
 버전된 저장과 내보내기는 체크포인트 8 범위이며, 현재 JSON v3/v4 의미는 바뀌지 않습니다.
 
+### 체크포인트 5 내부 엔진 경계
+
+이 브랜치에는 구독 자원의 원본 계약과 계산 엔진이 내부 모듈로 추가되었습니다. 보유/신규
+구독, 요청·크레딧·관측 잔여율·불투명 한도, reset, 누적 paid overage, 기존 비용 `$0`과
+신규 plan-period fee 1회 계산을 서로 분리합니다. quota는 6자리 고정소수 microunit로
+예약하며 저장된 잔여량을 직접 변경하지 않습니다. 같은 입력과 `planningAsOf`는 같은 결과를
+내고, reset 경계를 넘으면 원본을 다시 resolve해야 합니다.
+
+관측값·보정값·불투명 한도와 검증되지 않은 preset/connector는 확정 실행 경로가 아닙니다.
+조건부 제안에는 work surface·최소 품질·capability·호출 한도를 모두 확인한 API fallback이
+필요하며, 가격만 존재한다고 호환된 것으로 처리하지 않습니다. 현재 카탈로그에는 구독의
+공식 consumption/initial-capacity/overage claim과 완전한 API access/capability claim이 없고
+인증된 connector evidence issuer도 없으므로, 테스트를 위해 확정 경로를 꾸며내지 않습니다.
+
+ChatGPT-like, GitHub Copilot-like, GLM-like, Custom subscription preset은 숫자·가격·공식
+증거를 포함하지 않는 입력 힌트뿐입니다. 아직 현재 웹페이지, LocalStorage, Markdown,
+JSON에는 연결되지 않았습니다. 전체 Best-fit route 선택, 신규 구독 활성화 비교, API cash
+budget의 active/held 판정은 체크포인트 6, 사용자 입력 UI는 체크포인트 7, 저장·내보내기는
+체크포인트 8 범위입니다. 따라서 공개 production 동작은 기존 안정된 API 비교 흐름 그대로입니다.
+
 ## 로컬 실행
 
 Node.js 20.9 이상이 필요합니다.

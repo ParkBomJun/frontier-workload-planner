@@ -72,7 +72,15 @@ export type EvidenceFieldPath =
   | "subscription.access-limits"
   | "subscription.access-capabilities"
   | "api.standard-text-pricing"
-  | "subscription.eligibility-profile";
+  | "subscription.eligibility-profile"
+  | "subscription.availability"
+  | "subscription.commitment"
+  | "subscription.quota.included"
+  | "subscription.quota.remaining"
+  | "subscription.quota.initial-capacity"
+  | "subscription.quota.consumption"
+  | "subscription.reset"
+  | "subscription.overage";
 
 export interface EvidenceSubject {
   providerId: string;
@@ -262,6 +270,7 @@ export const CONDITIONAL_REASON_CODES = [
   "consumption-user-observed",
   "quota-calibrated",
   "quota-opaque",
+  "quota-insufficient-observed",
   "initial-capacity-unpublished",
 ] as const;
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   intersectCapabilities,
   intersectInvocationLimits,
+  isResolverIssuedOfferingEligibilityResult,
   resolveOfferingEligibility,
 } from "@/lib/offerings/eligibility";
 import { resolveApiCatalogEntry } from "@/lib/offerings/provider-catalog-adapter";
@@ -80,6 +81,23 @@ describe("offering eligibility", () => {
       ],
       fallbackRequired: true,
     });
+  });
+
+  it("brands and deeply freezes only the exact resolver-issued result", () => {
+    const issued = resolve();
+    expect(isResolverIssuedOfferingEligibilityResult(issued)).toBe(true);
+    expect(Object.isFrozen(issued)).toBe(true);
+    if (issued.status !== "conditional") {
+      throw new Error("Current catalog fixture must remain conditional.");
+    }
+    expect(Object.isFrozen(issued.reasonCodes)).toBe(true);
+
+    const clone = {
+      ...issued,
+      reasonCodes: [...issued.reasonCodes],
+    } as typeof issued;
+    expect(isResolverIssuedOfferingEligibilityResult(clone)).toBe(false);
+    expect(isResolverIssuedOfferingEligibilityResult(null)).toBe(false);
   });
 
   it("rejects a missing model and enforces quality only from the exact identity claim", () => {

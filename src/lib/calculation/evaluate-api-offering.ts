@@ -17,6 +17,63 @@ import type {
 
 import { estimateTaskCostFromResolvedRate } from "./estimate-cost";
 
+const issuedApiOfferingCostEvaluations = new WeakSet<object>();
+const apiOfferingCostInputKeys = new WeakMap<object, string>();
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
+  Object.values(value).forEach((child) => deepFreeze(child));
+  return Object.freeze(value);
+}
+
+function issueApiOfferingCostEvaluation<T extends ApiOfferingCostEvaluation>(
+  evaluation: T,
+  input: EvaluateApiOfferingCostInput,
+): T {
+  const frozen = deepFreeze(evaluation);
+  issuedApiOfferingCostEvaluations.add(frozen);
+  apiOfferingCostInputKeys.set(
+    frozen,
+    apiOfferingCostWorkloadKey(input.analysis, input.pricingAsOf),
+  );
+  return frozen;
+}
+
+function apiOfferingCostWorkloadKey(
+  analysis: PlannerTaskAnalysis,
+  pricingAsOf: string,
+): string {
+  return JSON.stringify({
+    pricingAsOf,
+    taskId: analysis.taskId,
+    expectedIterations: analysis.expectedIterations,
+    estimatedInputSize: analysis.estimatedInputSize,
+    estimatedOutputSize: analysis.estimatedOutputSize,
+  });
+}
+
+export function isEvaluatedApiOfferingCost(
+  value: unknown,
+): value is ApiOfferingCostEvaluation {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    issuedApiOfferingCostEvaluations.has(value)
+  );
+}
+
+export function isEvaluatedApiOfferingCostFor(
+  value: unknown,
+  analysis: PlannerTaskAnalysis,
+  pricingAsOf: string,
+): value is ApiOfferingCostEvaluation {
+  return (
+    isEvaluatedApiOfferingCost(value) &&
+    apiOfferingCostInputKeys.get(value) ===
+      apiOfferingCostWorkloadKey(analysis, pricingAsOf)
+  );
+}
+
 export interface EvaluateApiOfferingCostInput {
   providerId: ProviderId;
   tier: ModelTier;
@@ -36,7 +93,7 @@ export function evaluateApiOfferingCost(
     ...(input.override === undefined ? {} : { override: input.override }),
   });
   if (pricing.status === "invalid") {
-    return {
+    return issueApiOfferingCostEvaluation({
       status: "invalid",
       providerId: input.providerId,
       tier: input.tier,
@@ -45,7 +102,7 @@ export function evaluateApiOfferingCost(
       pricing,
       cost: null,
       offeringEligibilityApplied: false,
-    };
+    }, input);
   }
 
   const entry = resolveApiCatalogEntry(input.providerId, input.tier);
@@ -61,7 +118,7 @@ export function evaluateApiOfferingCost(
       routeIdentity: entry.routeIdentity,
       reasonCode: "catalog-invocation-limits-unresolved",
     };
-    return {
+    return issueApiOfferingCostEvaluation({
       status: "invalid",
       providerId: input.providerId,
       tier: input.tier,
@@ -70,7 +127,7 @@ export function evaluateApiOfferingCost(
       pricing: invalidPricing,
       cost: null,
       offeringEligibilityApplied: false,
-    };
+    }, input);
   }
 
   const invocationScenarios = COST_SCENARIOS.map((scenario) => ({
@@ -81,7 +138,7 @@ export function evaluateApiOfferingCost(
     ),
   }));
   if (invocationScenarios.some((scenario) => !scenario.feasible)) {
-    return {
+    return issueApiOfferingCostEvaluation({
       status: "ineligible",
       providerId: input.providerId,
       tier: input.tier,
@@ -92,10 +149,10 @@ export function evaluateApiOfferingCost(
       invocationScenarios,
       cost: null,
       offeringEligibilityApplied: false,
-    };
+    }, input);
   }
   if (pricing.status === "conditional") {
-    return {
+    return issueApiOfferingCostEvaluation({
       status: "conditional",
       providerId: input.providerId,
       tier: input.tier,
@@ -105,14 +162,14 @@ export function evaluateApiOfferingCost(
       invocationScenarios,
       cost: null,
       offeringEligibilityApplied: false,
-    };
+    }, input);
   }
 
   const estimated = estimateTaskCostFromResolvedRate(
     input.analysis,
     pricing.effectiveValue.standardTextPrice,
   );
-  return {
+  return issueApiOfferingCostEvaluation({
     status: "priced",
     providerId: input.providerId,
     tier: input.tier,
@@ -123,5 +180,5 @@ export function evaluateApiOfferingCost(
     cost: estimated.estimate,
     scenarioCostMicroUsd: estimated.scenarioCostMicroUsd,
     offeringEligibilityApplied: false,
-  };
+  }, input);
 }

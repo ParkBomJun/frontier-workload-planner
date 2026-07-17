@@ -610,3 +610,45 @@ to checkpoint 8. An override is bound to one exact versioned registry entry, rem
 explicit date. Official defaults and evidence stay immutable; restoration removes the override
 instead of copying defaults into user state. This supersedes the old release-candidate decision to
 defer all price override work, without exposing an editor in the current checkpoint.
+
+## 2026-07-17 — Ver3 checkpoint 5 subscription resource engine
+
+### Keep source claims and calculation authority separate
+
+Accept only strict stored catalog, preset, connector, or user-observed evidence inputs. A resolved
+resource and its resolution are module-issued objects, and the resource is bound to the explicit
+`planningAsOf` used to assess snapshot/reset freshness. Offering eligibility, evaluated API cost,
+quota demand, resource, resolution, and derived ledgers must be the exact issued values; copied
+objects do not preserve authority. Future provider-published consumption and overage evidence must
+match the exact registry version, entry, claim, subject, field, and canonical claim value.
+
+Do not add fictitious subscription claims to make a positive test pass. The current registry has no
+subscription capacity/consumption/overage profile, and the connector checker is diagnostic only—it
+never mints `verified-connector-snapshot`. Current user observations and illustrative presets stay
+conditional. A conditional subscription suggestion needs a resolver-issued eligible API Offering
+and the exact priced API evaluation; current unknown access/capability knowledge cannot be promoted
+to a guaranteed fallback.
+
+### Use immutable fixed-decimal quota ledgers
+
+Limit subscription quota to six decimal places and represent it internally as integer microunits.
+This makes exact fractional boundaries deterministic. Demand results are bound to the exact quota
+object, resource subject, task ID, and demand-driving iteration count. Derived reservations never
+mutate source remaining quota, never infer numbers for opaque quota, and require re-resolution if
+`planningAsOf` changes. Reset metadata can downgrade a stale snapshot but never refill it.
+
+Observed/calibrated capacity stays conditional and reserves High only as a planning suggestion.
+Confirmed provider demand would reserve Expected. An insufficient observed account does not stop
+the canonical selector from trying another account; duplicate/mismatched candidate routes are
+rejected. An API fallback rebuilds its eligibility requirement from the same analysis used for
+pricing. Paid overage applies its cap cumulatively across the derived ledger and keeps native quota
+units and integer micro-USD cash separate.
+
+### Keep commitment accounting below the plan selector
+
+Existing subscription use contributes zero incremental cash while retaining quota consumption. A
+candidate subscription contributes its exact full plan-period fee once per canonical resource, not
+once per task. The commitment ledger is an accounting primitive only. Checkpoint 6 chooses
+activations and complete plans, recalculates shared fees/overage, applies the cash budget, and emits
+active/held/infeasible route results. Checkpoints 7 and 8 remain responsible for user-facing
+resource input and LocalStorage/export version changes.
