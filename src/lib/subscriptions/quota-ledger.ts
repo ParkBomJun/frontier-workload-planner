@@ -20,7 +20,8 @@ import { resolvePaidOverage } from "./overage-resolver";
 import { isIssuedQuotaDemandResultFor } from "./quota-demand";
 import {
   fromSubscriptionQuotaMicrounits,
-  toSubscriptionQuotaMicrounits,
+  toDerivedSubscriptionMicrounits,
+  toSourceSubscriptionMicrounits,
 } from "./fixed-decimal";
 import {
   isResolverIssuedSubscriptionResource,
@@ -145,7 +146,7 @@ export function createDerivedSubscriptionQuotaLedger(
   if (!Number.isFinite(availableUnits) || availableUnits < 0) {
     throw new Error("Resolved subscription quota must be finite and non-negative.");
   }
-  const availableMicrounits = toSubscriptionQuotaMicrounits(availableUnits);
+  const availableMicrounits = toSourceSubscriptionMicrounits(availableUnits);
   if (availableMicrounits === null) {
     throw new Error("Resolved subscription quota exceeds fixed-decimal bounds.");
   }
@@ -243,7 +244,7 @@ export function reserveSubscriptionQuota(
     resource.quota.kind === "calibrated" ||
     resource.availability.status === "uncertain";
   if (conditional) {
-    const reservedMicrounits = toSubscriptionQuotaMicrounits(demand.demand.high);
+    const reservedMicrounits = toDerivedSubscriptionMicrounits(demand.demand.high);
     if (reservedMicrounits === null || reservedMicrounits <= 0) {
       return { status: "unavailable", ledger, reasonCode: "demand-unknown" };
     }
@@ -289,7 +290,7 @@ export function reserveSubscriptionQuota(
     };
   }
 
-  const reservedMicrounits = toSubscriptionQuotaMicrounits(
+  const reservedMicrounits = toDerivedSubscriptionMicrounits(
     demand.demand.expected,
   );
   if (reservedMicrounits === null || reservedMicrounits <= 0) {
@@ -329,7 +330,7 @@ export function reserveSubscriptionQuota(
     ledger.overageCostMicroUsd +
     (overage.status === "covered" ? overage.costMicroUsd : 0);
   if (
-    toSubscriptionQuotaMicrounits(nextOverageUnitsUsed) === null ||
+    toDerivedSubscriptionMicrounits(nextOverageUnitsUsed) === null ||
     !Number.isSafeInteger(nextOverageCostMicroUsd)
   ) {
     return { status: "unavailable", ledger, reasonCode: "overage-unavailable" };

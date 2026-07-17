@@ -160,6 +160,24 @@ describe("subscription commitment ledger", () => {
     expect(ledger.totalIncrementalCashMicroUsd).toBe(10_000_000);
   });
 
+  it("preserves the canonical micro-USD value near the safe integer boundary", () => {
+    const resource = resolvedResource(
+      "resource.custom.high-fee-0001",
+      "candidate-new",
+      9_007_199_254.74097,
+    );
+    const ledger = buildSubscriptionCommitmentLedger([
+      { resource, routeIdentity: routeFor(resource) },
+    ]);
+
+    expect(ledger).toMatchObject({
+      components: [
+        { fullPlanPeriodFeeMicroUsd: 9_007_199_254_740_970 },
+      ],
+      totalIncrementalCashMicroUsd: 9_007_199_254_740_970,
+    });
+  });
+
   it("sorts canonical resources so activation input order cannot change output", () => {
     const first = resolvedResource(
       "resource.custom.account-0001",
@@ -252,17 +270,19 @@ describe("subscription commitment ledger", () => {
   });
 
   it("rejects a fee that cannot be represented exactly in micro-USD at input", () => {
-    expect(
-      parseStoredSubscriptionResourceInput(
-        storedResource(
-          "resource.custom.precision-0001",
-          "candidate-new",
-          0.0000004,
+    for (const feeUsd of [1e-13, 1.0000000000001, 0.0000004]) {
+      expect(
+        parseStoredSubscriptionResourceInput(
+          storedResource(
+            "resource.custom.precision-0001",
+            "candidate-new",
+            feeUsd,
+          ),
         ),
-      ),
-    ).toEqual({
-      success: false,
-      reason: "invalid-subscription-resource-input",
-    });
+      ).toEqual({
+        success: false,
+        reason: "invalid-subscription-resource-input",
+      });
+    }
   });
 });

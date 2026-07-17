@@ -19,7 +19,10 @@ import {
   type SubscriptionQuotaKind,
   type SubscriptionQuotaUnit,
 } from "@/types/subscriptions";
-import { toSubscriptionQuotaMicrounits } from "./fixed-decimal";
+import {
+  toDerivedSubscriptionMicrounits,
+  toSourceSubscriptionMicrounits,
+} from "./fixed-decimal";
 
 const MICRO_USD_PER_USD = BigInt(1_000_000);
 const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
@@ -245,8 +248,8 @@ export function resolvePaidOverage(
     !validQuotaIdentity(input.quotaKind, input.quotaUnit) ||
     !Number.isFinite(input.deficitUnits) ||
     input.deficitUnits < 0 ||
-    toSubscriptionQuotaMicrounits(input.deficitUnits) === null ||
-    toSubscriptionQuotaMicrounits(input.overageUnitsAlreadyUsed) === null ||
+    toDerivedSubscriptionMicrounits(input.deficitUnits) === null ||
+    toDerivedSubscriptionMicrounits(input.overageUnitsAlreadyUsed) === null ||
     !z.iso.datetime().safeParse(input.planningAsOf).success
   ) {
     return {
@@ -345,14 +348,14 @@ export function resolvePaidOverage(
       reasonCode: "overage-unit-mismatch",
     };
   }
-  const deficitMicrounits = toSubscriptionQuotaMicrounits(input.deficitUnits);
-  const usedMicrounits = toSubscriptionQuotaMicrounits(
+  const deficitMicrounits = toDerivedSubscriptionMicrounits(input.deficitUnits);
+  const usedMicrounits = toDerivedSubscriptionMicrounits(
     input.overageUnitsAlreadyUsed,
   );
   const capMicrounits =
     policy.maxOverageUnits === undefined
       ? null
-      : toSubscriptionQuotaMicrounits(policy.maxOverageUnits);
+      : toSourceSubscriptionMicrounits(policy.maxOverageUnits);
   if (
     deficitMicrounits === null ||
     usedMicrounits === null ||

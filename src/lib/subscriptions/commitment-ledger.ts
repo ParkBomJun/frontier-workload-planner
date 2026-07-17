@@ -1,4 +1,3 @@
-import { MICRO_USD_PER_USD } from "@/lib/calculation/micro-usd";
 import { compareRouteIdentities } from "@/lib/offerings/route-identity";
 import type { SubscriptionRouteIdentity } from "@/types/offerings";
 import type {
@@ -7,6 +6,7 @@ import type {
 } from "@/types/subscriptions";
 
 import { isResolverIssuedSubscriptionResource } from "./resource-resolver";
+import { toSourceSubscriptionMicrounits } from "./fixed-decimal";
 
 const issuedLedgers = new WeakSet<object>();
 
@@ -54,14 +54,8 @@ function sameRoute(
 }
 
 function exactUsdToMicroUsd(valueUsd: number): number {
-  if (!Number.isFinite(valueUsd) || valueUsd < 0) {
-    throw new Error("Subscription fee must be finite and non-negative.");
-  }
-  const microUsd = Math.round(valueUsd * MICRO_USD_PER_USD);
-  if (
-    !Number.isSafeInteger(microUsd) ||
-    Math.abs(valueUsd - microUsd / MICRO_USD_PER_USD) > 1e-12
-  ) {
+  const microUsd = toSourceSubscriptionMicrounits(valueUsd);
+  if (microUsd === null) {
     throw new Error("Subscription fee must convert exactly to a safe micro-USD integer.");
   }
   return microUsd;

@@ -10,6 +10,10 @@ import {
   estimateQuotaDemand,
   isIssuedQuotaDemandResultFor,
 } from "@/lib/subscriptions/quota-demand";
+import {
+  toDerivedSubscriptionMicrounits,
+  toSourceSubscriptionMicrounits,
+} from "@/lib/subscriptions/fixed-decimal";
 import type { TaskAnalysis } from "@/types/domain";
 import type { ProviderPublishedEvidence } from "@/types/offerings";
 import type {
@@ -77,6 +81,35 @@ const evidenceSubject = {
 };
 
 describe("calculateQuotaDemandRange", () => {
+  it("separates strict source precision from derived floating-point residue", () => {
+    expect(toSourceSubscriptionMicrounits(1e-13)).toBeNull();
+    expect(toSourceSubscriptionMicrounits(1.0000000000001)).toBeNull();
+    expect(toSourceSubscriptionMicrounits(12.345678)).toBe(12_345_678);
+    expect(toSourceSubscriptionMicrounits(8.030292)).toBe(8_030_292);
+    expect(toSourceSubscriptionMicrounits(9_007_199_254.74097)).toBe(
+      9_007_199_254_740_970,
+    );
+    expect(toSourceSubscriptionMicrounits(0.1 * 3)).toBeNull();
+    expect(toDerivedSubscriptionMicrounits(0.1 * 3)).toBe(300_000);
+
+    expect(
+      calculateQuotaDemandRange({
+        unit: "credit",
+        basis: "analysis-iteration",
+        perBasis: { low: 0.1, expected: 0.1, high: 0.1 },
+        expectedIterations: 3,
+      }),
+    ).toEqual({
+      ok: true,
+      demand: {
+        unit: "credit",
+        low: 0.1 * 2,
+        expected: 0.1 * 3,
+        high: 0.1 * 4,
+      },
+    });
+  });
+
   it("keeps fixed task demand constant for one and three expected iterations", () => {
     for (const expectedIterations of [1, 3]) {
       expect(

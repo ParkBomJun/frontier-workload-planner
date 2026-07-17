@@ -9,7 +9,7 @@ import {
 
 import {
   MAX_SUBSCRIPTION_QUOTA_UNITS,
-  toSubscriptionQuotaMicrounits,
+  toSourceSubscriptionMicrounits,
 } from "./fixed-decimal";
 
 const MAX_SAFE_NUMBER = Number.MAX_SAFE_INTEGER;
@@ -37,20 +37,14 @@ const quotaNonNegativeNumber = z
   .finite()
   .min(0)
   .max(MAX_SUBSCRIPTION_QUOTA_UNITS)
-  .refine((value) => toSubscriptionQuotaMicrounits(value) !== null);
+  .refine((value) => toSourceSubscriptionMicrounits(value) !== null);
 const quotaPositiveNumber = quotaNonNegativeNumber.refine((value) => value > 0);
 const safeMicroUsdFee = z
   .number()
   .finite()
   .min(0)
   .max(MAX_SAFE_USD_FOR_MICRO_USD)
-  .refine((value) => {
-    const microUsd = Math.round(value * 1_000_000);
-    return (
-      Number.isSafeInteger(microUsd) &&
-      Math.abs(value - microUsd / 1_000_000) <= 1e-12
-    );
-  });
+  .refine((value) => toSourceSubscriptionMicrounits(value) !== null);
 const utcDateTimeSchema = z.iso.datetime();
 const isoDateSchema = z.iso.date();
 

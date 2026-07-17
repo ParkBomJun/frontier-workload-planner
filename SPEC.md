@@ -1282,7 +1282,10 @@ resource facts.
 Quota supports metered requests/credits, observed percentage calibration, candidate initial
 capacity, and deliberately opaque state. Numeric quota uses at most six decimal places and derived
 integer microunits, so repeated fractional reservation does not depend on binary floating-point
-rounding. Low / Expected / High demand shares the workload iteration multipliers. Observed,
+rounding. Source quota and candidate plan-period fee decimals are converted exactly without
+tolerance; only derived arithmetic may absorb ordinary IEEE-754 residue before becoming
+microunits. Low / Expected / High
+demand shares the workload iteration multipliers. Observed,
 calibrated, opaque, incomplete, or unverified knowledge stays conditional. An insufficient observed
 account does not hide a later usable account, and duplicate or mismatched route candidates are
 rejected before deterministic canonical selection.

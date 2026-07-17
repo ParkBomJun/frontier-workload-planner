@@ -1,5 +1,8 @@
 import { iterationsForCostScenario } from "@/lib/calculation/scenario-iterations";
-import { toSubscriptionQuotaMicrounits } from "@/lib/subscriptions/fixed-decimal";
+import {
+  toSourceSubscriptionMicrounits,
+  toDerivedSubscriptionMicrounits,
+} from "@/lib/subscriptions/fixed-decimal";
 import {
   canonicalizeSubscriptionConsumptionClaimValue,
   type SubscriptionConsumptionClaimValue,
@@ -107,7 +110,7 @@ export function calculateQuotaDemandRange(
   ) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
   }
-  if (values.some((value) => toSubscriptionQuotaMicrounits(value) === null)) {
+  if (values.some((value) => toSourceSubscriptionMicrounits(value) === null)) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
   }
 
@@ -126,7 +129,7 @@ export function calculateQuotaDemandRange(
   }
   if (
     COST_SCENARIOS.some(
-      (scenario) => toSubscriptionQuotaMicrounits(demand[scenario]) === null,
+      (scenario) => toDerivedSubscriptionMicrounits(demand[scenario]) === null,
     )
   ) {
     return { ok: false, reasonCode: "consumption-range-invalid" };
@@ -200,7 +203,7 @@ function validateQuotaNumbers(
     if (remaining === null || !Number.isFinite(remaining)) {
       return "consumption-value-non-finite";
     }
-    if (toSubscriptionQuotaMicrounits(remaining) === null) {
+    if (toSourceSubscriptionMicrounits(remaining) === null) {
       return "consumption-range-invalid";
     }
     return remaining < 0 || remaining > 100
@@ -222,8 +225,8 @@ function validateQuotaNumbers(
     return "consumption-value-non-finite";
   }
   if (
-    toSubscriptionQuotaMicrounits(included) === null ||
-    toSubscriptionQuotaMicrounits(available) === null
+    toSourceSubscriptionMicrounits(included) === null ||
+    toSourceSubscriptionMicrounits(available) === null
   ) {
     return "consumption-range-invalid";
   }
@@ -296,6 +299,13 @@ export function estimateQuotaDemand(input: QuotaDemandInput): QuotaDemandResult 
       : null;
   if (perBasis === null) {
     return unknown(input, "consumption-rule-missing", quota.unit);
+  }
+  if (
+    Object.values(perBasis).some(
+      (value) => toSourceSubscriptionMicrounits(value) === null,
+    )
+  ) {
+    return unknown(input, "consumption-range-invalid", quota.unit);
   }
   if (observed && (!Number.isInteger(rule.sampleSize) || rule.sampleSize <= 0)) {
     return unknown(input, "consumption-range-invalid", quota.unit);

@@ -192,6 +192,8 @@ describe("stored subscription resource schema", () => {
     ).toBe(false);
 
     for (const feeUsd of [
+      1e-13,
+      1.0000000000001,
       0.0000004,
       Number.MAX_SAFE_INTEGER / 1_000_000,
     ]) {
@@ -207,6 +209,19 @@ describe("stored subscription resource schema", () => {
         ...candidateResource(),
         commitment: { ...candidateResource().commitment, feeUsd: 12.345678 },
       }).success,
+    ).toBe(true);
+
+    for (const sourceValue of [1e-13, 1.0000000000001]) {
+      const resource = ownedResource();
+      resource.quota.remaining.value = sourceValue;
+      expect(storedSubscriptionResourceInputSchema.safeParse(resource).success).toBe(
+        false,
+      );
+    }
+    const exactSixDecimalQuota = ownedResource();
+    exactSixDecimalQuota.quota.remaining.value = 8.030292;
+    expect(
+      storedSubscriptionResourceInputSchema.safeParse(exactSixDecimalQuota).success,
     ).toBe(true);
     expect(
       storedSubscriptionResourceInputSchema.safeParse({
