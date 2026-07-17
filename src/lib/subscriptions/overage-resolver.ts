@@ -413,15 +413,25 @@ export function resolvePaidOverage(
       reasonCode: "overage-policy-invalid",
     };
   }
+  const cumulativeMicrounits =
+    BigInt(usedMicrounits) + BigInt(deficitMicrounits);
   if (
     capMicrounits !== null &&
-    BigInt(usedMicrounits) + BigInt(deficitMicrounits) > BigInt(capMicrounits)
+    cumulativeMicrounits > BigInt(capMicrounits)
   ) {
     return {
       status: "unavailable",
       unit: quotaUnit,
       deficitUnits: input.deficitUnits,
       reasonCode: "overage-cap-exceeded",
+    };
+  }
+  if (cumulativeMicrounits > MAX_SAFE_INTEGER) {
+    return {
+      status: "unavailable",
+      unit: quotaUnit,
+      deficitUnits: input.deficitUnits,
+      reasonCode: "overage-policy-invalid",
     };
   }
   const costMicroUsd = exactOverageCostMicroUsd(

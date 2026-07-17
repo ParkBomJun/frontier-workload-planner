@@ -11,6 +11,7 @@ import {
   resolvePaidOverage,
   type ResolvePaidOverageInput,
 } from "@/lib/subscriptions/overage-resolver";
+import { fromSubscriptionQuotaMicrounits } from "@/lib/subscriptions/fixed-decimal";
 import type { ProviderPublishedEvidence } from "@/types/offerings";
 import type { PaidOveragePolicy } from "@/types/subscriptions";
 
@@ -231,6 +232,40 @@ describe("paid overage resolution", () => {
           deficit: 9_007_199_253_999_999,
           alreadyUsed: 0,
         },
+      }),
+    ).toMatchObject({
+      status: "unavailable",
+      reasonCode: "overage-cap-exceeded",
+    });
+  });
+
+  it("rejects an unrepresentable no-cap cumulative total before evidence resolution", () => {
+    const alreadyUsedMicrounits = Number.MAX_SAFE_INTEGER - 5;
+    const inputForDeficit = (deficitMicrounits: number) => ({
+      ...baseInput(),
+      policy: paidPolicy({ maxOverageUnits: undefined }),
+      overageUnitsAlreadyUsed: fromSubscriptionQuotaMicrounits(
+        alreadyUsedMicrounits,
+      ),
+      deficitUnits: fromSubscriptionQuotaMicrounits(deficitMicrounits),
+      exactMicrounits: {
+        alreadyUsed: alreadyUsedMicrounits,
+        deficit: deficitMicrounits,
+      },
+    });
+
+    expect(resolvePaidOverage(inputForDeficit(5))).toMatchObject({
+      status: "unavailable",
+      reasonCode: "overage-evidence-unverified",
+    });
+    expect(resolvePaidOverage(inputForDeficit(6))).toMatchObject({
+      status: "unavailable",
+      reasonCode: "overage-policy-invalid",
+    });
+    expect(
+      resolvePaidOverage({
+        ...inputForDeficit(6),
+        policy: paidPolicy({ maxOverageUnits: 100 }),
       }),
     ).toMatchObject({
       status: "unavailable",

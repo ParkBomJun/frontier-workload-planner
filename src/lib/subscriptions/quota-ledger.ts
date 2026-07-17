@@ -32,6 +32,7 @@ import {
 
 const issuedLedgers = new WeakSet<object>();
 const ledgerResources = new WeakMap<object, ResolvedSubscriptionResource>();
+const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
 
 export interface ReserveSubscriptionQuotaInput {
   resource: ResolvedSubscriptionResource;
@@ -340,21 +341,35 @@ export function reserveSubscriptionQuota(
     demand: { ...demand.demand },
     reservationBasis: "expected-confirmed",
   };
-  const nextOverageMicrounitsUsed =
-    ledger.overageMicrounitsUsed +
-    (overage.status === "covered" ? deficitMicrounits : 0);
-  const nextOverageUnitsUsed = fromSubscriptionQuotaMicrounits(
-    nextOverageMicrounitsUsed,
-  );
-  const nextOverageCostMicroUsd =
-    ledger.overageCostMicroUsd +
-    (overage.status === "covered" ? overage.costMicroUsd : 0);
+  const addedOverageMicrounits =
+    overage.status === "covered" ? deficitMicrounits : 0;
+  const addedOverageCostMicroUsd =
+    overage.status === "covered" ? overage.costMicroUsd : 0;
   if (
-    !Number.isSafeInteger(nextOverageMicrounitsUsed) ||
-    !Number.isSafeInteger(nextOverageCostMicroUsd)
+    !Number.isSafeInteger(ledger.overageMicrounitsUsed) ||
+    !Number.isSafeInteger(addedOverageMicrounits) ||
+    !Number.isSafeInteger(ledger.overageCostMicroUsd) ||
+    !Number.isSafeInteger(addedOverageCostMicroUsd)
   ) {
     return { status: "unavailable", ledger, reasonCode: "overage-unavailable" };
   }
+  const nextOverageMicrounitsUsedBigInt =
+    BigInt(ledger.overageMicrounitsUsed) + BigInt(addedOverageMicrounits);
+  const nextOverageCostMicroUsdBigInt =
+    BigInt(ledger.overageCostMicroUsd) + BigInt(addedOverageCostMicroUsd);
+  if (
+    nextOverageMicrounitsUsedBigInt > MAX_SAFE_INTEGER ||
+    nextOverageCostMicroUsdBigInt > MAX_SAFE_INTEGER
+  ) {
+    return { status: "unavailable", ledger, reasonCode: "overage-unavailable" };
+  }
+  const nextOverageMicrounitsUsed = Number(
+    nextOverageMicrounitsUsedBigInt,
+  );
+  const nextOverageCostMicroUsd = Number(nextOverageCostMicroUsdBigInt);
+  const nextOverageUnitsUsed = fromSubscriptionQuotaMicrounits(
+    nextOverageMicrounitsUsed,
+  );
   const nextLedger: NumericDerivedQuotaLedger = issueLedger({
     ...ledger,
     remainingMicrounits: Math.max(
