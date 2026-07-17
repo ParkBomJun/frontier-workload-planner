@@ -1409,6 +1409,12 @@ legacy view and persists the setting but does not advance Best-fit `planningAsOf
 The UI retains the last valid `{ budgetUsd, strategy }` snapshot across invalid form states. On
 return to a valid state it compares against that snapshot, ensuring a strategy or budget change
 made while `deadlineDays` was invalid still advances the Best-fit clock.
+Automatic and manual restore capture one `restoredAt` value and rebuild the Best-fit calculation
+clock as the latest actual instant among `restoredAt`, the analysis `generatedAt`, and the confirmed
+incremental-cash budget `confirmedAt` when present. `savedAt` is storage-write metadata and is never
+a calculation-clock candidate because reference-deadline and selected-provider edits can update it
+without changing Best-fit inputs. `pricingAsOf` is derived from the restored clock's UTC date, so a
+restore cannot roll dated pricing back behind the restore, analysis, or budget-confirmation instant.
 
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with

@@ -23,6 +23,10 @@ import {
   type BestFitUiPlan,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
+  latestIsoDateTime,
+  resolveRestoredPlanningRevisionAt,
+} from "@/lib/planning/planning-clock";
+import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
   updateAvailableAiResourceEvidenceObservedAt,
@@ -228,14 +232,6 @@ function reconcileIncrementalCashBudget(
   };
 }
 
-function latestIsoDateTime(...values: Array<string | null | undefined>): string | null {
-  const valid = values.filter((value): value is string => {
-    if (!value) return false;
-    return !Number.isNaN(Date.parse(value));
-  });
-  return valid.sort((left, right) => left.localeCompare(right)).at(-1) ?? null;
-}
-
 function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
   const taskIds = new Set(tasks.map((task) => task.id));
   let candidate = Math.max(1, startAt);
@@ -286,6 +282,7 @@ export default function Home() {
     const result = loadRecentScenario();
 
     if (result.status === "loaded") {
+      const restoredAt = new Date().toISOString();
       const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
       const restoredSnapshot = result.scenario.analysisSnapshot;
       lastValidBestFitSettings.current = {
@@ -296,12 +293,14 @@ export default function Home() {
       setSettings(planningFormState(result.scenario.settings));
       setIncrementalCashBudget(result.scenario.settings.incrementalCashBudget);
       setPlanningRevisionAt(
-        latestIsoDateTime(
-          restoredSnapshot.response.generatedAt,
-          result.scenario.settings.incrementalCashBudget.status === "confirmed"
-            ? result.scenario.settings.incrementalCashBudget.confirmedAt
-            : null,
-        ),
+        resolveRestoredPlanningRevisionAt({
+          restoredAt,
+          generatedAt: restoredSnapshot.response.generatedAt,
+          confirmedAt:
+            result.scenario.settings.incrementalCashBudget.status === "confirmed"
+              ? result.scenario.settings.incrementalCashBudget.confirmedAt
+              : null,
+        }),
       );
       setSelectedProvider(result.scenario.selectedProvider);
       setMode(restoredSnapshot.response.mode);

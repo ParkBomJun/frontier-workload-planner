@@ -9,6 +9,13 @@ import recentScenarioV3 from "./fixtures/recent-scenario-v3.json";
 import recentScenarioV4 from "./fixtures/recent-scenario-v4.json";
 import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
+import { evaluateApiOfferingCost } from "@/lib/calculation/evaluate-api-offering";
+import {
+  reconcileBestFitRelevantSettings,
+} from "@/lib/planning/best-fit-ui-plan";
+import {
+  resolveRestoredPlanningRevisionAt,
+} from "@/lib/planning/planning-clock";
 import {
   historicalRecentScenarioV1Schema,
   historicalRecentScenarioV2Schema,
@@ -234,6 +241,101 @@ describe("recent scenario storage v5", () => {
         },
       },
     });
+  });
+
+  it("restores an invalid-deadline strategy change without rolling Sonnet pricing back", () => {
+    const storage = new MemoryStorage();
+    const generatedAt = "2026-08-31T23:50:00.000Z";
+    const confirmedAt = "2026-08-31T23:55:00.000Z";
+    const restoredAt = "2026-09-01T00:05:00.000Z";
+    const confirmed = confirmIncrementalCashBudget(
+      settings,
+      settings.budgetUsd,
+      confirmedAt,
+    );
+    expect(confirmed.ok).toBe(true);
+    if (!confirmed.ok) return;
+
+    const invalidDeadline = reconcileBestFitRelevantSettings(
+      { budgetUsd: settings.budgetUsd, strategy: settings.strategy },
+      null,
+    );
+    const changedAfterBoundary = reconcileBestFitRelevantSettings(
+      invalidDeadline.lastValid,
+      {
+        ...settings,
+        strategy: "quality-first",
+      },
+    );
+    expect(changedAfterBoundary.changed).toBe(true);
+
+    expect(
+      saveRecentScenario(
+        {
+          ...scenarioInput,
+          settings: {
+            ...confirmed.settings,
+            strategy: changedAfterBoundary.lastValid.strategy,
+          },
+          analysisSnapshot: {
+            ...bestFitSnapshot,
+            response: { ...bestFitSnapshot.response, generatedAt },
+          },
+        },
+        storage,
+        "2026-09-01T00:01:00.000Z",
+      ),
+    ).toMatchObject({ ok: true });
+
+    const loaded = loadRecentScenario(storage);
+    expect(loaded.status).toBe("loaded");
+    if (loaded.status !== "loaded") return;
+    expect(loaded.scenario.settings.strategy).toBe("quality-first");
+
+    const loadedBudget = loaded.scenario.settings.incrementalCashBudget;
+    const planningRevisionAt = resolveRestoredPlanningRevisionAt({
+      restoredAt,
+      generatedAt: loaded.scenario.analysisSnapshot.response.generatedAt,
+      confirmedAt:
+        loadedBudget.status === "confirmed" ? loadedBudget.confirmedAt : null,
+    });
+    const pricingAsOf = planningRevisionAt.slice(0, 10);
+    expect(planningRevisionAt).toBe(restoredAt);
+    expect(pricingAsOf).toBe("2026-09-01");
+
+    const analysis = loaded.scenario.analysisSnapshot.response.analysis.tasks[0];
+    if (!analysis) throw new Error("Restored scenario must preserve its first analysis.");
+    const beforeRestore = evaluateApiOfferingCost({
+      providerId: "anthropic",
+      tier: "balanced",
+      analysis,
+      pricingAsOf: generatedAt.slice(0, 10),
+    });
+    const afterRestore = evaluateApiOfferingCost({
+      providerId: "anthropic",
+      tier: "balanced",
+      analysis,
+      pricingAsOf,
+    });
+    expect(beforeRestore).toMatchObject({
+      status: "priced",
+      pricing: {
+        effectiveValue: {
+          standardTextPrice: { inputUsdPerMillion: 2, outputUsdPerMillion: 10 },
+        },
+      },
+    });
+    expect(afterRestore).toMatchObject({
+      status: "priced",
+      pricing: {
+        effectiveValue: {
+          standardTextPrice: { inputUsdPerMillion: 3, outputUsdPerMillion: 15 },
+        },
+      },
+    });
+    if (beforeRestore.status !== "priced" || afterRestore.status !== "priced") return;
+    expect(beforeRestore.scenarioCostMicroUsd.expected).toBe(144_000);
+    expect(afterRestore.scenarioCostMicroUsd.expected).toBe(216_000);
   });
 
   it("rejects invalid confirmation and mismatched unconfirmed legacy amounts", () => {

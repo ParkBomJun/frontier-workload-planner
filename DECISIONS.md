@@ -732,6 +732,11 @@ Changing only that global reference deadline does not advance `planningAsOf` or 
 it cannot refresh quota/reset evidence or activate a different dated price.
 Keep the last valid budget/strategy snapshot while the form is invalid; when validity returns, any
 intervening relevant change advances the calculation clock exactly once.
+On automatic or manual restore, capture the restore instant once and use the latest actual instant
+among that value, analysis `generatedAt`, and confirmed-budget `confirmedAt` as the reconstructed
+Best-fit clock. Do not use scenario `savedAt`: reference-deadline and selected-provider persistence
+can update that storage timestamp without changing a Best-fit input. Derive `pricingAsOf` from the
+reconstructed clock's UTC date so restore never reactivates an expired dated price.
 
 ### Bound catalog edits and keep expanded source state out of v5
 
