@@ -77,6 +77,7 @@ export interface BestFitActiveTaskResult {
   taskId: string;
   originalIndex: number;
   routeIdentity: RouteIdentity;
+  modelId: string | null;
   routeKind: BestFitRouteKind;
   qualityTier: PlanningQualityTier;
   strategyTargetTier: PlanningQualityTier;
@@ -133,6 +134,22 @@ export interface BestFitPlanCash {
   scenarioOverflow: Readonly<Record<CostScenario, boolean>>;
 }
 
+export interface BestFitSubscriptionScenarioUsage {
+  includedUsedMicrounits: number;
+  remainingIncludedMicrounits: number;
+  overageUsedMicrounits: number;
+  totalDemandMicrounits: number;
+}
+
+export interface BestFitSubscriptionUsageLedger {
+  routeIdentity: SubscriptionRouteIdentity;
+  ownership: "owned" | "candidate-new";
+  quotaUnit: "request" | "credit";
+  taskIds: readonly string[];
+  availableMicrounits: number;
+  scenarios: Readonly<Record<CostScenario, BestFitSubscriptionScenarioUsage>>;
+}
+
 export interface BestFitPremiumBaselineTask {
   taskId: string;
   routeIdentity: ApiRouteIdentity;
@@ -157,6 +174,7 @@ export interface BestFitAllocationPlan {
   reservationOrderTaskIds: readonly string[];
   reliefOrderTaskIds: readonly string[];
   activatedSubscriptionRoutes: readonly SubscriptionRouteIdentity[];
+  subscriptionUsageLedgers: readonly BestFitSubscriptionUsageLedger[];
   cash: BestFitPlanCash;
   expectedWithinBudget: boolean;
   highExceedsBudget: boolean;

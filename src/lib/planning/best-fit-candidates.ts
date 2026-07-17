@@ -19,6 +19,10 @@ import {
 import { toSourceSubscriptionMicrounits } from "@/lib/subscriptions/fixed-decimal";
 import { resolvePaidOverage } from "@/lib/subscriptions/overage-resolver";
 import {
+  upsertApiCatalogOverride,
+  validateApiCatalogOverride,
+} from "@/lib/offerings/catalog-overrides";
+import {
   isResolverIssuedSubscriptionResourceForPlanningAsOf,
   isResolverIssuedSubscriptionResourceResolution,
 } from "@/lib/subscriptions/resource-resolver";
@@ -36,10 +40,14 @@ import type {
 } from "@/types/offerings";
 import type { ResolvedSubscriptionResource } from "@/types/subscriptions";
 import type { SubscriptionResourceResolution } from "@/types/subscriptions";
+import type { ApiCatalogOverride } from "@/types/pricing";
 import { z } from "zod";
 
 const issuedTaskCandidateSets = new WeakSet<object>();
 const candidateSetKeys = new WeakMap<object, string>();
+const issuedTaskOverrideKeys = new WeakMap<object, string>();
+const emptyApiOverrideKey = JSON.stringify([]);
+const planningQualityRank = { economy: 0, balanced: 1, premium: 2 } as const;
 
 export interface BestFitExcludedRoute {
   routeIdentity: RouteIdentity;
@@ -64,6 +72,12 @@ export interface ResolveBestFitTaskCandidatesInput {
   planningAsOf: string;
   pricingAsOf: string;
   subscriptions?: readonly BestFitSubscriptionCandidateInput[];
+  apiOverrides?: readonly ApiCatalogOverride[];
+}
+
+interface NormalizedApiOverrides {
+  byTarget: ReadonlyMap<string, ApiCatalogOverride>;
+  key: string;
 }
 
 function deepFreeze<T>(value: T): T {
@@ -74,7 +88,56 @@ function deepFreeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
-function inputKey(input: ResolveBestFitTaskCandidatesInput): string {
+function overrideTargetKey(target: ApiCatalogOverride["target"]): string {
+  return JSON.stringify([
+    target.registryId,
+    target.registryVersion,
+    target.entryId,
+  ]);
+}
+
+function normalizeApiOverrides(
+  values: readonly ApiCatalogOverride[] | undefined,
+): NormalizedApiOverrides {
+  let normalized: readonly ApiCatalogOverride[] = [];
+  const targets = new Set<string>();
+
+  for (const value of values ?? []) {
+    const validated = validateApiCatalogOverride(value);
+    if (!validated.ok) {
+      throw new Error(
+        `Best-fit API catalog override is invalid: ${validated.reasonCode}.`,
+      );
+    }
+    const targetKey = overrideTargetKey(validated.override.target);
+    if (targets.has(targetKey)) {
+      throw new Error(
+        "Best-fit API catalog overrides require one value per catalog target.",
+      );
+    }
+    targets.add(targetKey);
+    const mutation = upsertApiCatalogOverride(normalized, validated.override);
+    if (!mutation.ok) {
+      throw new Error(
+        `Best-fit API catalog override is invalid: ${mutation.reasonCode}.`,
+      );
+    }
+    normalized = mutation.overrides;
+  }
+
+  const byTarget = new Map(
+    normalized.map((override) => [
+      overrideTargetKey(override.target),
+      override,
+    ]),
+  );
+  return {
+    byTarget,
+    key: JSON.stringify(normalized),
+  };
+}
+
+function baseInputKey(input: ResolveBestFitTaskCandidatesInput): string {
   return JSON.stringify({
     taskId: input.task.id,
     analysisTaskId: input.analysis.taskId,
@@ -84,13 +147,22 @@ function inputKey(input: ResolveBestFitTaskCandidatesInput): string {
   });
 }
 
+function inputKey(
+  input: ResolveBestFitTaskCandidatesInput,
+  overrideKey: string,
+): string {
+  return JSON.stringify([baseInputKey(input), overrideKey]);
+}
+
 function issueTaskCandidateSet(
   value: ResolvedBestFitTaskCandidateSet,
   input: ResolveBestFitTaskCandidatesInput,
+  overrideKey: string,
 ): ResolvedBestFitTaskCandidateSet {
   const frozen = deepFreeze(value);
   issuedTaskCandidateSets.add(frozen);
-  candidateSetKeys.set(frozen, inputKey(input));
+  candidateSetKeys.set(frozen, inputKey(input, overrideKey));
+  issuedTaskOverrideKeys.set(frozen.task, overrideKey);
   return frozen;
 }
 
@@ -108,10 +180,16 @@ export function isResolvedBestFitTaskCandidateSetFor(
   value: unknown,
   input: ResolveBestFitTaskCandidatesInput,
 ): value is ResolvedBestFitTaskCandidateSet {
-  return (
-    isResolvedBestFitTaskCandidateSet(value) &&
-    candidateSetKeys.get(value) === inputKey(input)
-  );
+  if (!isResolvedBestFitTaskCandidateSet(value)) return false;
+  try {
+    const overrideKey =
+      input.apiOverrides === undefined
+        ? (issuedTaskOverrideKeys.get(input.task) ?? emptyApiOverrideKey)
+        : normalizeApiOverrides(input.apiOverrides).key;
+    return candidateSetKeys.get(value) === inputKey(input, overrideKey);
+  } catch {
+    return false;
+  }
 }
 
 function safeScenarioValues(values: readonly number[]): boolean {
@@ -131,6 +209,7 @@ function routeKey(identity: RouteIdentity): string {
 function apiCandidates(
   analysis: TaskAnalysis,
   pricingAsOf: string,
+  overridesByTarget: ReadonlyMap<string, ApiCatalogOverride>,
 ): {
   confirmed: BestFitConfirmedRouteCandidate[];
   excluded: BestFitExcludedRoute[];
@@ -146,19 +225,38 @@ function apiCandidates(
   const excluded: BestFitExcludedRoute[] = [];
 
   for (const entry of resolveAllApiCatalogEntries()) {
-    const eligibility = resolveOfferingEligibility(
-      entry.offering,
-      new Map([[entry.model.id, entry.model]]),
-      requirement,
+    const override = overridesByTarget.get(
+      overrideTargetKey(entry.model.registryReference),
     );
     const pricing = evaluateApiOfferingCost({
       providerId: entry.legacyReference.providerId,
       tier: entry.legacyReference.tier,
       analysis,
       pricingAsOf,
+      ...(override === undefined ? {} : { override }),
     });
+    const effectivePlanningTier =
+      pricing.pricing.status === "resolved"
+        ? pricing.pricing.effectiveValue.planningTier
+        : entry.planningTier;
+    const eligibilityRequirement = {
+      ...requirement,
+      minimumQualityTier: "economy" as const,
+    };
+    const eligibility = resolveOfferingEligibility(
+      entry.offering,
+      new Map([[entry.model.id, entry.model]]),
+      eligibilityRequirement,
+    );
+    const belowMinimumQuality =
+      planningQualityRank[effectivePlanningTier] <
+      planningQualityRank[requirement.minimumQualityTier];
 
-    if (eligibility.status === "eligible" && pricing.status === "priced") {
+    if (
+      !belowMinimumQuality &&
+      eligibility.status === "eligible" &&
+      pricing.status === "priced"
+    ) {
       if (
         eligibility.providerId !== pricing.routeIdentity.providerId ||
         eligibility.offeringId !== pricing.routeIdentity.offeringId ||
@@ -170,15 +268,16 @@ function apiCandidates(
       confirmed.push({
         mode: "api",
         routeIdentity: pricing.routeIdentity,
-        qualityTier: eligibility.qualityTier,
+        qualityTier: effectivePlanningTier,
         modelId: pricing.modelId,
         variableCashMicroUsd: { ...pricing.scenarioCostMicroUsd },
       });
       continue;
     }
 
-    const reasonCodes =
-      eligibility.status === "conditional"
+    const reasonCodes = belowMinimumQuality
+      ? (["below-minimum-quality"] as const)
+      : eligibility.status === "conditional"
         ? eligibility.reasonCodes
         : eligibility.status === "ineligible"
           ? eligibility.reasonCodes
@@ -192,7 +291,9 @@ function apiCandidates(
     excluded.push({
       routeIdentity: entry.routeIdentity,
       status:
-        eligibility.status === "conditional" || pricing.status === "conditional"
+        belowMinimumQuality
+          ? "ineligible"
+          : eligibility.status === "conditional" || pricing.status === "conditional"
           ? "conditional"
           : eligibility.status === "ineligible" || pricing.status === "ineligible"
             ? "ineligible"
@@ -441,7 +542,12 @@ export function resolveBestFitTaskCandidates(
   ) {
     throw new Error("Best-fit candidate resolution requires matching task identity and index.");
   }
-  const api = apiCandidates(input.analysis, input.pricingAsOf);
+  const apiOverrides = normalizeApiOverrides(input.apiOverrides);
+  const api = apiCandidates(
+    input.analysis,
+    input.pricingAsOf,
+    apiOverrides.byTarget,
+  );
   const subscription = (input.subscriptions ?? []).map((candidateInput) =>
     subscriptionCandidate(candidateInput, input.analysis, input.planningAsOf),
   );
@@ -482,5 +588,6 @@ export function resolveBestFitTaskCandidates(
       ),
     },
     input,
+    apiOverrides.key,
   );
 }

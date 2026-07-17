@@ -1,6 +1,8 @@
 "use client";
 
 import { useLanguage } from "@/components/language-provider";
+import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
+import type { IncrementalCashBudget } from "@/lib/storage/scenarios";
 import { PLANNING_STRATEGIES, type PlanningStrategy } from "@/types/domain";
 
 export interface PlanningFormState {
@@ -13,17 +15,24 @@ interface BudgetSettingsProps {
   value: PlanningFormState;
   disabled: boolean;
   showValidation: boolean;
+  incrementalCashBudget: IncrementalCashBudget | null;
   onChange: (value: PlanningFormState) => void;
+  onConfirmIncrementalCashBudget: () => void;
+  onRevokeIncrementalCashBudget: () => void;
 }
 
 export function BudgetSettings({
   value,
   disabled,
   showValidation,
+  incrementalCashBudget,
   onChange,
+  onConfirmIncrementalCashBudget,
+  onRevokeIncrementalCashBudget,
 }: BudgetSettingsProps) {
-  const { copy } = useLanguage();
+  const { locale, copy, localeMeta } = useLanguage();
   const budgetCopy = copy.budgetSettings;
+  const bestFitCopy = BEST_FIT_UI_COPY[locale].budget;
   const budget = Number(value.budgetUsd);
   const deadline = Number(value.deadlineDays);
   const budgetInvalid =
@@ -40,7 +49,7 @@ export function BudgetSettings({
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
         <label htmlFor="budget-usd" className="block">
-          <span className="mb-2 block text-sm font-bold text-[#34443b]">{budgetCopy.budgetLabel}</span>
+          <span className="mb-2 block text-sm font-bold text-[#34443b]">{bestFitCopy.label}</span>
           <div className="relative">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-[#607067]">
               $
@@ -61,7 +70,7 @@ export function BudgetSettings({
             />
           </div>
           <span id="budget-usd-help" className="mt-1.5 block text-xs leading-5 text-[#68766e]">
-            {budgetCopy.budgetHelp}
+            {bestFitCopy.help}
           </span>
           {budgetInvalid ? (
             <span id="budget-usd-error" className="mt-1 block text-sm text-[#a6452a]">
@@ -100,6 +109,48 @@ export function BudgetSettings({
             </span>
           ) : null}
         </label>
+      </div>
+
+      <div
+        className={`mt-4 rounded-xl border px-4 py-3 ${
+          incrementalCashBudget?.status === "confirmed"
+            ? "border-[#2f6c55]/20 bg-[#edf5ef] text-[#274d3d]"
+            : "border-[#c88743]/25 bg-[#fff8ec] text-[#71491f]"
+        }`}
+      >
+        <p className="text-sm font-bold">
+          {incrementalCashBudget?.status === "confirmed"
+            ? bestFitCopy.confirmedTitle
+            : bestFitCopy.unconfirmedTitle}
+        </p>
+        <p className="mt-1 text-xs leading-5">
+          {incrementalCashBudget?.status === "confirmed"
+            ? bestFitCopy.confirmedDescription(
+                new Date(incrementalCashBudget.confirmedAt).toLocaleString(
+                  localeMeta.dateLocale,
+                ),
+              )
+            : bestFitCopy.unconfirmedDescription}
+        </p>
+        <button
+          type="button"
+          disabled={
+            disabled ||
+            !Number.isFinite(budget) ||
+            budget < 0.01 ||
+            budget > 10_000
+          }
+          onClick={
+            incrementalCashBudget?.status === "confirmed"
+              ? onRevokeIncrementalCashBudget
+              : onConfirmIncrementalCashBudget
+          }
+          className="mt-3 min-h-11 rounded-xl border border-current/20 bg-white/55 px-3.5 py-2 text-xs font-bold transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {incrementalCashBudget?.status === "confirmed"
+            ? bestFitCopy.revoke
+            : bestFitCopy.confirm}
+        </button>
       </div>
 
       <fieldset className="mt-5">

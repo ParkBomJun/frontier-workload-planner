@@ -36,6 +36,8 @@ import type {
   BestFitScenarioMicroUsd,
   BestFitSubscriptionResourceProfile,
   BestFitSubscriptionRouteCandidate,
+  BestFitSubscriptionScenarioUsage,
+  BestFitSubscriptionUsageLedger,
   BestFitTaskResult,
   NormalizedBestFitTask,
 } from "@/types/best-fit";
@@ -45,6 +47,7 @@ import type {
   RouteIdentity,
   SubscriptionRouteIdentity,
 } from "@/types/offerings";
+import type { ApiCatalogOverride } from "@/types/pricing";
 import { CONDITIONAL_REASON_CODES } from "@/types/offerings";
 import {
   APPLIED_UPGRADE_TRIGGER_CODES,
@@ -92,6 +95,7 @@ export interface AllocateResolvedBestFitPlanInput {
   planningAsOf: string;
   pricingAsOf: string;
   incrementalCashBudgetMicroUsd: number;
+  apiOverrides: readonly ApiCatalogOverride[];
 }
 
 function deepFreeze<T>(value: T): T {
@@ -437,10 +441,15 @@ function reserveSubscriptionCandidate(
       : state.remainingMicrounits;
     const deficit = demand - fromIncluded;
     const used = state.overageMicrounitsUsed + deficit;
+    const nextRemaining = state.remainingMicrounits - fromIncluded;
+    const includedUsed =
+      BigInt(candidate.resource.availableMicrounits) - nextRemaining;
     const cap = candidate.resource.overage?.maxOverageMicrounits;
     if (
       (deficit > BigInt(0) && candidate.resource.overage === null) ||
+      includedUsed < BigInt(0) ||
       used > MAX_SAFE_INTEGER ||
+      includedUsed + used > MAX_SAFE_INTEGER ||
       (cap !== null && cap !== undefined && used > BigInt(cap))
     ) {
       return null;
@@ -454,7 +463,7 @@ function reserveSubscriptionCandidate(
       `Subscription ${scenario} overage quota delta`,
     );
     nextResource[scenario] = {
-      remainingMicrounits: state.remainingMicrounits - fromIncluded,
+      remainingMicrounits: nextRemaining,
       overageMicrounitsUsed: used,
       overageCostMicroUsd: cost,
     };
@@ -705,6 +714,7 @@ function buildPlan(
       taskId: normalized.task.id,
       originalIndex: normalized.originalIndex,
       routeIdentity: copyRouteIdentity(selected.routeIdentity),
+      modelId: selected.candidate.modelId,
       routeKind: selected.routeKind,
       qualityTier: selected.qualityTier,
       strategyTargetTier: policy.strategyTargetTier,
@@ -728,6 +738,76 @@ function buildPlan(
         : [],
     ),
   );
+  const taskIdsBySubscriptionKey = new Map<string, string[]>();
+  orderedResults.forEach((result) => {
+    if (result.status !== "active" || result.routeIdentity.resourceId === null) {
+      return;
+    }
+    const key = routeKey(result.routeIdentity);
+    const taskIds = taskIdsBySubscriptionKey.get(key) ?? [];
+    taskIds.push(result.taskId);
+    taskIdsBySubscriptionKey.set(key, taskIds);
+  });
+  const activeSubscriptionResources = [...activeSubscriptionKeys]
+    .map((key) => {
+      const resource = resources.get(key);
+      if (!resource) {
+        throw new Error("Every active subscription must retain its resource profile.");
+      }
+      return resource;
+    })
+    .sort((left, right) =>
+      compareRouteIdentities(left.routeIdentity, right.routeIdentity),
+    );
+  const subscriptionUsageLedgers: BestFitSubscriptionUsageLedger[] =
+    activeSubscriptionResources.map((resource) => {
+      const key = routeKey(resource.routeIdentity);
+      const ledger = ledgers.get(key);
+      if (!ledger) {
+        throw new Error("Every active subscription must retain its resource ledger.");
+      }
+      const usageFor = (scenario: CostScenario): BestFitSubscriptionScenarioUsage => {
+        const state = ledger[scenario];
+        const includedUsed =
+          BigInt(resource.availableMicrounits) - state.remainingMicrounits;
+        const totalDemand = includedUsed + state.overageMicrounitsUsed;
+        if (includedUsed < BigInt(0)) {
+          throw new Error("Subscription included quota usage cannot be negative.");
+        }
+        return {
+          includedUsedMicrounits: safeNumber(
+            includedUsed,
+            `Subscription ${scenario} included quota usage`,
+          ),
+          remainingIncludedMicrounits: safeNumber(
+            state.remainingMicrounits,
+            `Subscription ${scenario} remaining included quota`,
+          ),
+          overageUsedMicrounits: safeNumber(
+            state.overageMicrounitsUsed,
+            `Subscription ${scenario} overage quota usage`,
+          ),
+          totalDemandMicrounits: safeNumber(
+            totalDemand,
+            `Subscription ${scenario} total quota demand`,
+          ),
+        };
+      };
+      return {
+        routeIdentity: {
+          ...resource.routeIdentity,
+        },
+        ownership: resource.ownership,
+        quotaUnit: resource.quotaUnit,
+        taskIds: [...(taskIdsBySubscriptionKey.get(key) ?? [])].sort(),
+        availableMicrounits: resource.availableMicrounits,
+        scenarios: {
+          low: usageFor("low"),
+          expected: usageFor("expected"),
+          high: usageFor("high"),
+        },
+      };
+    });
   const cashTasks: BestFitCashTaskInput[] = orderedResults.map((result) => {
     if (result.status !== "active") {
       return {
@@ -751,42 +831,42 @@ function buildPlan(
           apiCashMicroUsd: null,
         };
   });
-  const subscriptionCashSources: BestFitSubscriptionCashSource[] = [
-    ...activeSubscriptionKeys,
-  ].map((key) => {
-    const resource = resources.get(key);
-    const ledger = ledgers.get(key);
-    if (!resource || !ledger) {
-      throw new Error("Every active subscription must retain its resource ledger.");
-    }
-    const paidOverage =
-      resource.overage === null
-        ? ({ kind: "none" } as const)
-        : ({
-            kind: "source-backed" as const,
-            cashMicroUsd: {
-              low: safeNumber(ledger.low.overageCostMicroUsd, "Low overage cash"),
-              expected: safeNumber(
-                ledger.expected.overageCostMicroUsd,
-                "Expected overage cash",
-              ),
-              high: safeNumber(ledger.high.overageCostMicroUsd, "High overage cash"),
-            },
-          } as const);
-    return resource.ownership === "candidate-new"
-      ? {
-          routeIdentity: resource.routeIdentity,
-          ownership: "candidate-new" as const,
-          fullPlanPeriodFeeMicroUsd: resource.fullPlanPeriodFeeMicroUsd,
-          paidOverage,
-        }
-      : {
-          routeIdentity: resource.routeIdentity,
-          ownership: "owned" as const,
-          existingPlanPeriodFeeMicroUsd: 0,
-          paidOverage,
-        };
-  });
+  const subscriptionCashSources: BestFitSubscriptionCashSource[] =
+    activeSubscriptionResources.map((activeResource) => {
+      const key = routeKey(activeResource.routeIdentity);
+      const resource = resources.get(key);
+      const ledger = ledgers.get(key);
+      if (!resource || !ledger) {
+        throw new Error("Every active subscription must retain its resource ledger.");
+      }
+      const paidOverage =
+        resource.overage === null
+          ? ({ kind: "none" } as const)
+          : ({
+              kind: "source-backed" as const,
+              cashMicroUsd: {
+                low: safeNumber(ledger.low.overageCostMicroUsd, "Low overage cash"),
+                expected: safeNumber(
+                  ledger.expected.overageCostMicroUsd,
+                  "Expected overage cash",
+                ),
+                high: safeNumber(ledger.high.overageCostMicroUsd, "High overage cash"),
+              },
+            } as const);
+      return resource.ownership === "candidate-new"
+        ? {
+            routeIdentity: resource.routeIdentity,
+            ownership: "candidate-new" as const,
+            fullPlanPeriodFeeMicroUsd: resource.fullPlanPeriodFeeMicroUsd,
+            paidOverage,
+          }
+        : {
+            routeIdentity: resource.routeIdentity,
+            ownership: "owned" as const,
+            existingPlanPeriodFeeMicroUsd: 0,
+            paidOverage,
+          };
+    });
   const exactCash = exactPlanCash(cashTasks, subscriptionCashSources);
   const scenarioOverflow = {
     low: exactCash.total.low > MAX_SAFE_INTEGER,
@@ -870,6 +950,7 @@ function buildPlan(
     reservationOrderTaskIds,
     reliefOrderTaskIds,
     activatedSubscriptionRoutes: activatedCandidateSubscriptions,
+    subscriptionUsageLedgers,
     cash: {
       lowMicroUsd: totalCash.low,
       expectedMicroUsd: totalCash.expected,
@@ -1170,6 +1251,7 @@ export function allocateResolvedBestFitPlan(
           originalIndex: task.originalIndex,
           planningAsOf: input.planningAsOf,
           pricingAsOf: input.pricingAsOf,
+          apiOverrides: input.apiOverrides,
         }),
     )
   ) {

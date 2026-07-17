@@ -207,6 +207,35 @@ describe("Best-fit complete allocation", () => {
         subscriptionFeeMicroUsd: 10_000_000,
       },
       activatedSubscriptionRoutes: [identity],
+      subscriptionUsageLedgers: [
+        {
+          routeIdentity: identity,
+          ownership: "candidate-new",
+          quotaUnit: "credit",
+          taskIds: ["task-shared-1", "task-shared-2"],
+          availableMicrounits: 2_000_000,
+          scenarios: {
+            low: {
+              includedUsedMicrounits: 2_000_000,
+              remainingIncludedMicrounits: 0,
+              overageUsedMicrounits: 0,
+              totalDemandMicrounits: 2_000_000,
+            },
+            expected: {
+              includedUsedMicrounits: 2_000_000,
+              remainingIncludedMicrounits: 0,
+              overageUsedMicrounits: 0,
+              totalDemandMicrounits: 2_000_000,
+            },
+            high: {
+              includedUsedMicrounits: 2_000_000,
+              remainingIncludedMicrounits: 0,
+              overageUsedMicrounits: 0,
+              totalDemandMicrounits: 2_000_000,
+            },
+          },
+        },
+      ],
     });
     expect(shared.tasks.every(
       (task) => task.status === "active" && task.routeIdentity.resourceId !== null,
@@ -225,7 +254,161 @@ describe("Best-fit complete allocation", () => {
     expect(resultFor(single, "task-single")).toMatchObject({
       status: "active",
       routeIdentity: apiIdentity("api.openai.economy-1"),
+      modelId: "model.api.openai.economy-1",
     });
+    expect(single.subscriptionUsageLedgers).toEqual([]);
+  });
+
+  it("preserves the selected subscription model and aggregates owned included and overage usage", () => {
+    const identity = subscriptionIdentity(
+      "subscription.openai.owned-aggregate",
+      "resource.openai.owned-aggregate-0001",
+    );
+    const resource = subscriptionResource(identity, {
+      availableMicrounits: 3_000_000,
+      overage: {
+        rateUsdPerUnit: { coefficient: "1", decimalScale: 0 },
+        maxOverageMicrounits: null,
+      },
+    });
+    const routeFor = (demand: BestFitScenarioMicroUsd) => ({
+      ...subscriptionRoute(resource, "economy", demand),
+      modelId: "model.openai.owned-aggregate",
+    });
+
+    const plan = allocate([
+      normalizedTask(
+        "task-z-aggregate",
+        0,
+        [routeFor(scenario(1_000_000, 2_000_000, 3_000_000))],
+        { task: { priority: "high" } },
+      ),
+      normalizedTask(
+        "task-a-aggregate",
+        1,
+        [routeFor(scenario(2_000_000, 3_000_000, 4_000_000))],
+        { task: { priority: "low" } },
+      ),
+    ]);
+
+    expect(resultFor(plan, "task-z-aggregate")).toMatchObject({
+      status: "active",
+      modelId: "model.openai.owned-aggregate",
+      routeIdentity: identity,
+    });
+    expect(resultFor(plan, "task-a-aggregate")).toMatchObject({
+      status: "active",
+      modelId: "model.openai.owned-aggregate",
+      routeIdentity: identity,
+      routeKind: "owned-paid-overage",
+    });
+    expect(plan.subscriptionUsageLedgers).toEqual([
+      {
+        routeIdentity: identity,
+        ownership: "owned",
+        quotaUnit: "credit",
+        taskIds: ["task-a-aggregate", "task-z-aggregate"],
+        availableMicrounits: 3_000_000,
+        scenarios: {
+          low: {
+            includedUsedMicrounits: 3_000_000,
+            remainingIncludedMicrounits: 0,
+            overageUsedMicrounits: 0,
+            totalDemandMicrounits: 3_000_000,
+          },
+          expected: {
+            includedUsedMicrounits: 3_000_000,
+            remainingIncludedMicrounits: 0,
+            overageUsedMicrounits: 2_000_000,
+            totalDemandMicrounits: 5_000_000,
+          },
+          high: {
+            includedUsedMicrounits: 3_000_000,
+            remainingIncludedMicrounits: 0,
+            overageUsedMicrounits: 4_000_000,
+            totalDemandMicrounits: 7_000_000,
+          },
+        },
+      },
+    ]);
+    expect(plan.activatedSubscriptionRoutes).toEqual([]);
+    expect(plan.cash).toMatchObject({
+      subscriptionFeeMicroUsd: 0,
+      paidOverageMicroUsd: scenario(0, 2_000_000, 4_000_000),
+    });
+  });
+
+  it("keeps aggregate subscription demand within the safe integer contract", () => {
+    const identity = subscriptionIdentity(
+      "subscription.openai.safe-demand",
+      "resource.openai.safe-demand-0001",
+    );
+    const resource = subscriptionResource(identity, {
+      availableMicrounits: Number.MAX_SAFE_INTEGER,
+      overage: {
+        rateUsdPerUnit: { coefficient: "1", decimalScale: 0 },
+        maxOverageMicrounits: null,
+      },
+    });
+    const first = subscriptionRoute(
+      resource,
+      "economy",
+      scenario(Number.MAX_SAFE_INTEGER),
+    );
+    const second = subscriptionRoute(resource, "economy", scenario(1));
+    const fallback = apiRoute(
+      "api.openai.safe-demand-fallback",
+      "economy",
+      scenario(2),
+    );
+    const plan = allocate([
+      normalizedTask("task-safe-demand-first", 0, [first], {
+        task: { priority: "high" },
+      }),
+      normalizedTask("task-safe-demand-second", 1, [second, fallback], {
+        task: { priority: "low" },
+      }),
+    ]);
+
+    expect(resultFor(plan, "task-safe-demand-second")).toMatchObject({
+      status: "active",
+      routeIdentity: fallback.routeIdentity,
+      modelId: fallback.modelId,
+    });
+    expect(plan.subscriptionUsageLedgers[0]?.scenarios.expected).toEqual({
+      includedUsedMicrounits: Number.MAX_SAFE_INTEGER,
+      remainingIncludedMicrounits: 0,
+      overageUsedMicrounits: 0,
+      totalDemandMicrounits: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
+  it("orders aggregate subscription ledgers by canonical route identity", () => {
+    const zIdentity = subscriptionIdentity(
+      "subscription.openai.z-ledger",
+      "resource.openai.z-ledger-0001",
+    );
+    const aIdentity = subscriptionIdentity(
+      "subscription.openai.a-ledger",
+      "resource.openai.a-ledger-0001",
+    );
+    const zRoute = subscriptionRoute(
+      subscriptionResource(zIdentity, { availableMicrounits: 1_000_000 }),
+      "economy",
+    );
+    const aRoute = subscriptionRoute(
+      subscriptionResource(aIdentity, { availableMicrounits: 1_000_000 }),
+      "economy",
+    );
+
+    const plan = allocate([
+      normalizedTask("task-z-ledger", 0, [zRoute]),
+      normalizedTask("task-a-ledger", 1, [aRoute]),
+    ]);
+
+    expect(
+      plan.subscriptionUsageLedgers.map(({ routeIdentity }) => routeIdentity),
+    ).toEqual([aIdentity, zIdentity]);
   });
 
   it("classifies an unaffordable confirmed new subscription as held without charging its unused fee", () => {

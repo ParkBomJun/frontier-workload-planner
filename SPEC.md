@@ -1389,14 +1389,40 @@ routes. Checkpoint 7 owns resource input and result presentation, while checkpoi
 and override persistence, resolver rehydration, and route-result export. JSON v3/v4 remain
 unchanged.
 
-### Future UI input and result presentation contract
+### Checkpoint-7 UI input and result presentation contract
 
 The current task, budget, reference deadline, and strategy flow remains. Ver3 adds an optional
-task-level deadline, bounded failure impact, and the versioned incremental-cash budget. A later
+task-level deadline, bounded failure impact, and the versioned incremental-cash budget. The
 `Available AI resources` section adds owned or candidate subscriptions, their remaining native
 quota, reset information, supported surfaces, and a `Custom subscription` entry. Representative
 presets may illustrate variable/opaque chat access, credit-based coding access, and rolling quota,
 but presets must not invent unpublished capacity.
+
+Checkpoint 7 requires an explicit confirmation before the legacy `budgetUsd` amount becomes the
+total incremental-cash budget. Editing that amount revokes confirmation unless the numeric amount
+is unchanged. Confirmation, strategy, task priority/deadline/failure impact, resource drafts, and
+catalog overrides trigger a local deterministic recalculation; they never call `/api/analyze`.
+Task descriptions still require a new Mock or Live analysis. A restored legacy analysis remains in
+the compatibility view until the user explicitly reanalyzes it.
+
+Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
+Offerings. User observations never mint provider-published or connector evidence. A draft with
+invalid fields stays visible with field diagnostics; a resolved-but-unverified resource remains a
+conditional/excluded route. Current generalized API Offerings likewise retain unknown access and
+capability profiles, so the production Best-fit view may honestly show no confirmed executable
+route while the reviewed API price/limit comparison remains available below it.
+
+Availability, commitment, quota, reset, and Offering surface retain separate user-observation
+timestamps. A display-name edit changes none of them; a source-field edit updates only its own fact
+group. `planningAsOf` remains separate from those evidence timestamps and is never rewritten into
+older quota or reset observations.
+
+The bounded override editor targets only an exact versioned entry among the existing 3×3 API
+catalog. It may change the planning tier and standard-uncached-text input/output price from an ISO
+date. It cannot change identity, invocation limits, access, capabilities, or evidence authority;
+restoration deletes the user override and exposes the immutable verified default again.
+The legacy API price/limit compatibility view uses verified defaults only. Session overrides are
+applied solely by the Best-fit candidate resolver, and this scope is disclosed in every locale.
 
 The result keeps four quantities visibly separate:
 
@@ -1411,7 +1437,7 @@ recommended access route before the model name and includes the deterministic ex
 Task, plan, fallback, baseline, and export records carry the same structured `RouteIdentity`; a
 conditional result also carries its ordered reason codes and structured API fallback identity.
 
-The eventual Korean hero contract is:
+The checkpoint-7 Korean hero is:
 
 ```text
 가장 비싼 모델보다,
@@ -1423,14 +1449,19 @@ The eventual Korean hero contract is:
 
 English and Japanese use equivalent complete interface copy rather than mixed-language labels.
 Technical terms and model/product names remain untranslated where precision requires it. The UI
-will use an explicit Korean-capable font and avoid isolated heading line breaks. README, Devpost,
-and video copy adopt this product definition only when the corresponding functionality exists.
+uses an explicit Korean-capable font stack and avoids isolated heading line breaks.
+
+Resource drafts and API overrides remain session-only in checkpoint 7. They are deliberately absent
+from LocalStorage v5 and JSON/Markdown exports. The result UI may show derived route, cash, quota,
+commitment, overage, conditional, and exclusion information, but none of those projections is
+restored as authority. Checkpoint 8 introduces the next source schema, re-resolution on restore,
+and a new route/resource export version together.
 
 ### Phase and checkpoint boundary
 
 The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions,
-credit-based coding plans, rolling-quota plans, and `Custom subscription` now exist only as
-checkpoint-5 internal, non-authoritative preset metadata; their user-facing input is checkpoint 7.
+credit-based coding plans, rolling-quota plans, and `Custom subscription` are non-authoritative
+preset metadata exposed through the checkpoint-7 session-only input UI.
 A cloud subscription for a model family that can also run
 locally is represented only as `Custom subscription`. This user-defined subscription metadata does
 not authorize an arbitrary API provider, custom model catalog, local-inference claim, or

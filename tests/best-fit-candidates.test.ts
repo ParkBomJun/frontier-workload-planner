@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createMockAnalysis } from "@/lib/ai/mock-response";
+import { catalogOverrideTargetFor } from "@/lib/offerings/catalog-overrides";
 import { allocateResolvedBestFitPlan } from "@/lib/planning/best-fit-allocator";
 import {
   isResolvedBestFitTaskCandidateSet,
@@ -10,6 +11,7 @@ import {
   type ResolvedBestFitTaskCandidateSet,
 } from "@/lib/planning/best-fit-candidates";
 import type { TaskInput } from "@/types/domain";
+import type { ApiCatalogOverride } from "@/types/pricing";
 
 const PRICING_AS_OF = "2026-07-17";
 const PLANNING_AS_OF = "2026-07-17T12:00:00.000Z";
@@ -41,13 +43,38 @@ function candidateInput(
   };
 }
 
-function allocate(tasks: readonly ResolvedBestFitTaskCandidateSet[]) {
+function apiOverride(
+  providerId: "anthropic" | "google" | "openai",
+  tier: "economy" | "balanced" | "frontier",
+  patch: Pick<ApiCatalogOverride, "planningTier" | "standardTextPrice">,
+  effectiveFrom = PRICING_AS_OF,
+): ApiCatalogOverride {
+  return {
+    kind: "api-catalog-override",
+    provenance: "user-supplied",
+    target: catalogOverrideTargetFor(providerId, tier),
+    effectiveFrom,
+    recordedAt: PLANNING_AS_OF,
+    ...(patch.planningTier === undefined
+      ? {}
+      : { planningTier: patch.planningTier }),
+    ...(patch.standardTextPrice === undefined
+      ? {}
+      : { standardTextPrice: patch.standardTextPrice }),
+  };
+}
+
+function allocate(
+  tasks: readonly ResolvedBestFitTaskCandidateSet[],
+  apiOverrides: readonly ApiCatalogOverride[] = [],
+) {
   return allocateResolvedBestFitPlan({
     tasks,
     strategy: "balanced",
     planningAsOf: PLANNING_AS_OF,
     pricingAsOf: PRICING_AS_OF,
     incrementalCashBudgetMicroUsd: 0,
+    apiOverrides,
   });
 }
 
@@ -159,6 +186,138 @@ describe("Best-fit resolver-issued task candidates", () => {
     }
   });
 
+  it("binds issued candidates to canonical override source state", () => {
+    const luna = apiOverride("openai", "economy", {
+      planningTier: "balanced",
+      standardTextPrice: { inputUsdPerMillion: 0.75, outputUsdPerMillion: 4 },
+    });
+    const sonnet = apiOverride("anthropic", "balanced", {
+      planningTier: undefined,
+      standardTextPrice: { inputUsdPerMillion: 2.25, outputUsdPerMillion: 11 },
+    });
+    const input = { ...candidateInput(), apiOverrides: [luna, sonnet] };
+    const issued = resolveBestFitTaskCandidates(input);
+
+    expect(isResolvedBestFitTaskCandidateSetFor(issued, input)).toBe(true);
+    expect(
+      isResolvedBestFitTaskCandidateSetFor(issued, {
+        ...input,
+        apiOverrides: [sonnet, luna],
+      }),
+    ).toBe(true);
+    expect(
+      isResolvedBestFitTaskCandidateSetFor(issued, {
+        ...input,
+        apiOverrides: [
+          { ...luna, standardTextPrice: { inputUsdPerMillion: 0.5, outputUsdPerMillion: 3 } },
+          sonnet,
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isResolvedBestFitTaskCandidateSetFor(issued, candidateInput()),
+    ).toBe(false);
+
+    expect(() => allocate([issued], [sonnet, luna])).not.toThrow();
+
+    const secondTask = {
+      ...task,
+      id: "task-2",
+      name: "두 번째 API 설계",
+    };
+    const secondBaseInput = candidateInput(1);
+    const issuedWithDifferentOverrides = resolveBestFitTaskCandidates({
+      ...secondBaseInput,
+      task: secondTask,
+      analysis: {
+        ...secondBaseInput.analysis,
+        taskId: secondTask.id,
+      },
+      apiOverrides: [sonnet],
+    });
+
+    expect(() =>
+      allocate([issued, issuedWithDifferentOverrides], [luna, sonnet]),
+    ).toThrow(/exact resolver-issued candidate sets/);
+  });
+
+  it("applies an exact effective planning-tier override without promoting API authority", () => {
+    const luna = apiOverride("openai", "economy", {
+      planningTier: "premium",
+      standardTextPrice: { inputUsdPerMillion: 0.75, outputUsdPerMillion: 4 },
+    });
+    const issued = resolveBestFitTaskCandidates({
+      ...candidateInput(),
+      apiOverrides: [luna],
+    });
+    const lunaRoute = issued.excludedRoutes.find(
+      ({ routeIdentity }) =>
+        routeIdentity.offeringId === "api.openai.gpt-5.6-luna.standard-text",
+    );
+
+    expect(lunaRoute).toEqual({
+      routeIdentity: {
+        providerId: "openai",
+        offeringId: "api.openai.gpt-5.6-luna.standard-text",
+        resourceId: null,
+      },
+      status: "conditional",
+      reasonCodes: conditionalReasons,
+    });
+    expect(issued.confirmedRoutes).toEqual([]);
+
+    const future = resolveBestFitTaskCandidates({
+      ...candidateInput(),
+      apiOverrides: [
+        { ...luna, effectiveFrom: "2026-07-18" },
+      ],
+    });
+    expect(
+      future.excludedRoutes.find(
+        ({ routeIdentity }) =>
+          routeIdentity.offeringId === "api.openai.gpt-5.6-luna.standard-text",
+      )?.status,
+    ).toBe("ineligible");
+  });
+
+  it("rejects invalid and duplicate catalog override targets", () => {
+    const luna = apiOverride("openai", "economy", {
+      planningTier: "balanced",
+      standardTextPrice: undefined,
+    });
+    expect(() =>
+      resolveBestFitTaskCandidates({
+        ...candidateInput(),
+        apiOverrides: [luna, { ...luna }],
+      }),
+    ).toThrow(/one value per catalog target/);
+    expect(() =>
+      resolveBestFitTaskCandidates({
+        ...candidateInput(),
+        apiOverrides: [
+          {
+            ...luna,
+            target: { ...luna.target, entryId: "unknown-model" },
+          },
+        ],
+      }),
+    ).toThrow(/override-target-unresolved/);
+    expect(
+      isResolvedBestFitTaskCandidateSetFor(
+        resolveBestFitTaskCandidates(candidateInput()),
+        {
+          ...candidateInput(),
+          apiOverrides: [
+            {
+              ...luna,
+              target: { ...luna.target, entryId: "unknown-model" },
+            },
+          ],
+        },
+      ),
+    ).toBe(false);
+  });
+
   it("accepts the exact issued set and returns an infeasible current-catalog plan", () => {
     const issued = resolveBestFitTaskCandidates(candidateInput());
     const plan = allocate([issued]);
@@ -217,6 +376,7 @@ describe("Best-fit resolver-issued task candidates", () => {
         planningAsOf: "2026-07-18T12:00:00.000Z",
         pricingAsOf: PRICING_AS_OF,
         incrementalCashBudgetMicroUsd: 0,
+        apiOverrides: [],
       }),
     ).toThrow(/exact resolver-issued candidate sets/);
     expect(() =>
@@ -226,6 +386,7 @@ describe("Best-fit resolver-issued task candidates", () => {
         planningAsOf: PLANNING_AS_OF,
         pricingAsOf: "2026-07-18",
         incrementalCashBudgetMicroUsd: 0,
+        apiOverrides: [],
       }),
     ).toThrow(/exact resolver-issued candidate sets/);
   });

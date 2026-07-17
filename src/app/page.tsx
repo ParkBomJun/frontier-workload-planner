@@ -3,17 +3,34 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AnalysisResults } from "@/components/analysis-results";
+import { AvailableAiResources } from "@/components/available-ai-resources";
+import { BestFitResults } from "@/components/best-fit-results";
 import { BudgetSettings, type PlanningFormState } from "@/components/budget-settings";
+import { CatalogOverrideEditor } from "@/components/catalog-override-editor";
 import { useLanguage } from "@/components/language-provider";
 import { TaskEditor } from "@/components/task-editor";
+import { PROVIDER_CATALOG } from "@/config/provider-catalog";
+import type { SubscriptionPresetId } from "@/config/subscription-presets";
 import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
 import { MAX_TASKS } from "@/lib/ai/schema";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
+import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
+  buildBestFitUiPlan,
+  type BestFitUiPlan,
+} from "@/lib/planning/best-fit-ui-plan";
+import {
+  createAvailableAiResourceEvidenceObservedAt,
+  createDefaultAvailableAiResourceDraft,
+  updateAvailableAiResourceEvidenceObservedAt,
+} from "@/lib/planning/resource-drafts";
+import {
   clearRecentScenario,
+  confirmIncrementalCashBudget,
   loadRecentScenario,
   saveRecentScenario,
+  type IncrementalCashBudget,
 } from "@/lib/storage/scenarios";
 import type {
   AnalysisMode,
@@ -25,6 +42,11 @@ import type {
   TaskInput,
   TaskPriority,
 } from "@/types/domain";
+import type { ApiCatalogOverride } from "@/types/pricing";
+import type {
+  AvailableAiResourceDraft,
+  AvailableAiResourceEvidenceObservedAt,
+} from "@/types/resource-drafts";
 import type { FailureImpact } from "@/types/workload";
 
 const INITIAL_TASKS: TaskInput[] = [
@@ -42,6 +64,11 @@ const INITIAL_SETTINGS: PlanningFormState = {
   budgetUsd: "5.00",
   deadlineDays: "7",
   strategy: "balanced",
+};
+
+const INITIAL_INCREMENTAL_CASH_BUDGET: IncrementalCashBudget = {
+  status: "legacy-api-only-unconfirmed",
+  legacyBudgetUsd: 5,
 };
 
 type RequestStatus = "idle" | "loading" | "success" | "error";
@@ -180,6 +207,33 @@ function parsePlanningSettings(value: PlanningFormState): PlanningSettings | nul
   return { budgetUsd, deadlineDays, strategy: value.strategy };
 }
 
+function reconcileIncrementalCashBudget(
+  budgetUsd: number,
+  current: IncrementalCashBudget | null,
+): IncrementalCashBudget | null {
+  if (!Number.isFinite(budgetUsd) || budgetUsd < 0.01 || budgetUsd > 10_000) {
+    return null;
+  }
+  if (
+    current?.status === "confirmed" &&
+    current.incrementalCashBudgetUsd === budgetUsd
+  ) {
+    return current;
+  }
+  return {
+    status: "legacy-api-only-unconfirmed",
+    legacyBudgetUsd: budgetUsd,
+  };
+}
+
+function latestIsoDateTime(...values: Array<string | null | undefined>): string | null {
+  const valid = values.filter((value): value is string => {
+    if (!value) return false;
+    return !Number.isNaN(Date.parse(value));
+  });
+  return valid.sort((left, right) => left.localeCompare(right)).at(-1) ?? null;
+}
+
 function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
   const taskIds = new Set(tasks.map((task) => task.id));
   let candidate = Math.max(1, startAt);
@@ -197,8 +251,17 @@ function planningFormState(settings: PlanningSettings): PlanningFormState {
 
 export default function Home() {
   const { locale, copy, localeMeta } = useLanguage();
+  const bestFitCopy = BEST_FIT_UI_COPY[locale];
   const [tasks, setTasks] = useState<TaskInput[]>(INITIAL_TASKS);
   const [settings, setSettings] = useState<PlanningFormState>(INITIAL_SETTINGS);
+  const [incrementalCashBudget, setIncrementalCashBudget] =
+    useState<IncrementalCashBudget | null>(INITIAL_INCREMENTAL_CASH_BUDGET);
+  const [resourceDrafts, setResourceDrafts] = useState<AvailableAiResourceDraft[]>([]);
+  const [resourceEvidenceObservedAtById, setResourceEvidenceObservedAtById] = useState<
+    Record<string, AvailableAiResourceEvidenceObservedAt>
+  >({});
+  const [apiOverrides, setApiOverrides] = useState<readonly ApiCatalogOverride[]>([]);
+  const [planningRevisionAt, setPlanningRevisionAt] = useState<string | null>(null);
   const [mode, setMode] = useState<AnalysisMode>("mock");
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>("openai");
   const [status, setStatus] = useState<RequestStatus>("idle");
@@ -210,6 +273,7 @@ export default function Home() {
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
   const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
   const nextTaskNumber = useRef(2);
+  const nextResourceNumber = useRef(1);
 
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
     setAllocationNotice(null);
@@ -220,6 +284,15 @@ export default function Home() {
       const restoredSnapshot = result.scenario.analysisSnapshot;
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
+      setIncrementalCashBudget(result.scenario.settings.incrementalCashBudget);
+      setPlanningRevisionAt(
+        latestIsoDateTime(
+          restoredSnapshot.response.generatedAt,
+          result.scenario.settings.incrementalCashBudget.status === "confirmed"
+            ? result.scenario.settings.incrementalCashBudget.confirmedAt
+            : null,
+        ),
+      );
       setSelectedProvider(result.scenario.selectedProvider);
       setMode(restoredSnapshot.response.mode);
       setCompleted({
@@ -289,6 +362,20 @@ export default function Home() {
   }, [restoreRecentScenario]);
 
   const parsedSettings = useMemo(() => parsePlanningSettings(settings), [settings]);
+  const planningAsOf = useMemo(
+    () =>
+      latestIsoDateTime(
+        planningRevisionAt,
+        ...Object.values(resourceEvidenceObservedAtById).flatMap((timestamps) =>
+          Object.values(timestamps),
+        ),
+        ...apiOverrides.map((override) => override.recordedAt),
+        completed?.analysisSnapshot.response.generatedAt,
+      ),
+    [apiOverrides, completed, planningRevisionAt, resourceEvidenceObservedAtById],
+  );
+  const pricingAsOf =
+    planningAsOf?.slice(0, 10) ?? PROVIDER_CATALOG.openai.verifiedAt;
   const providerPlanning = useMemo(() => {
     if (!completed || !parsedSettings) return null;
     return compareProviderPlans(
@@ -298,16 +385,65 @@ export default function Home() {
     );
   }, [completed, parsedSettings]);
   const plan = providerPlanning?.plans[selectedProvider] ?? null;
+  const bestFitPlanning = useMemo<
+    | { ok: true; result: BestFitUiPlan }
+    | { ok: false }
+    | null
+  >(() => {
+    if (
+      !completed ||
+      completed.analysisSnapshot.compatibility !== "best-fit" ||
+      !parsedSettings ||
+      incrementalCashBudget?.status !== "confirmed" ||
+      planningAsOf === null
+    ) {
+      return null;
+    }
+    try {
+      return {
+        ok: true,
+        result: buildBestFitUiPlan({
+          tasks: completed.tasks,
+          analyses: completed.analysisSnapshot.response.analysis.tasks,
+          strategy: parsedSettings.strategy,
+          incrementalCashBudgetUsd:
+            incrementalCashBudget.incrementalCashBudgetUsd,
+          planningAsOf,
+          pricingAsOf,
+          resourceEvidenceObservedAtById,
+          resourceDrafts,
+          apiOverrides,
+        }),
+      };
+    } catch {
+      return { ok: false };
+    }
+  }, [
+    apiOverrides,
+    completed,
+    incrementalCashBudget,
+    parsedSettings,
+    planningAsOf,
+    pricingAsOf,
+    resourceDrafts,
+    resourceEvidenceObservedAtById,
+  ]);
 
   function persistCompletedScenario(
     snapshot: CompletedAnalysis,
     planningSettings: PlanningSettings,
     providerId: ProviderId,
     announceSuccess: boolean,
+    nextIncrementalCashBudget: IncrementalCashBudget | null = incrementalCashBudget,
   ) {
     const saved = saveRecentScenario({
       tasks: snapshot.tasks,
-      settings: planningSettings,
+      settings: {
+        ...planningSettings,
+        ...(nextIncrementalCashBudget === null
+          ? {}
+          : { incrementalCashBudget: nextIncrementalCashBudget }),
+      },
       selectedProvider: providerId,
       analysisSnapshot: snapshot.analysisSnapshot,
     });
@@ -338,6 +474,11 @@ export default function Home() {
     setAllocationNotice(null);
   }
 
+  function markPlanningRevision(changedAt = new Date().toISOString()) {
+    setPlanningRevisionAt(changedAt);
+    return changedAt;
+  }
+
   function updateTask(taskId: string, field: "name" | "description", value: string) {
     setTasks((current) =>
       current.map((task) => (task.id === taskId ? { ...task, [field]: value } : task)),
@@ -364,6 +505,7 @@ export default function Home() {
     };
     setCompleted(updatedCompleted);
     setStatus("success");
+    markPlanningRevision();
     const changedTask = updatedTasks.find((task) => task.id === taskId);
     setAllocationNotice({
       kind: "priority",
@@ -406,6 +548,7 @@ export default function Home() {
     };
     setCompleted(updatedCompleted);
     setStatus("success");
+    markPlanningRevision();
 
     if (hasRecentScenario && parsedSettings) {
       persistCompletedScenario(updatedCompleted, parsedSettings, selectedProvider, false);
@@ -461,7 +604,13 @@ export default function Home() {
     setVisibleError(null);
     setShowValidation(false);
     const nextPlanningSettings = parsePlanningSettings(value);
+    const nextIncrementalCashBudget = reconcileIncrementalCashBudget(
+      Number(value.budgetUsd),
+      incrementalCashBudget,
+    );
+    setIncrementalCashBudget(nextIncrementalCashBudget);
     if (completed && nextPlanningSettings) {
+      markPlanningRevision();
       setAllocationNotice({
         kind: "settings",
         budgetUsd: nextPlanningSettings.budgetUsd,
@@ -471,8 +620,146 @@ export default function Home() {
       setAllocationNotice(null);
     }
     if (completed && hasRecentScenario && nextPlanningSettings) {
-      persistCompletedScenario(completed, nextPlanningSettings, selectedProvider, false);
+      persistCompletedScenario(
+        completed,
+        nextPlanningSettings,
+        selectedProvider,
+        false,
+        nextIncrementalCashBudget,
+      );
     }
+  }
+
+  function confirmBudgetMeaning() {
+    const planningSettings = parsePlanningSettings(settings);
+    if (!planningSettings) return;
+    const confirmedAt = new Date().toISOString();
+    const result = confirmIncrementalCashBudget(
+      {
+        ...planningSettings,
+        ...(incrementalCashBudget === null
+          ? {}
+          : { incrementalCashBudget }),
+      },
+      planningSettings.budgetUsd,
+      confirmedAt,
+    );
+    if (!result.ok) return;
+    const confirmed = result.settings.incrementalCashBudget;
+    setIncrementalCashBudget(confirmed);
+    markPlanningRevision(confirmedAt);
+    if (completed && hasRecentScenario) {
+      persistCompletedScenario(
+        completed,
+        planningSettings,
+        selectedProvider,
+        false,
+        confirmed,
+      );
+    }
+  }
+
+  function revokeBudgetMeaning() {
+    const planningSettings = parsePlanningSettings(settings);
+    if (!planningSettings) return;
+    const unconfirmed: IncrementalCashBudget = {
+      status: "legacy-api-only-unconfirmed",
+      legacyBudgetUsd: planningSettings.budgetUsd,
+    };
+    setIncrementalCashBudget(unconfirmed);
+    markPlanningRevision();
+    if (completed && hasRecentScenario) {
+      persistCompletedScenario(
+        completed,
+        planningSettings,
+        selectedProvider,
+        false,
+        unconfirmed,
+      );
+    }
+  }
+
+  function addResource(presetId: SubscriptionPresetId) {
+    if (
+      resourceDrafts.length >= 4 ||
+      resourceDrafts.some((draft) => draft.preset.id === presetId)
+    ) {
+      return;
+    }
+    let candidate = nextResourceNumber.current;
+    const ids = new Set(resourceDrafts.map(({ uiId }) => uiId));
+    while (ids.has(`resource-${candidate}`)) candidate += 1;
+    nextResourceNumber.current = candidate + 1;
+    const changedAt = new Date().toISOString();
+    setResourceDrafts((current) => [
+      ...current,
+      {
+        ...createDefaultAvailableAiResourceDraft({
+          uiId: `resource-${candidate}`,
+          presetId,
+        }),
+        displayName: bestFitCopy.resources.presets[presetId].name,
+        surface: "",
+      },
+    ]);
+    setResourceEvidenceObservedAtById((current) => ({
+      ...current,
+      [`resource-${candidate}`]:
+        createAvailableAiResourceEvidenceObservedAt(changedAt),
+    }));
+    markPlanningRevision(changedAt);
+    window.requestAnimationFrame(() =>
+      document.getElementById(`resource-name-resource-${candidate}`)?.focus(),
+    );
+  }
+
+  function updateResource(uiId: string, draft: AvailableAiResourceDraft) {
+    const previous = resourceDrafts.find((item) => item.uiId === uiId);
+    const currentObservedAt = resourceEvidenceObservedAtById[uiId];
+    if (previous === undefined || currentObservedAt === undefined) return;
+    const changedAt = new Date().toISOString();
+    const evidenceUpdate = updateAvailableAiResourceEvidenceObservedAt(
+      previous,
+      draft,
+      currentObservedAt,
+      changedAt,
+    );
+    setResourceDrafts((current) =>
+      current.map((item) => (item.uiId === uiId ? draft : item)),
+    );
+    setResourceEvidenceObservedAtById((current) => ({
+      ...current,
+      [uiId]: evidenceUpdate.observedAt,
+    }));
+    if (evidenceUpdate.evidenceChanged) markPlanningRevision(changedAt);
+  }
+
+  function removeResource(uiId: string) {
+    const removedPresetId = resourceDrafts.find(
+      (draft) => draft.uiId === uiId,
+    )?.preset.id;
+    const changedAt = new Date().toISOString();
+    setResourceDrafts((current) => current.filter((draft) => draft.uiId !== uiId));
+    setResourceEvidenceObservedAtById((current) => {
+      const next = { ...current };
+      delete next[uiId];
+      return next;
+    });
+    markPlanningRevision(changedAt);
+    window.requestAnimationFrame(() =>
+      (removedPresetId
+        ? document.getElementById(`add-resource-${removedPresetId}`)
+        : null
+      )?.focus(),
+    );
+  }
+
+  function updateApiOverrides(
+    overrides: readonly ApiCatalogOverride[],
+    changedAt: string,
+  ) {
+    setApiOverrides(overrides);
+    markPlanningRevision(changedAt);
   }
 
   function updateProvider(providerId: ProviderId) {
@@ -570,7 +857,14 @@ export default function Home() {
       };
       setCompleted(completedSnapshot);
       setStatus("success");
-      persistCompletedScenario(completedSnapshot, planningSettings, selectedProvider, true);
+      setPlanningRevisionAt(payload.generatedAt);
+      persistCompletedScenario(
+        completedSnapshot,
+        planningSettings,
+        selectedProvider,
+        true,
+        incrementalCashBudget,
+      );
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus("error");
@@ -618,15 +912,15 @@ export default function Home() {
 
         <section className="py-10 sm:py-14">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#b85331]">
-            {copy.page.heroEyebrow}
+            {bestFitCopy.hero.eyebrow}
           </p>
           <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#12281f] sm:text-5xl lg:text-[3.5rem]">
-              {copy.page.heroTitleLine1}
-              <br className="hidden sm:block" /> {copy.page.heroTitleLine2}
+              {bestFitCopy.hero.titleLine1}
+              <br className="hidden sm:block" /> {bestFitCopy.hero.titleLine2}
             </h1>
             <p className="max-w-xl text-base leading-7 text-[#536159] lg:justify-self-end">
-              {copy.page.heroDescription}
+              {bestFitCopy.hero.description}
             </p>
           </div>
         </section>
@@ -650,7 +944,10 @@ export default function Home() {
               value={settings}
               disabled={status === "loading"}
               showValidation={showValidation}
+              incrementalCashBudget={incrementalCashBudget}
               onChange={updateSettings}
+              onConfirmIncrementalCashBudget={confirmBudgetMeaning}
+              onRevokeIncrementalCashBudget={revokeBudgetMeaning}
             />
 
             <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6">
@@ -706,6 +1003,22 @@ export default function Home() {
             </section>
           </aside>
         </form>
+
+        <AvailableAiResources
+          drafts={resourceDrafts}
+          evidenceObservedAtById={resourceEvidenceObservedAtById}
+          disabled={status === "loading"}
+          onAdd={addResource}
+          onChange={updateResource}
+          onRemove={removeResource}
+        />
+
+        <CatalogOverrideEditor
+          overrides={apiOverrides}
+          pricingAsOf={pricingAsOf}
+          disabled={status === "loading"}
+          onChange={updateApiOverrides}
+        />
 
         <p className="sr-only" aria-live="polite">
           {renderedAllocationNotice || statusMessage}
@@ -800,8 +1113,46 @@ export default function Home() {
           </div>
         ) : null}
 
+        {completed ? (
+          <div className="mt-8">
+            {completed.analysisSnapshot.compatibility !== "best-fit" ? (
+              <section className="rounded-2xl border border-[#c88743]/25 bg-[#fff8ec] p-5 text-[#71491f]">
+                <h2 className="font-bold">{bestFitCopy.results.analysisRequiredTitle}</h2>
+                <p className="mt-1 text-sm leading-6">
+                  {bestFitCopy.results.analysisRequiredDescription}
+                </p>
+              </section>
+            ) : incrementalCashBudget?.status !== "confirmed" ? (
+              <section className="rounded-2xl border border-[#c88743]/25 bg-[#fff8ec] p-5 text-[#71491f]">
+                <h2 className="font-bold">{bestFitCopy.results.budgetRequiredTitle}</h2>
+                <p className="mt-1 text-sm leading-6">
+                  {bestFitCopy.results.budgetRequiredDescription}
+                </p>
+              </section>
+            ) : bestFitPlanning?.ok ? (
+              <BestFitResults
+                result={bestFitPlanning.result}
+                tasks={completed.tasks}
+                generatedAt={planningAsOf ?? completed.analysisSnapshot.response.generatedAt}
+              />
+            ) : (
+              <section role="alert" className="rounded-2xl border border-[#cf6845]/25 bg-[#fff5ef] p-5 text-[#7c331f]">
+                <p className="font-bold">{bestFitCopy.results.calculationError}</p>
+              </section>
+            )}
+          </div>
+        ) : null}
+
         {completed && plan ? (
           <div className="mt-8">
+            <section className="mb-4 rounded-2xl border border-[#173f31]/10 bg-white/70 px-5 py-4">
+              <h2 className="font-bold text-[#294638]">
+                {bestFitCopy.results.compatibilityView}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-[#607067]">
+                {bestFitCopy.results.compatibilityDescription}
+              </p>
+            </section>
             <AnalysisResults
               sourceTasks={completed.tasks}
               plan={plan}

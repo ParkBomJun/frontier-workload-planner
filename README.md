@@ -22,6 +22,11 @@
 - `POST /api/analyze`의 서버 입력·본문 크기 제한
 - OpenAI Responses API와 Zod Structured Outputs
 - `best-fit-analysis-v2` 계약의 work mode, 최소 품질, 필수 기능, 상향 조건, 실패 가능성
+- 기존 API 전용 예산을 자동 재해석하지 않는 명시적 총 증분 현금 예산 확인
+- 세션 전용 Available AI resources: ChatGPT-like, Copilot-like, GLM-like, Custom subscription
+- 검증된 3×3 API 카탈로그 항목의 planning tier·표준 텍스트 가격만 수정하고 즉시 기본값 복원
+- API 사용료, 구독 사용량, 신규 구독 약정액, 유료 초과 사용료를 분리한 Best-fit route 결과
+- 예산·전략·우선순위·작업 기한·실패 영향·자원·override 변경 시 GPT 재호출 없는 즉시 재계산
 - `gpt-5.6` 기본 모델, `low` reasoning, 출력 최대 3,000토큰
 - 네트워크·SDK·스키마 실패를 합쳐 자동 재시도 최대 1회
 - 고정 `xs / s / m / l / xl` 토큰 구간과 공급자별 공개 표준 텍스트 가격 기반 Low / Expected / High 계산
@@ -82,9 +87,9 @@ output을 사용합니다. Google 3종은 1,048,576 max input과 65,536 max outp
 별도의 `ineligible` 결과입니다.
 
 동일 seam은 기존 검증 카탈로그 항목의 planning tier와 표준 텍스트 입력·출력 가격에만
-적용할 수 있는 `user-supplied` override 원본과 삭제 기반 기본값 복원을 제공합니다. 아직
-화면·LocalStorage·Markdown·JSON에는 연결하지 않았습니다. 편집 UI는 체크포인트 7,
-버전된 저장과 내보내기는 체크포인트 8 범위이며, 현재 JSON v3/v4 의미는 바뀌지 않습니다.
+적용할 수 있는 `user-supplied` override 원본과 삭제 기반 기본값 복원을 제공합니다.
+체크포인트 7 편집 UI에는 연결됐지만 현재 세션에서만 유지됩니다. 버전된 저장과
+내보내기는 체크포인트 8 범위이며, 현재 JSON v3/v4 의미는 바뀌지 않습니다.
 
 ### 체크포인트 5 내부 엔진 경계
 
@@ -101,10 +106,26 @@ output을 사용합니다. Google 3종은 1,048,576 max input과 65,536 max outp
 인증된 connector evidence issuer도 없으므로, 테스트를 위해 확정 경로를 꾸며내지 않습니다.
 
 ChatGPT-like, GitHub Copilot-like, GLM-like, Custom subscription preset은 숫자·가격·공식
-증거를 포함하지 않는 입력 힌트뿐입니다. 아직 현재 웹페이지, LocalStorage, Markdown,
-JSON에는 연결되지 않았습니다. 전체 Best-fit route 선택, 신규 구독 활성화 비교, API cash
-budget의 active/held 판정은 체크포인트 6, 사용자 입력 UI는 체크포인트 7, 저장·내보내기는
-체크포인트 8 범위입니다. 따라서 공개 production 동작은 기존 안정된 API 비교 흐름 그대로입니다.
+증거를 포함하지 않는 입력 힌트뿐입니다. 체크포인트 7 웹페이지에서 source draft로 입력하고
+조건부 근거 상태를 볼 수 있지만 LocalStorage, Markdown, JSON에는 아직 포함되지 않습니다.
+전체 Best-fit route 선택, 신규 구독 활성화 비교, incremental-cash budget의
+active/held/infeasible 판정은 체크포인트 6 엔진을 사용하며, 저장·내보내기는 체크포인트 8
+범위입니다. 따라서 공개 production 동작은 기존 안정된 API 비교 흐름 그대로입니다.
+
+### 체크포인트 7 UI 경계
+
+새 Best-fit 결과는 확인된 이용 경로를 모델명보다 먼저 표시하고 Expected 총 증분 현금,
+API 지출, 신규 구독 약정, 유료 초과 사용, 구독 native-unit 사용량을 분리합니다. 현재 공식
+카탈로그에는 완전한 API access/capability claim이 없고 사용자 구독 입력도 공식 증거가
+아니므로, 화면은 실행 경로를 꾸며내지 않고 조건부·제외·실행 불가 상태를 그대로 보여줍니다.
+기존 3개 공급자 가격·호출 한도 결과는 별도의 `API 가격 호환성 보기`로 유지됩니다.
+이 호환성 보기는 검증된 기본 가격만 사용하며, 세션의 사용자 수정값은 Best-fit 계산에만
+적용된다는 범위를 화면에 명시합니다. 자원 표시 이름을 바꿔도 quota/reset 관측 시각은
+갱신하지 않고, 가용성·요금·quota·reset·사용 환경의 근거 시각을 각각 유지합니다.
+
+자원과 override는 현재 세션에서만 작동합니다. 새로고침하면 사라지며 LocalStorage v5에는
+명시적으로 확인한 증분 현금 예산, 작업·설정, 분석 snapshot, 선택한 기존 공급자만 남습니다.
+이 경계는 소스 상태 버전과 route/resource 내보내기를 함께 도입할 체크포인트 8까지 유지합니다.
 
 ## 로컬 실행
 
@@ -130,7 +151,7 @@ ENABLE_LIVE_ANALYSIS=true
 
 ## 최근 시나리오와 내보내기
 
-성공한 최신 계획 하나만 현재 브라우저의 LocalStorage에 평문으로 자동 저장하며, 이 사실을 첫 제출 전에 화면에 표시합니다. 새로고침하면 API를 다시 호출하지 않고 작업·설정·선택 공급자·버전된 분석 snapshot을 검증해 복원한 뒤 현재 카탈로그로 세 공급자 계획을 다시 계산합니다. 저장 형식 v4는 `legacy-api-only`와 `best-fit-analysis-v2`를 구분합니다. 독립된 고정 parser로 확인한 v1→v2→v3→v4 순차 migration만 수행하며, 기존 GPT 필드에서 새 요구사항을 만들어내지 않습니다. 유효한 과거 기록의 변환·검증·rewrite가 실패하면 원본 bytes를 보존하고, 알 수 없는 미래 버전도 그대로 둡니다.
+성공한 최신 계획 하나만 현재 브라우저의 LocalStorage에 평문으로 자동 저장하며, 이 사실을 첫 제출 전에 화면에 표시합니다. 새로고침하면 API를 다시 호출하지 않고 작업·설정·선택 공급자·버전된 분석 snapshot을 검증해 복원한 뒤 현재 카탈로그로 세 공급자 계획을 다시 계산합니다. 저장 형식 v5는 `legacy-api-only`와 `best-fit-analysis-v2`를 구분하고 기존 예산을 `legacy-api-only-unconfirmed`로 보존합니다. 사용자가 명시적으로 확인해야만 같은 금액이 총 증분 현금 예산이 됩니다. 독립된 고정 parser로 확인한 v1→v2→v3→v4→v5 순차 migration만 수행하며, 기존 GPT 필드에서 새 요구사항을 만들어내지 않습니다. 유효한 과거 기록의 변환·검증·rewrite가 실패하면 원본 bytes를 보존하고, 알 수 없는 미래 버전도 그대로 둡니다.
 
 분석이 끝난 뒤 예산·전략·우선순위를 바꾸면 저장된 GPT 분류를 그대로 사용해 브라우저에서 즉시 다시 배분합니다. 예산을 늘리면 보류 작업도 API 재호출 없이 다시 실행 대상으로 검토됩니다.
 

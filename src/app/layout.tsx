@@ -7,7 +7,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Frontier Workload Planner",
-  description: "Turn a task description into a structured, budget-aware model tier recommendation.",
+  description:
+    "Use GPT-5.6 workload analysis and deterministic rules to compare subscription and API access routes within an incremental-cash budget.",
 };
 
 export const viewport: Viewport = {

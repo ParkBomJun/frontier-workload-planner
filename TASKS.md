@@ -272,15 +272,22 @@ cross-route comparator.
 
 ### Checkpoint 7 — resource input and route-result UI
 
-- [ ] Add Available AI resources while evolving the current budget flow through a versioned contract
-- [ ] Integrate the existing task-level deadline input into resource planning without repurposing the global reference deadline
-- [ ] Integrate bounded failure impact into resource planning and label the budget as total incremental cash
-- [ ] Expose only the limited verified-catalog override controls and default restoration
-- [ ] Show API spend, subscription usage, new subscription commitment, and paid overage separately
-- [ ] Lead task results with the selected access route rather than only a model name
-- [ ] Keep Korean, English, and Japanese presentation consistent and responsive
-- [ ] Avoid self-hosting or objective model-ranking claims in hero and help copy
-- [ ] Apply the approved Best-fit hero message and an explicit Korean-capable font
+- [x] Add Available AI resources while evolving the current budget flow through a versioned contract
+- [x] Integrate the existing task-level deadline input into resource planning without repurposing the global reference deadline
+- [x] Integrate bounded failure impact into resource planning and label the budget as total incremental cash
+- [x] Expose only the limited verified-catalog override controls and default restoration
+- [x] Show API spend, subscription usage, new subscription commitment, and paid overage separately
+- [x] Lead task results with the selected access route rather than only a model name
+- [x] Keep Korean, English, and Japanese presentation consistent and responsive
+- [x] Avoid self-hosting or objective model-ranking claims in hero and help copy
+- [x] Apply the approved Best-fit hero message and an explicit Korean-capable font
+
+Checkpoint 7 keeps resource drafts and verified-catalog overrides session-only. LocalStorage v5
+persists only the already-versioned incremental-cash confirmation, tasks, settings, selected legacy
+provider, and analysis snapshot. The Best-fit UI re-resolves source drafts, recalculates routes
+without another GPT request, and presents unknown API access/capability plus unverified subscription
+facts as excluded or conditional—not as confirmed work. Checkpoint 8 owns the next source storage
+version and the route/resource export contract.
 
 ### Checkpoint 8 — persistence, export, and release candidate
 

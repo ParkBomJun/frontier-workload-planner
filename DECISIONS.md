@@ -702,3 +702,48 @@ Checkpoint 7 owns visible budget confirmation, resource input, localized route r
 presentation. Checkpoint 8 owns resource/override persistence, authority re-resolution, the new
 route export schema, and release validation. Checkpoint 6 changes neither JSON v3/v4 nor the current
 public UI.
+
+## 2026-07-18 — Ver3 checkpoint 7 resource and route UI
+
+### Keep the first UI connection honest about evidence
+
+Expose the four bounded subscription presets as editable, session-only source drafts. Adapt every
+draft through the strict checkpoint-5 schema and create only model-opaque, unprofiled Offerings.
+User-entered availability, fee, quota, reset, work surface, and observed consumption never become
+provider-published claims. Invalid drafts remain visible with field diagnostics; unresolved or
+unverified resources remain conditional/excluded. Do not add a fictitious API capability or access
+claim merely to make the result positive. Keep the reviewed provider price/limit planner as an
+explicitly labeled compatibility view.
+
+Track observation time independently for availability, commitment, quota, reset, and Offering
+surface. Editing a display label changes no evidence timestamp, while changing one source fact
+refreshes only that fact group. This prevents a fee or name edit from making an older quota/reset
+observation appear current.
+
+### Confirm budget meaning before deterministic route calculation
+
+Require the user to confirm that the existing dollar amount is total incremental cash before
+running Best-fit allocation. Persist only that already-versioned v5 confirmation. A changed numeric
+amount revokes it; strategy and an equivalent numeric representation do not. Recalculate from the
+stored analysis snapshot after budget, strategy, priority, task deadline, failure impact, resource,
+or override changes without another GPT request. Preserve the global deadline as legacy reference
+metadata rather than substituting it for the explicit task-level deadline.
+
+### Bound catalog edits and keep expanded source state out of v5
+
+Let the UI edit only planning tier and standard-uncached-text prices for an exact existing registry
+entry. Bind candidate issuance to the canonical override source array, apply it through the
+generalized price resolver, and independently enforce the workload quality floor. An override
+cannot confirm access, capabilities, identity, or limits. Default restoration deletes the override.
+The legacy API price compatibility view continues to use verified catalog defaults; the UI states
+that session overrides affect only the Best-fit resolver.
+Resource drafts and overrides remain session-only and do not enter LocalStorage v5, Markdown, or
+JSON; checkpoint 8 must version those source shapes and exports atomically.
+
+### Lead with access route and separate resource ledgers
+
+Show total Expected incremental cash, API spend, distinct new-subscription commitment, paid
+overage, and native-unit subscription usage as separate values. Lead each task with the structured
+access route, then the model and deterministic explanation. Preserve conditional/excluded reason
+codes and show infeasible separately from budget-held work. Use the approved Best-fit hero and
+complete Korean, English, and Japanese UI copy with an explicit Korean-capable font stack.
