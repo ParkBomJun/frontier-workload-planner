@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { SUBSCRIPTION_PRESET_IDS } from "@/config/subscription-presets";
-import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
-import { UI_LOCALES } from "@/lib/i18n/ui-copy";
+import {
+  BEST_FIT_EXCLUSION_REASON_CODES,
+  BEST_FIT_UI_COPY,
+  isBestFitExclusionReasonCode,
+} from "@/lib/i18n/best-fit-ui-copy";
+import { UI_COPY, UI_LOCALES } from "@/lib/i18n/ui-copy";
 import { BEST_FIT_ROUTE_KINDS } from "@/types/best-fit";
 import {
-  CONDITIONAL_REASON_CODES,
   PLANNING_QUALITY_TIERS,
   WORK_SURFACES,
 } from "@/types/offerings";
@@ -57,10 +60,53 @@ describe("Best-fit UI copy", () => {
       expect(sortedKeys(copy.enums.upgradeTrigger)).toEqual(
         [...APPLIED_UPGRADE_TRIGGER_CODES].sort(),
       );
-      expect(sortedKeys(copy.enums.conditionalReason)).toEqual(
-        [...CONDITIONAL_REASON_CODES].sort(),
+      expect(sortedKeys(copy.enums.exclusionReason)).toEqual(
+        [...BEST_FIT_EXCLUSION_REASON_CODES].sort(),
       );
     }
+  });
+
+  it("localizes the complete closed exclusion-reason set without exposing raw codes", () => {
+    expect(new Set(BEST_FIT_EXCLUSION_REASON_CODES).size).toBe(
+      BEST_FIT_EXCLUSION_REASON_CODES.length,
+    );
+    expect(isBestFitExclusionReasonCode("surface-incompatible")).toBe(true);
+    expect(isBestFitExclusionReasonCode("not-a-real-reason")).toBe(false);
+
+    for (const locale of UI_LOCALES) {
+      const labels = BEST_FIT_UI_COPY[locale].enums.exclusionReason;
+      for (const reason of BEST_FIT_EXCLUSION_REASON_CODES) {
+        expect(labels[reason].trim()).not.toBe("");
+        expect(labels[reason]).not.toBe(reason);
+      }
+      expect(labels["input-limit-exceeded"]).toBe(
+        UI_COPY[locale].enums.invocationFailure["input-limit-exceeded"],
+      );
+      expect(labels["output-limit-exceeded"]).toBe(
+        UI_COPY[locale].enums.invocationFailure["output-limit-exceeded"],
+      );
+      expect(labels["context-limit-exceeded"]).toBe(
+        UI_COPY[locale].enums.invocationFailure["context-limit-exceeded"],
+      );
+    }
+  });
+
+  it("distinguishes API task prices from subscription reservation-order attribution", () => {
+    for (const locale of UI_LOCALES) {
+      const results = BEST_FIT_UI_COPY[locale].results;
+      expect(results.apiTaskPrice).not.toBe(results.subscriptionMarginalCash);
+      expect(results.subscriptionMarginalCashNotice.length).toBeGreaterThan(80);
+      expect(results.unknownExclusionReason.trim()).not.toBe("");
+    }
+    expect(BEST_FIT_UI_COPY.ko.results.subscriptionMarginalCashNotice).toContain(
+      "예약 순서",
+    );
+    expect(BEST_FIT_UI_COPY.en.results.subscriptionMarginalCashNotice).toContain(
+      "reservation position",
+    );
+    expect(BEST_FIT_UI_COPY.ja.results.subscriptionMarginalCashNotice).toContain(
+      "予約順序",
+    );
   });
 
   it("uses the approved Korean hero and preserves the responsibility boundary", () => {

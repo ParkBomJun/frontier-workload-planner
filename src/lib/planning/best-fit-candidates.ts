@@ -33,26 +33,43 @@ import type {
   BestFitSubscriptionRouteCandidate,
   NormalizedBestFitTask,
 } from "@/types/best-fit";
-import type {
-  ConditionalReasonCode,
-  OfferingEligibilityResult,
-  RouteIdentity,
+import {
+  CONDITIONAL_REASON_CODES,
+  OFFERING_INELIGIBLE_REASON_CODES,
+  type ConditionalReasonCode,
+  type OfferingEligibilityResult,
+  type RouteIdentity,
 } from "@/types/offerings";
 import type { ResolvedSubscriptionResource } from "@/types/subscriptions";
 import type { SubscriptionResourceResolution } from "@/types/subscriptions";
-import type { ApiCatalogOverride } from "@/types/pricing";
+import {
+  API_PRICE_CONDITIONAL_REASON_CODES,
+  API_PRICE_INVALID_REASON_CODES,
+  type ApiCatalogOverride,
+} from "@/types/pricing";
 import { z } from "zod";
 
 const issuedTaskCandidateSets = new WeakSet<object>();
 const candidateSetKeys = new WeakMap<object, string>();
-const issuedTaskOverrideKeys = new WeakMap<object, string>();
-const emptyApiOverrideKey = JSON.stringify([]);
 const planningQualityRank = { economy: 0, balanced: 1, premium: 2 } as const;
+
+export const BEST_FIT_EXCLUSION_REASON_CODES = [
+  ...CONDITIONAL_REASON_CODES,
+  ...OFFERING_INELIGIBLE_REASON_CODES,
+  ...API_PRICE_CONDITIONAL_REASON_CODES,
+  ...API_PRICE_INVALID_REASON_CODES,
+  "invocation-limit-exceeded",
+  "resource-unavailable",
+  "api-route-not-confirmed",
+] as const;
+
+export type BestFitExclusionReasonCode =
+  (typeof BEST_FIT_EXCLUSION_REASON_CODES)[number];
 
 export interface BestFitExcludedRoute {
   routeIdentity: RouteIdentity;
   status: "conditional" | "ineligible" | "invalid";
-  reasonCodes: readonly string[];
+  reasonCodes: readonly BestFitExclusionReasonCode[];
 }
 
 export interface BestFitSubscriptionCandidateInput {
@@ -162,7 +179,6 @@ function issueTaskCandidateSet(
   const frozen = deepFreeze(value);
   issuedTaskCandidateSets.add(frozen);
   candidateSetKeys.set(frozen, inputKey(input, overrideKey));
-  issuedTaskOverrideKeys.set(frozen.task, overrideKey);
   return frozen;
 }
 
@@ -182,10 +198,7 @@ export function isResolvedBestFitTaskCandidateSetFor(
 ): value is ResolvedBestFitTaskCandidateSet {
   if (!isResolvedBestFitTaskCandidateSet(value)) return false;
   try {
-    const overrideKey =
-      input.apiOverrides === undefined
-        ? (issuedTaskOverrideKeys.get(input.task) ?? emptyApiOverrideKey)
-        : normalizeApiOverrides(input.apiOverrides).key;
+    const overrideKey = normalizeApiOverrides(input.apiOverrides).key;
     return candidateSetKeys.get(value) === inputKey(input, overrideKey);
   } catch {
     return false;
@@ -275,7 +288,7 @@ function apiCandidates(
       continue;
     }
 
-    const reasonCodes = belowMinimumQuality
+    const reasonCodes: readonly BestFitExclusionReasonCode[] = belowMinimumQuality
       ? (["below-minimum-quality"] as const)
       : eligibility.status === "conditional"
         ? eligibility.reasonCodes

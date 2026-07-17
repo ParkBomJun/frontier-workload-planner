@@ -4,6 +4,7 @@ import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { catalogOverrideTargetFor } from "@/lib/offerings/catalog-overrides";
 import {
   buildBestFitUiPlan,
+  hasBestFitRelevantSettingsChange,
   type BuildBestFitUiPlanInput,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
@@ -38,6 +39,39 @@ function planInput(): BuildBestFitUiPlanInput {
 }
 
 describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
+  it("keeps the global reference deadline out of the Best-fit calculation clock", () => {
+    const previous = {
+      budgetUsd: 5,
+      deadlineDays: 7,
+      strategy: "balanced" as const,
+    };
+
+    expect(
+      hasBestFitRelevantSettingsChange(previous, {
+        ...previous,
+        deadlineDays: 30,
+      }),
+    ).toBe(false);
+    expect(
+      hasBestFitRelevantSettingsChange(previous, {
+        ...previous,
+        budgetUsd: 6,
+      }),
+    ).toBe(true);
+    expect(
+      hasBestFitRelevantSettingsChange(previous, {
+        ...previous,
+        strategy: "quality-first",
+      }),
+    ).toBe(true);
+    expect(
+      hasBestFitRelevantSettingsChange(
+        { budgetUsd: previous.budgetUsd, strategy: previous.strategy },
+        { ...previous, deadlineDays: 1 },
+      ),
+    ).toBe(false);
+  });
+
   it("keeps the current unconfirmed API catalog infeasible instead of promoting it", () => {
     const result = buildBestFitUiPlan(planInput());
 

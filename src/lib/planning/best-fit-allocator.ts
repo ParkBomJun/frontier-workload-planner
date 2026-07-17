@@ -1241,6 +1241,11 @@ export function allocateNormalizedBestFitPlan(
 export function allocateResolvedBestFitPlan(
   input: AllocateResolvedBestFitPlanInput,
 ): BestFitAllocationPlan {
+  if (!Array.isArray(input.apiOverrides)) {
+    throw new Error(
+      "Best-fit allocation requires an explicit API catalog override array.",
+    );
+  }
   if (
     input.tasks.some(
       (task) =>

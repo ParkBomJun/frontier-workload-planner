@@ -1,12 +1,15 @@
 import type { SubscriptionPresetId } from "@/config/subscription-presets";
+import {
+  BEST_FIT_EXCLUSION_REASON_CODES,
+  type BestFitExclusionReasonCode,
+} from "@/lib/planning/best-fit-candidates";
 import type {
   BestFitActiveTaskResult,
   BestFitRouteKind,
 } from "@/types/best-fit";
-import type {
-  ConditionalReasonCode,
-  PlanningQualityTier,
-  WorkSurface,
+import {
+  type PlanningQualityTier,
+  type WorkSurface,
 } from "@/types/offerings";
 import type {
   SubscriptionAvailabilityStatus,
@@ -16,7 +19,19 @@ import type {
 } from "@/types/subscriptions";
 import type { AppliedUpgradeTrigger } from "@/types/workload";
 
-import type { UiLocale } from "./ui-copy";
+import { UI_COPY, type UiLocale } from "./ui-copy";
+
+export { BEST_FIT_EXCLUSION_REASON_CODES };
+
+const bestFitExclusionReasonCodeSet = new Set<string>(
+  BEST_FIT_EXCLUSION_REASON_CODES,
+);
+
+export function isBestFitExclusionReasonCode(
+  value: string,
+): value is BestFitExclusionReasonCode {
+  return bestFitExclusionReasonCodeSet.has(value);
+}
 
 type ResetKind = "none" | "fixed" | "rolling" | "unknown";
 
@@ -117,7 +132,9 @@ export interface BestFitUiCopy {
     analysisRequiredDescription: string;
     calculationError: string;
     totalIncrementalCash: string;
-    taskVariableCash: string;
+    apiTaskPrice: string;
+    subscriptionMarginalCash: string;
+    subscriptionMarginalCashNotice: string;
     apiSpend: string;
     subscriptionUsage: string;
     newCommitment: string;
@@ -145,6 +162,7 @@ export interface BestFitUiCopy {
     infeasibleReasonValue: string;
     conditionalAlternatives: string;
     excludedRoutes: string;
+    unknownExclusionReason: string;
     resourceDiagnostics: string;
     noSubscriptionUsage: string;
     tasksUsingRoute: (taskIds: string) => string;
@@ -167,7 +185,7 @@ export interface BestFitUiCopy {
     whyEnough: Record<BestFitActiveTaskResult["whyEnough"], string>;
     whyNotPremium: Record<BestFitActiveTaskResult["whyNotPremium"], string>;
     upgradeTrigger: Record<AppliedUpgradeTrigger, string>;
-    conditionalReason: Record<ConditionalReasonCode, string>;
+    exclusionReason: Record<BestFitExclusionReasonCode, string>;
   };
 }
 
@@ -288,7 +306,9 @@ const ko: BestFitUiCopy = {
     analysisRequiredDescription: "이전 API 전용 분석은 그대로 보존됩니다. Mock 또는 Live 분석을 다시 실행하면 새 작업 요구사항 계약으로 경로 계획을 계산합니다.",
     calculationError: "Best-fit 경로를 다시 계산하지 못했습니다. 입력값을 확인한 뒤 다시 시도하세요.",
     totalIncrementalCash: "총 증분 현금",
-    taskVariableCash: "작업 변동 현금 (Low / Expected / High)",
+    apiTaskPrice: "API 작업 가격 (Low / Expected / High)",
+    subscriptionMarginalCash: "구독 한계 현금 귀속액 (Low / Expected / High)",
+    subscriptionMarginalCashNotice: "구독 경로의 값은 결정론적 예약 순서에서 이 작업에 귀속된 한계 금액입니다. 독립적인 작업 가격이 아니며 계획 총계가 권위값입니다. 누적 정수 반올림 때문에 세 값은 단조롭지 않을 수 있습니다.",
     apiSpend: "API 사용료",
     subscriptionUsage: "구독 사용량",
     newCommitment: "새 구독 약정액",
@@ -316,6 +336,7 @@ const ko: BestFitUiCopy = {
     infeasibleReasonValue: "작업 요구사항을 충족한다고 확인된 이용 경로가 없습니다.",
     conditionalAlternatives: "조건부 구독 대안",
     excludedRoutes: "확정 후보에서 제외된 경로",
+    unknownExclusionReason: "확인할 수 없는 내부 제외 사유",
     resourceDiagnostics: "구독 자원 근거 상태",
     noSubscriptionUsage: "확정 배분에 사용된 구독 한도가 없습니다.",
     tasksUsingRoute: (taskIds) => `배정 작업: ${taskIds}`,
@@ -338,8 +359,28 @@ const ko: BestFitUiCopy = {
     whyEnough: { "minimum-quality-met": "필요한 최소 품질을 충족합니다.", "higher-tier-saved-cash": "상위 등급이 더 적은 증분 현금을 사용합니다.", "quality-headroom-triggered": "닫힌 상향 조건에 따라 한 단계 여유를 적용했습니다.", "minimum-quality-requires-premium": "호환 가능한 하위 경로가 없어 Premium이 최소 충분 경로입니다." },
     whyNotPremium: { "premium-selected": "Premium 경로를 선택했습니다.", "premium-not-triggered": "Premium 상향 조건이 없습니다.", "lower-tier-sufficient": "더 낮은 등급이 요구사항을 충족합니다.", "no-compatible-premium-api": "호환 가능한 Premium API 기준이 없습니다." },
     upgradeTrigger: { "minimum-quality-requires-premium": "하위 호환 경로 없음", "high-failure-exposure": "높은 실패 노출", "deadline-retry-risk": "마감 전 재시도 위험", "deep-reasoning": "깊은 추론", "large-code-change": "대규모 코드 변경" },
-    conditionalReason: {
+    exclusionReason: {
       "catalog-reference-unresolved": "카탈로그 참조를 확인할 수 없음", "catalog-version-mismatch": "카탈로그 버전 불일치", "catalog-claim-mismatch": "카탈로그 주장 불일치", "preset-version-mismatch": "프리셋 버전 불일치", "connector-unverified": "커넥터 미검증", "connector-binding-mismatch": "계정 연결 불일치", "connector-snapshot-stale": "사용량 스냅샷 만료", "connector-snapshot-replayed": "스냅샷 재사용 감지", "connector-receipt-invalid": "커넥터 영수증 무효", "evidence-authority-invalid": "근거 권한 미확인", "profile-unverified": "적격성 프로필 미검증", "model-limits-incomplete": "모델 한도 정보 불완전", "access-limits-incomplete": "이용 경로 한도 정보 불완전", "model-capabilities-incomplete": "모델 기능 정보 불완전", "access-capabilities-incomplete": "이용 경로 기능 정보 불완전", "availability-uncertain": "현재 가용성 불확실", "consumption-user-observed": "사용량이 사용자 관측값임", "quota-calibrated": "한도가 관측값으로 보정됨", "quota-opaque": "정확한 한도가 비공개임", "quota-insufficient-observed": "관측된 잔여 한도 부족", "initial-capacity-unpublished": "신규 초기 한도 미공개",
+      "model-reference-missing": "연결 모델 참조 없음",
+      "surface-incompatible": "필요한 사용 환경과 호환되지 않음",
+      "below-minimum-quality": "최소 품질 등급 미달",
+      "required-capability-missing": "필수 기능 미지원",
+      "input-limit-exceeded": UI_COPY.ko.enums.invocationFailure["input-limit-exceeded"],
+      "output-limit-exceeded": UI_COPY.ko.enums.invocationFailure["output-limit-exceeded"],
+      "context-limit-exceeded": UI_COPY.ko.enums.invocationFailure["context-limit-exceeded"],
+      "price-schedule-not-applicable": "적용 가능한 가격 일정 없음",
+      "standard-price-input-limit-exceeded": "표준 가격의 입력 구간 초과",
+      "catalog-entry-not-found": "카탈로그 항목 없음",
+      "invalid-pricing-as-of": "가격 기준일이 유효하지 않음",
+      "catalog-price-schedule-invalid": "카탈로그 가격 일정이 유효하지 않음",
+      "catalog-invocation-limits-unresolved": "카탈로그 호출 한도를 확인할 수 없음",
+      "invalid-token-scenarios": "토큰 시나리오가 유효하지 않음",
+      "invalid-user-override": "사용자 가격 수정값이 유효하지 않음",
+      "override-target-unresolved": "가격 수정 대상을 확인할 수 없음",
+      "override-target-mismatch": "가격 수정 대상이 카탈로그 항목과 일치하지 않음",
+      "invocation-limit-exceeded": "하나 이상의 호출 토큰 한도 초과",
+      "resource-unavailable": "현재 사용할 수 없는 자원",
+      "api-route-not-confirmed": "API 이용 경로 미확인",
     },
   },
 };
@@ -446,7 +487,9 @@ const en: BestFitUiCopy = {
     analysisRequiredDescription: "The legacy API-only analysis remains preserved. Run Mock or Live analysis again to plan routes with the new workload contract.",
     calculationError: "The Best-fit routes could not be recalculated. Check the source inputs and try again.",
     totalIncrementalCash: "Total incremental cash",
-    taskVariableCash: "Task variable cash (Low / Expected / High)",
+    apiTaskPrice: "API task price (Low / Expected / High)",
+    subscriptionMarginalCash: "Subscription marginal cash attribution (Low / Expected / High)",
+    subscriptionMarginalCashNotice: "For a subscription route, this is the marginal amount attributed to the task at its deterministic reservation position. It is not a standalone task price; plan totals are authoritative. Cumulative integer rounding can make the three values non-monotonic.",
     apiSpend: "API spend",
     subscriptionUsage: "Subscription usage",
     newCommitment: "New subscription commitment",
@@ -474,6 +517,7 @@ const en: BestFitUiCopy = {
     infeasibleReasonValue: "No access route is confirmed to meet this workload's requirements.",
     conditionalAlternatives: "Conditional subscription alternatives",
     excludedRoutes: "Routes excluded from confirmed candidates",
+    unknownExclusionReason: "Unrecognized internal exclusion reason",
     resourceDiagnostics: "Subscription resource evidence",
     noSubscriptionUsage: "No confirmed subscription quota was allocated.",
     tasksUsingRoute: (taskIds) => `Assigned tasks: ${taskIds}`,
@@ -496,8 +540,28 @@ const en: BestFitUiCopy = {
     whyEnough: { "minimum-quality-met": "Meets the minimum required quality.", "higher-tier-saved-cash": "A higher tier uses less incremental cash.", "quality-headroom-triggered": "One tier of headroom was applied by a closed trigger.", "minimum-quality-requires-premium": "Premium is the minimum sufficient route because no compatible lower route remains." },
     whyNotPremium: { "premium-selected": "Premium was selected.", "premium-not-triggered": "No Premium upgrade trigger applies.", "lower-tier-sufficient": "A lower tier satisfies the requirements.", "no-compatible-premium-api": "No compatible Premium API baseline is available." },
     upgradeTrigger: { "minimum-quality-requires-premium": "No compatible lower route", "high-failure-exposure": "High failure exposure", "deadline-retry-risk": "Deadline retry risk", "deep-reasoning": "Deep reasoning", "large-code-change": "Large code change" },
-    conditionalReason: {
+    exclusionReason: {
       "catalog-reference-unresolved": "Catalog reference unresolved", "catalog-version-mismatch": "Catalog version mismatch", "catalog-claim-mismatch": "Catalog claim mismatch", "preset-version-mismatch": "Preset version mismatch", "connector-unverified": "Connector unverified", "connector-binding-mismatch": "Account binding mismatch", "connector-snapshot-stale": "Usage snapshot stale", "connector-snapshot-replayed": "Snapshot replay detected", "connector-receipt-invalid": "Connector receipt invalid", "evidence-authority-invalid": "Evidence authority unverified", "profile-unverified": "Eligibility profile unverified", "model-limits-incomplete": "Model limits incomplete", "access-limits-incomplete": "Access-route limits incomplete", "model-capabilities-incomplete": "Model capabilities incomplete", "access-capabilities-incomplete": "Access-route capabilities incomplete", "availability-uncertain": "Current availability uncertain", "consumption-user-observed": "Consumption is user-observed", "quota-calibrated": "Quota is observation-calibrated", "quota-opaque": "Exact quota is private", "quota-insufficient-observed": "Observed remaining quota is insufficient", "initial-capacity-unpublished": "New-plan initial capacity unpublished",
+      "model-reference-missing": "Connected model reference missing",
+      "surface-incompatible": "Incompatible with the required work surface",
+      "below-minimum-quality": "Below the minimum quality tier",
+      "required-capability-missing": "Required capability unsupported",
+      "input-limit-exceeded": UI_COPY.en.enums.invocationFailure["input-limit-exceeded"],
+      "output-limit-exceeded": UI_COPY.en.enums.invocationFailure["output-limit-exceeded"],
+      "context-limit-exceeded": UI_COPY.en.enums.invocationFailure["context-limit-exceeded"],
+      "price-schedule-not-applicable": "No applicable price schedule",
+      "standard-price-input-limit-exceeded": "Outside the standard-price input band",
+      "catalog-entry-not-found": "Catalog entry not found",
+      "invalid-pricing-as-of": "Invalid pricing reference date",
+      "catalog-price-schedule-invalid": "Invalid catalog price schedule",
+      "catalog-invocation-limits-unresolved": "Catalog invocation limits unresolved",
+      "invalid-token-scenarios": "Invalid token scenarios",
+      "invalid-user-override": "Invalid user price override",
+      "override-target-unresolved": "Override target unresolved",
+      "override-target-mismatch": "Override target does not match the catalog entry",
+      "invocation-limit-exceeded": "One or more invocation token limits exceeded",
+      "resource-unavailable": "Resource is currently unavailable",
+      "api-route-not-confirmed": "API route is not confirmed",
     },
   },
 };
@@ -604,7 +668,9 @@ const ja: BestFitUiCopy = {
     analysisRequiredDescription: "従来のAPI専用分析は保持されます。MockまたはLive分析を再実行すると、新しい作業契約で経路を計画します。",
     calculationError: "Best-fit経路を再計算できませんでした。入力値を確認してもう一度お試しください。",
     totalIncrementalCash: "追加支出の合計",
-    taskVariableCash: "作業の変動支出（Low / Expected / High）",
+    apiTaskPrice: "API作業価格（Low / Expected / High）",
+    subscriptionMarginalCash: "サブスクリプション限界支出の帰属額（Low / Expected / High）",
+    subscriptionMarginalCashNotice: "サブスクリプション経路では、決定論的な予約順序上の位置でこの作業に帰属する限界額です。独立した作業価格ではなく、計画全体の合計が正式な値です。整数の累積丸めにより、3つの値が単調にならない場合があります。",
     apiSpend: "API支出",
     subscriptionUsage: "サブスクリプション使用量",
     newCommitment: "新規サブスクリプション契約額",
@@ -632,6 +698,7 @@ const ja: BestFitUiCopy = {
     infeasibleReasonValue: "この作業要件を満たすと確認された利用経路がありません。",
     conditionalAlternatives: "条件付きサブスクリプション候補",
     excludedRoutes: "確定候補から除外された経路",
+    unknownExclusionReason: "認識できない内部除外理由",
     resourceDiagnostics: "サブスクリプション資源の根拠状態",
     noSubscriptionUsage: "確定配分で使用されたサブスクリプション枠はありません。",
     tasksUsingRoute: (taskIds) => `割り当て作業：${taskIds}`,
@@ -654,8 +721,28 @@ const ja: BestFitUiCopy = {
     whyEnough: { "minimum-quality-met": "必要な最低品質を満たします。", "higher-tier-saved-cash": "上位ティアの方が追加支出を抑えます。", "quality-headroom-triggered": "閉じた条件により1ティアの余裕を適用しました。", "minimum-quality-requires-premium": "互換性のある下位経路がないため、Premiumが最低限十分な経路です。" },
     whyNotPremium: { "premium-selected": "Premium経路を選択しました。", "premium-not-triggered": "Premiumへのアップグレード条件がありません。", "lower-tier-sufficient": "下位ティアで要件を満たします。", "no-compatible-premium-api": "互換性のあるPremium API基準がありません。" },
     upgradeTrigger: { "minimum-quality-requires-premium": "互換性のある下位経路なし", "high-failure-exposure": "高い失敗影響", "deadline-retry-risk": "期限前の再試行リスク", "deep-reasoning": "深い推論", "large-code-change": "大規模コード変更" },
-    conditionalReason: {
+    exclusionReason: {
       "catalog-reference-unresolved": "カタログ参照を解決できない", "catalog-version-mismatch": "カタログバージョン不一致", "catalog-claim-mismatch": "カタログ主張の不一致", "preset-version-mismatch": "プリセットバージョン不一致", "connector-unverified": "コネクタ未検証", "connector-binding-mismatch": "アカウント接続の不一致", "connector-snapshot-stale": "使用量スナップショットの期限切れ", "connector-snapshot-replayed": "スナップショット再利用を検出", "connector-receipt-invalid": "コネクタ受領情報が無効", "evidence-authority-invalid": "根拠権限が未確認", "profile-unverified": "適格性プロファイル未検証", "model-limits-incomplete": "モデル上限情報が不完全", "access-limits-incomplete": "利用経路の上限情報が不完全", "model-capabilities-incomplete": "モデル機能情報が不完全", "access-capabilities-incomplete": "利用経路の機能情報が不完全", "availability-uncertain": "現在の可用性が不確実", "consumption-user-observed": "使用量がユーザー観測値", "quota-calibrated": "利用枠が観測値で補正済み", "quota-opaque": "正確な利用枠が非公開", "quota-insufficient-observed": "観測された残量が不足", "initial-capacity-unpublished": "新規プランの初期枠が未公開",
+      "model-reference-missing": "接続モデルの参照なし",
+      "surface-incompatible": "必要な利用環境と互換性なし",
+      "below-minimum-quality": "最低品質ティア未満",
+      "required-capability-missing": "必須機能に未対応",
+      "input-limit-exceeded": UI_COPY.ja.enums.invocationFailure["input-limit-exceeded"],
+      "output-limit-exceeded": UI_COPY.ja.enums.invocationFailure["output-limit-exceeded"],
+      "context-limit-exceeded": UI_COPY.ja.enums.invocationFailure["context-limit-exceeded"],
+      "price-schedule-not-applicable": "適用可能な価格スケジュールなし",
+      "standard-price-input-limit-exceeded": "標準価格の入力範囲外",
+      "catalog-entry-not-found": "カタログ項目なし",
+      "invalid-pricing-as-of": "価格基準日が無効",
+      "catalog-price-schedule-invalid": "カタログ価格スケジュールが無効",
+      "catalog-invocation-limits-unresolved": "カタログの呼び出し上限を確認できない",
+      "invalid-token-scenarios": "トークンシナリオが無効",
+      "invalid-user-override": "ユーザー価格修正値が無効",
+      "override-target-unresolved": "価格修正対象を確認できない",
+      "override-target-mismatch": "価格修正対象がカタログ項目と一致しない",
+      "invocation-limit-exceeded": "1つ以上の呼び出しトークン上限超過",
+      "resource-unavailable": "現在利用できないリソース",
+      "api-route-not-confirmed": "API経路が未確認",
     },
   },
 };

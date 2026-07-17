@@ -3,7 +3,10 @@
 import { useLanguage } from "@/components/language-provider";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { fromMicroUsd } from "@/lib/calculation/micro-usd";
-import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
+import {
+  BEST_FIT_UI_COPY,
+  isBestFitExclusionReasonCode,
+} from "@/lib/i18n/best-fit-ui-copy";
 import type {
   BestFitResourceDiagnostic,
   BestFitUiPlan,
@@ -16,42 +19,6 @@ interface BestFitResultsProps {
   tasks: readonly TaskInput[];
   generatedAt: string;
 }
-
-const reasonLabels = {
-  ko: {
-    "below-minimum-quality": "최소 품질 등급 미달",
-    "surface-not-supported": "필요한 사용 환경 미지원",
-    "required-capability-missing": "필수 기능 미지원",
-    "invocation-limit-exceeded": "호출 토큰 한도 초과",
-    "model-reference-missing": "모델 참조 없음",
-    "resource-unavailable": "현재 사용할 수 없는 자원",
-    "price-schedule-not-applicable": "적용 가능한 가격 일정 없음",
-    "standard-price-input-limit-exceeded": "표준 가격의 입력 구간 초과",
-    "api-route-not-confirmed": "API 이용 경로 미확인",
-  },
-  en: {
-    "below-minimum-quality": "Below the minimum quality tier",
-    "surface-not-supported": "Required work surface is unsupported",
-    "required-capability-missing": "Required capability is unsupported",
-    "invocation-limit-exceeded": "Invocation token limit exceeded",
-    "model-reference-missing": "Model reference is missing",
-    "resource-unavailable": "Resource is currently unavailable",
-    "price-schedule-not-applicable": "No applicable price schedule",
-    "standard-price-input-limit-exceeded": "Outside the standard-price input band",
-    "api-route-not-confirmed": "API route is not confirmed",
-  },
-  ja: {
-    "below-minimum-quality": "最低品質ティア未満",
-    "surface-not-supported": "必要な利用環境に未対応",
-    "required-capability-missing": "必須機能に未対応",
-    "invocation-limit-exceeded": "呼び出しトークン上限超過",
-    "model-reference-missing": "モデル参照なし",
-    "resource-unavailable": "現在利用できない資源",
-    "price-schedule-not-applicable": "適用可能な価格スケジュールなし",
-    "standard-price-input-limit-exceeded": "標準価格の入力範囲外",
-    "api-route-not-confirmed": "API経路が未確認",
-  },
-} as const;
 
 function sameRoute(left: RouteIdentity, right: RouteIdentity): boolean {
   return (
@@ -109,13 +76,10 @@ export function BestFitResults({
   const formatQuota = (value: number) =>
     quotaValue(value, localeMeta.numberLocale);
   const localizedReason = (reason: string) => {
-    if (reason in copy.enums.conditionalReason) {
-      return copy.enums.conditionalReason[
-        reason as keyof typeof copy.enums.conditionalReason
-      ];
+    if (isBestFitExclusionReasonCode(reason)) {
+      return copy.enums.exclusionReason[reason];
     }
-    const known = reasonLabels[locale] as Record<string, string>;
-    return known[reason] ?? reason;
+    return copy.results.unknownExclusionReason;
   };
   const overflow = Object.values(plan.cash.scenarioOverflow).some(Boolean);
 
@@ -229,10 +193,19 @@ export function BestFitResults({
                       <dd className="mt-1 text-sm text-[#34443b]">{taskResult.modelId ?? coreCopy.common.none}</dd>
                     </div>
                     <div className="rounded-xl bg-white p-3.5">
-                      <dt className="text-xs font-bold text-[#68766e]">{copy.results.taskVariableCash}</dt>
+                      <dt className="text-xs font-bold text-[#68766e]">
+                        {taskResult.routeKind === "api"
+                          ? copy.results.apiTaskPrice
+                          : copy.results.subscriptionMarginalCash}
+                      </dt>
                       <dd className="mt-1 font-mono text-sm font-bold text-[#34443b]">
                         {formatMoney(taskResult.variableCashMicroUsd.low)} / {formatMoney(taskResult.variableCashMicroUsd.expected)} / {formatMoney(taskResult.variableCashMicroUsd.high)}
                       </dd>
+                      {taskResult.routeKind !== "api" ? (
+                        <dd className="mt-2 text-xs leading-5 text-[#68766e]">
+                          {copy.results.subscriptionMarginalCashNotice}
+                        </dd>
+                      ) : null}
                     </div>
                     <div className="rounded-xl bg-white p-3.5">
                       <dt className="text-xs font-bold text-[#68766e]">{copy.results.whyEnough}</dt>

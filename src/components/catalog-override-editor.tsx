@@ -45,6 +45,13 @@ function matchesTarget(
   );
 }
 
+export function isImmediateOverrideDateAllowed(
+  effectiveFrom: string,
+  pricingAsOf: string,
+): boolean {
+  return effectiveFrom.length === 10 && effectiveFrom <= pricingAsOf;
+}
+
 export function CatalogOverrideEditor({
   overrides,
   pricingAsOf,
@@ -94,7 +101,10 @@ export function CatalogOverrideEditor({
   function applyOverride() {
     const hasInput = inputPrice.trim() !== "";
     const hasOutput = outputPrice.trim() !== "";
-    if (hasInput !== hasOutput) {
+    if (
+      hasInput !== hasOutput ||
+      !isImmediateOverrideDateAllowed(effectiveFrom, pricingAsOf)
+    ) {
       setFeedback("invalid");
       return;
     }
@@ -251,6 +261,7 @@ export function CatalogOverrideEditor({
           <input
             type="date"
             value={effectiveFrom}
+            max={pricingAsOf}
             disabled={disabled}
             onChange={(event) => setEffectiveFrom(event.target.value)}
             className={inputClass}

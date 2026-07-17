@@ -1404,6 +1404,8 @@ is unchanged. Confirmation, strategy, task priority/deadline/failure impact, res
 catalog overrides trigger a local deterministic recalculation; they never call `/api/analyze`.
 Task descriptions still require a new Mock or Live analysis. A restored legacy analysis remains in
 the compatibility view until the user explicitly reanalyzes it.
+The legacy global `deadlineDays` remains compatibility metadata: changing it alone recalculates the
+legacy view and persists the setting but does not advance Best-fit `planningAsOf` or `pricingAsOf`.
 
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with
@@ -1423,6 +1425,9 @@ date. It cannot change identity, invocation limits, access, capabilities, or evi
 restoration deletes the user override and exposes the immutable verified default again.
 The legacy API price/limit compatibility view uses verified defaults only. Session overrides are
 applied solely by the Best-fit candidate resolver, and this scope is disclosed in every locale.
+This checkpoint accepts only immediately effective or historical dates (`effectiveFrom <=
+pricingAsOf`); future scheduling is rejected. Every plan allocation receives one explicit canonical
+override array, and a missing or mixed source snapshot is a runtime error.
 
 The result keeps four quantities visibly separate:
 
@@ -1436,6 +1441,9 @@ new-subscription, and paid-overage cash for the budget boundary. Each task leads
 recommended access route before the model name and includes the deterministic explanations above.
 Task, plan, fallback, baseline, and export records carry the same structured `RouteIdentity`; a
 conditional result also carries its ordered reason codes and structured API fallback identity.
+Every closed excluded-route reason is localized before display. An API task's range is its direct
+standard-text price; a subscription task's displayed range is its marginal cash attribution at the
+deterministic reservation position. The plan cash ledger—not task attribution—is authoritative.
 
 The checkpoint-7 Korean hero is:
 

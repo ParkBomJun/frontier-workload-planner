@@ -728,6 +728,8 @@ amount revokes it; strategy and an equivalent numeric representation do not. Rec
 stored analysis snapshot after budget, strategy, priority, task deadline, failure impact, resource,
 or override changes without another GPT request. Preserve the global deadline as legacy reference
 metadata rather than substituting it for the explicit task-level deadline.
+Changing only that global reference deadline does not advance `planningAsOf` or `pricingAsOf`, so
+it cannot refresh quota/reset evidence or activate a different dated price.
 
 ### Bound catalog edits and keep expanded source state out of v5
 
@@ -737,6 +739,9 @@ generalized price resolver, and independently enforce the workload quality floor
 cannot confirm access, capabilities, identity, or limits. Default restoration deletes the override.
 The legacy API price compatibility view continues to use verified catalog defaults; the UI states
 that session overrides affect only the Best-fit resolver.
+Checkpoint 7 supports immediate overrides only: `effectiveFrom` may be the current pricing date or
+earlier, and a future date is rejected instead of being mislabeled active. The allocator also
+requires one explicit override source array at runtime and never reconstructs it from candidates.
 Resource drafts and overrides remain session-only and do not enter LocalStorage v5, Markdown, or
 JSON; checkpoint 8 must version those source shapes and exports atomically.
 
@@ -747,3 +752,6 @@ overage, and native-unit subscription usage as separate values. Lead each task w
 access route, then the model and deterministic explanation. Preserve conditional/excluded reason
 codes and show infeasible separately from budget-held work. Use the approved Best-fit hero and
 complete Korean, English, and Japanese UI copy with an explicit Korean-capable font stack.
+Translate every closed exclusion reason before presentation. For subscription routes, label the
+task-level cash range as reservation-order marginal attribution; the complete-plan cash ledger is
+the authoritative total and may not equal a sum of independently priced tasks.

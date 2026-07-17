@@ -18,6 +18,7 @@ import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
   buildBestFitUiPlan,
+  hasBestFitRelevantSettingsChange,
   type BestFitUiPlan,
 } from "@/lib/planning/best-fit-ui-plan";
 import {
@@ -600,6 +601,10 @@ export default function Home() {
   }
 
   function updateSettings(value: PlanningFormState) {
+    const previousBestFitSettings = {
+      budgetUsd: Number(settings.budgetUsd),
+      strategy: settings.strategy,
+    };
     setSettings(value);
     setVisibleError(null);
     setShowValidation(false);
@@ -610,12 +615,21 @@ export default function Home() {
     );
     setIncrementalCashBudget(nextIncrementalCashBudget);
     if (completed && nextPlanningSettings) {
-      markPlanningRevision();
-      setAllocationNotice({
-        kind: "settings",
-        budgetUsd: nextPlanningSettings.budgetUsd,
-        strategy: nextPlanningSettings.strategy,
-      });
+      if (
+        hasBestFitRelevantSettingsChange(
+          previousBestFitSettings,
+          nextPlanningSettings,
+        )
+      ) {
+        markPlanningRevision();
+        setAllocationNotice({
+          kind: "settings",
+          budgetUsd: nextPlanningSettings.budgetUsd,
+          strategy: nextPlanningSettings.strategy,
+        });
+      } else {
+        setAllocationNotice(null);
+      }
     } else {
       setAllocationNotice(null);
     }

@@ -241,6 +241,58 @@ describe("Best-fit resolver-issued task candidates", () => {
     ).toThrow(/exact resolver-issued candidate sets/);
   });
 
+  it("requires one explicit override source array for every candidate in a plan", () => {
+    const luna = apiOverride("openai", "economy", {
+      planningTier: "balanced",
+      standardTextPrice: { inputUsdPerMillion: 0.75, outputUsdPerMillion: 4 },
+    });
+    const sonnet = apiOverride("anthropic", "balanced", {
+      planningTier: undefined,
+      standardTextPrice: { inputUsdPerMillion: 2.25, outputUsdPerMillion: 11 },
+    });
+    const firstInput = { ...candidateInput(), apiOverrides: [luna, sonnet] };
+    const first = resolveBestFitTaskCandidates(firstInput);
+    const secondTask = {
+      ...task,
+      id: "task-2",
+      name: "두 번째 API 설계",
+    };
+    const secondBaseInput = candidateInput(1);
+    const second = resolveBestFitTaskCandidates({
+      ...secondBaseInput,
+      task: secondTask,
+      analysis: { ...secondBaseInput.analysis, taskId: secondTask.id },
+      apiOverrides: [sonnet],
+    });
+
+    const missingOverrides = {
+      tasks: [first],
+      strategy: "balanced",
+      planningAsOf: PLANNING_AS_OF,
+      pricingAsOf: PRICING_AS_OF,
+      incrementalCashBudgetMicroUsd: 0,
+    } as unknown as Parameters<typeof allocateResolvedBestFitPlan>[0];
+    expect(() => allocateResolvedBestFitPlan(missingOverrides)).toThrow(
+      /explicit API catalog override array/,
+    );
+
+    const mixedMissingOverrides = {
+      ...missingOverrides,
+      tasks: [first, second],
+    } as unknown as Parameters<typeof allocateResolvedBestFitPlan>[0];
+    expect(() => allocateResolvedBestFitPlan(mixedMissingOverrides)).toThrow(
+      /explicit API catalog override array/,
+    );
+
+    expect(() => allocate([first], [
+      structuredClone(sonnet),
+      structuredClone(luna),
+    ])).not.toThrow();
+    expect(() => allocate([first, second], [luna, sonnet])).toThrow(
+      /exact resolver-issued candidate sets/,
+    );
+  });
+
   it("applies an exact effective planning-tier override without promoting API authority", () => {
     const luna = apiOverride("openai", "economy", {
       planningTier: "premium",

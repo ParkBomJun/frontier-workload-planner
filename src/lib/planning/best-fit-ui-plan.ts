@@ -16,7 +16,12 @@ import {
 import { toOfferingEligibilityRequirement } from "@/lib/planning/workload-requirements";
 import { resolveStoredSubscriptionResource } from "@/lib/subscriptions/resource-resolver";
 import type { BestFitAllocationPlan } from "@/types/best-fit";
-import type { PlanningStrategy, TaskAnalysis, TaskInput } from "@/types/domain";
+import type {
+  PlanningSettings,
+  PlanningStrategy,
+  TaskAnalysis,
+  TaskInput,
+} from "@/types/domain";
 import type { RouteIdentity } from "@/types/offerings";
 import type {
   AvailableAiResourceDraft,
@@ -81,6 +86,17 @@ interface ResolvedDraftForPlanning {
     ReturnType<typeof resolveStoredSubscriptionResource>,
     { status: "invalid" }
   >;
+}
+
+export function hasBestFitRelevantSettingsChange(
+  previous: Pick<PlanningSettings, "budgetUsd" | "strategy"> | null,
+  next: PlanningSettings,
+): boolean {
+  return (
+    previous === null ||
+    previous.budgetUsd !== next.budgetUsd ||
+    previous.strategy !== next.strategy
+  );
 }
 
 function resourceRouteIdentity(
