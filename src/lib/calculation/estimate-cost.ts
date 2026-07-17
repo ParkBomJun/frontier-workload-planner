@@ -1,9 +1,7 @@
-import {
-  MODEL_PRICING,
-  PROMPT_CACHE_MIN_INPUT_TOKENS,
-} from "@/config/model-pricing";
+import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import type {
   ModelTier,
+  ProviderId,
   ScenarioEstimate,
   TaskAnalysis,
   TaskCostEstimate,
@@ -33,18 +31,15 @@ function estimateScenario(
   analysis: TaskAnalysis,
   tier: ModelTier,
   scenario: Scenario,
+  providerId: ProviderId,
 ): ScenarioEstimate {
-  const price = MODEL_PRICING[tier];
+  const price = PROVIDER_CATALOG[providerId].models[tier];
   const iterations = iterationsForScenario(analysis.expectedIterations, scenario);
   const inputTokensPerIteration = INPUT_TOKEN_BANDS[analysis.estimatedInputSize][scenario];
   const inputTokens = inputTokensPerIteration * iterations;
   const outputTokens = OUTPUT_TOKEN_BANDS[analysis.estimatedOutputSize][scenario] * iterations;
-  const inputRate =
-    inputTokensPerIteration >= PROMPT_CACHE_MIN_INPUT_TOKENS
-      ? price.cacheWriteInputUsdPerMillion
-      : price.inputUsdPerMillion;
   const costMicroUsd = Math.round(
-    inputTokens * inputRate + outputTokens * price.outputUsdPerMillion,
+    inputTokens * price.inputUsdPerMillion + outputTokens * price.outputUsdPerMillion,
   );
 
   return {
@@ -55,10 +50,14 @@ function estimateScenario(
   };
 }
 
-export function estimateTaskCost(analysis: TaskAnalysis, tier: ModelTier): TaskCostEstimate {
+export function estimateTaskCost(
+  analysis: TaskAnalysis,
+  tier: ModelTier,
+  providerId: ProviderId = "openai",
+): TaskCostEstimate {
   return {
-    low: estimateScenario(analysis, tier, "low"),
-    expected: estimateScenario(analysis, tier, "expected"),
-    high: estimateScenario(analysis, tier, "high"),
+    low: estimateScenario(analysis, tier, "low", providerId),
+    expected: estimateScenario(analysis, tier, "expected", providerId),
+    high: estimateScenario(analysis, tier, "high", providerId),
   };
 }

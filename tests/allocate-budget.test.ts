@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { allocateBudget, strategyTargetTier } from "@/lib/calculation/allocate-budget";
-import type { PlanningSettings, TaskAnalysis, TaskInput } from "@/types/domain";
+import {
+  PROVIDER_IDS,
+  type PlanningSettings,
+  type ProviderId,
+  type TaskAnalysis,
+  type TaskInput,
+} from "@/types/domain";
 
 const tasks: TaskInput[] = [
   {
@@ -64,17 +70,18 @@ describe("allocateBudget", () => {
   it("keeps strategy targets when the Expected total fits", () => {
     const plan = allocateBudget(tasks, analyses, settings);
 
+    expect(plan.providerId).toBe("openai");
     expect(plan.tasks.map((task) => task.assignedTier)).toEqual(["balanced", "balanced"]);
-    expect(plan.totals.expectedUsd).toBeCloseTo(0.44);
+    expect(plan.totals.expectedUsd).toBe(0.4);
     expect(plan.expectedWithinBudget).toBe(true);
     expect(plan.downgradedTaskCount).toBe(0);
   });
 
   it("downgrades the lower-need task first until Expected fits", () => {
-    const plan = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.31 });
+    const plan = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.28 });
 
     expect(plan.tasks.map((task) => task.assignedTier)).toEqual(["economy", "balanced"]);
-    expect(plan.totals.expectedUsd).toBeCloseTo(0.308);
+    expect(plan.totals.expectedUsd).toBe(0.28);
     expect(plan.expectedWithinBudget).toBe(true);
     expect(plan.highExceedsBudget).toBe(true);
     expect(plan.downgradedTaskCount).toBe(1);
@@ -85,7 +92,7 @@ describe("allocateBudget", () => {
 
     expect(plan.tasks.every((task) => task.status === "held")).toBe(true);
     expect(plan.tasks.every((task) => task.cost === null && task.modelId === null)).toBe(true);
-    expect(plan.minimumExpectedCostUsd).toBeCloseTo(0.176);
+    expect(plan.minimumExpectedCostUsd).toBe(0.16);
     expect(plan.totals).toEqual({ lowUsd: 0, expectedUsd: 0, highUsd: 0 });
     expect(plan.expectedWithinBudget).toBe(true);
     expect(plan.heldTaskCount).toBe(2);
@@ -100,9 +107,9 @@ describe("allocateBudget", () => {
   });
 
   it("treats an exact micro-USD budget boundary as fitting", () => {
-    const plan = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.308 });
+    const plan = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.28 });
 
-    expect(plan.totals.expectedUsd).toBe(0.308);
+    expect(plan.totals.expectedUsd).toBe(0.28);
     expect(plan.expectedWithinBudget).toBe(true);
     expect(plan.tasks.map((task) => task.assignedTier)).toEqual(["economy", "balanced"]);
   });
@@ -120,11 +127,11 @@ describe("allocateBudget", () => {
     }));
     const plan = allocateBudget(threeTasks, threeAnalyses, {
       ...settings,
-      budgetUsd: 0.264,
+      budgetUsd: 0.24,
       strategy: "cost-saver",
     });
 
-    expect(plan.totals.expectedUsd).toBe(0.264);
+    expect(plan.totals.expectedUsd).toBe(0.24);
     expect(plan.expectedWithinBudget).toBe(true);
   });
 
@@ -137,10 +144,10 @@ describe("allocateBudget", () => {
       uncertainty: "medium" as const,
       recommendedModelTier: "frontier" as const,
     }));
-    const plan = allocateBudget(tiedTasks, tiedAnalyses, { ...settings, budgetUsd: 0.53 });
+    const plan = allocateBudget(tiedTasks, tiedAnalyses, { ...settings, budgetUsd: 0.48 });
 
     expect(plan.tasks.map((task) => task.assignedTier)).toEqual(["economy", "frontier"]);
-    expect(plan.totals.expectedUsd).toBe(0.528);
+    expect(plan.totals.expectedUsd).toBe(0.48);
   });
 
   it("joins analyses by taskId even when their array order changes", () => {
@@ -153,9 +160,9 @@ describe("allocateBudget", () => {
   it("does not treat High equal to the budget as an overrun", () => {
     const oneTask = [tasks[0]];
     const oneAnalysis = [{ ...baseAnalysis, recommendedModelTier: "economy" as const }];
-    const plan = allocateBudget(oneTask, oneAnalysis, { ...settings, budgetUsd: 0.264 });
+    const plan = allocateBudget(oneTask, oneAnalysis, { ...settings, budgetUsd: 0.24 });
 
-    expect(plan.totals.highUsd).toBe(0.264);
+    expect(plan.totals.highUsd).toBe(0.24);
     expect(plan.highExceedsBudget).toBe(false);
   });
 
@@ -180,7 +187,7 @@ describe("allocateBudget", () => {
       },
       analyses[1],
     ];
-    const plan = allocateBudget(tasks, priorityAnalyses, { ...settings, budgetUsd: 0.44 });
+    const plan = allocateBudget(tasks, priorityAnalyses, { ...settings, budgetUsd: 0.4 });
 
     expect(plan.tasks.map((task) => task.status)).toEqual(["active", "active"]);
     expect(plan.tasks.map((task) => task.assignedTier)).toEqual(["balanced", "balanced"]);
@@ -195,12 +202,12 @@ describe("allocateBudget", () => {
       { ...tasks[0], id: "high", priority: "high" },
     ];
     const threeAnalyses = threeTasks.map((task) => ({ ...baseAnalysis, taskId: task.id }));
-    const plan = allocateBudget(threeTasks, threeAnalyses, { ...settings, budgetUsd: 0.088 });
+    const plan = allocateBudget(threeTasks, threeAnalyses, { ...settings, budgetUsd: 0.08 });
 
     expect(plan.tasks.map((task) => task.status)).toEqual(["held", "held", "active"]);
     expect(plan.tasks[2].assignedTier).toBe("economy");
     expect(plan.heldTaskCount).toBe(2);
-    expect(plan.totals.expectedUsd).toBe(0.088);
+    expect(plan.totals.expectedUsd).toBe(0.08);
   });
 
   it("holds low-priority work before higher-priority work even when GPT need ranks it higher", () => {
@@ -229,7 +236,7 @@ describe("allocateBudget", () => {
 
     expect(plan.tasks.map((task) => task.status)).toEqual(["held", "active"]);
     expect(plan.tasks[1].assignedTier).toBe("economy");
-    expect(plan.totals).toEqual({ lowUsd: 0.002, expectedUsd: 0.004, highUsd: 0.017 });
+    expect(plan.totals).toEqual({ lowUsd: 0.002, expectedUsd: 0.004, highUsd: 0.016 });
     expect(plan.highExceedsBudget).toBe(false);
   });
 
@@ -253,28 +260,83 @@ describe("allocateBudget", () => {
     expect(plan.tasks[0].status).toBe("held");
     expect(plan.tasks[1].status).toBe("active");
     expect(plan.tasks[1].assignedTier).toBe("balanced");
-    expect(plan.totals.expectedUsd).toBe(0.22);
+    expect(plan.totals.expectedUsd).toBe(0.2);
   });
 
   it("does not hold at the exact economy boundary and holds one task one micro-dollar below", () => {
-    const exact = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.176 });
-    const below = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.175999 });
+    const exact = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.16 });
+    const below = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.159999 });
 
     expect(exact.heldTaskCount).toBe(0);
-    expect(exact.totals.expectedUsd).toBe(0.176);
+    expect(exact.totals.expectedUsd).toBe(0.16);
     expect(below.heldTaskCount).toBe(1);
     expect(below.tasks[0].status).toBe("held");
     expect(below.tasks[1].status).toBe("active");
   });
 
   it("reactivates held work when budget increases without changing analysis", () => {
-    const constrained = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.088 });
-    const expanded = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.44 });
+    const constrained = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.08 });
+    const expanded = allocateBudget(tasks, analyses, { ...settings, budgetUsd: 0.4 });
 
     expect(constrained.heldTaskCount).toBe(1);
     expect(expanded.heldTaskCount).toBe(0);
     expect(expanded.activeTaskCount).toBe(2);
     expect(expanded.tasks.map((task) => task.analysis)).toEqual(analyses);
+  });
+
+  it.each(
+    [
+      ["openai", "gpt-5.6-terra", 0.2],
+      ["anthropic", "claude-sonnet-5", 0.144],
+      ["google", "gemini-3-flash-preview", 0.04],
+    ] satisfies Array<[ProviderId, string, number]>,
+  )("maps a balanced tier to the %s catalog model", (providerId, modelId, expectedUsd) => {
+    const plan = allocateBudget([tasks[0]], [analyses[0]], settings, providerId);
+
+    expect(plan.providerId).toBe(providerId);
+    expect(plan.tasks[0]).toMatchObject({
+      status: "active",
+      assignedTier: "balanced",
+      modelId,
+    });
+    expect(plan.totals.expectedUsd).toBe(expectedUsd);
+  });
+
+  it.each(
+    [
+      ["openai", 0.08],
+      ["anthropic", 0.072],
+      ["google", 0.02],
+    ] satisfies Array<[ProviderId, number]>,
+  )("treats %s exact economy cost as active and one micro-dollar less as held", (
+    providerId,
+    exactBudget,
+  ) => {
+    const exact = allocateBudget(
+      [tasks[0]],
+      [analyses[0]],
+      { ...settings, budgetUsd: exactBudget },
+      providerId,
+    );
+    const below = allocateBudget(
+      [tasks[0]],
+      [analyses[0]],
+      { ...settings, budgetUsd: exactBudget - 0.000001 },
+      providerId,
+    );
+
+    expect(exact.tasks[0].status).toBe("active");
+    expect(exact.totals.expectedUsd).toBe(exactBudget);
+    expect(below.tasks[0].status).toBe("held");
+    expect(below.totals.expectedUsd).toBe(0);
+  });
+
+  it("does not mutate the shared GPT analysis when calculating each provider", () => {
+    const snapshot = structuredClone(analyses);
+
+    PROVIDER_IDS.forEach((providerId) => allocateBudget(tasks, analyses, settings, providerId));
+
+    expect(analyses).toEqual(snapshot);
   });
 
   it("rejects duplicate task and analysis identities", () => {

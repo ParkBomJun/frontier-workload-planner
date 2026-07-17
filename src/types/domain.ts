@@ -14,6 +14,7 @@ export const REASONING_DEPTHS = ["light", "moderate", "deep"] as const;
 export const SIZE_BANDS = ["xs", "s", "m", "l", "xl"] as const;
 export const UNCERTAINTY_LEVELS = ["low", "medium", "high"] as const;
 export const MODEL_TIERS = ["economy", "balanced", "frontier"] as const;
+export const PROVIDER_IDS = ["openai", "anthropic", "google"] as const;
 export const PLANNING_STRATEGIES = ["cost-saver", "balanced", "quality-first"] as const;
 export const TASK_PRIORITIES = ["high", "medium", "low"] as const;
 
@@ -23,6 +24,7 @@ export type ReasoningDepth = (typeof REASONING_DEPTHS)[number];
 export type SizeBand = (typeof SIZE_BANDS)[number];
 export type Uncertainty = (typeof UNCERTAINTY_LEVELS)[number];
 export type ModelTier = (typeof MODEL_TIERS)[number];
+export type ProviderId = (typeof PROVIDER_IDS)[number];
 export type PlanningStrategy = (typeof PLANNING_STRATEGIES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type AnalysisMode = "mock" | "live";
@@ -125,6 +127,7 @@ export interface HeldPlannedTask extends PlannedTaskBase {
 export type PlannedTask = ActivePlannedTask | HeldPlannedTask;
 
 export interface BudgetAllocationPlan {
+  providerId: ProviderId;
   settings: PlanningSettings;
   tasks: PlannedTask[];
   totals: CostTotals;
@@ -138,9 +141,21 @@ export interface BudgetAllocationPlan {
   warnings: string[];
 }
 
+export interface ProviderComparisonSummary {
+  providerId: ProviderId;
+  totals: CostTotals;
+  expectedWithinBudget: boolean;
+  allTasksActiveWithinBudget: boolean;
+  highExceedsBudget: boolean;
+  activeTaskCount: number;
+  heldTaskCount: number;
+  downgradedTaskCount: number;
+}
+
 export interface PlanExportContext {
   sourceTasks: TaskInput[];
   plan: BudgetAllocationPlan;
+  providerComparisons: ProviderComparisonSummary[];
   analysisMode: AnalysisMode;
   analysisModel: string;
   generatedAt: string;

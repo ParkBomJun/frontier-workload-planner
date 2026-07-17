@@ -52,19 +52,22 @@ const response: AnalyzeSuccessResponse = {
   analysis: createMockAnalysis(tasks),
 };
 const savedAt = "2026-07-17T01:01:00.000Z";
+const selectedProvider = "openai" as const;
+const scenarioInput = { selectedProvider, tasks, settings, response };
 
 describe("recent scenario storage", () => {
   it("round-trips one validated versioned scenario", () => {
     const storage = new MemoryStorage();
-    const saved = saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+    const saved = saveRecentScenario(scenarioInput, storage, savedAt);
     const loaded = loadRecentScenario(storage);
 
     expect(saved).toMatchObject({ ok: true });
     expect(loaded).toMatchObject({
       status: "loaded",
       scenario: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         savedAt,
+        selectedProvider,
         tasks,
         settings,
         response,
@@ -74,13 +77,13 @@ describe("recent scenario storage", () => {
 
   it("overwrites the previous scenario at the single fixed key", () => {
     const storage = new MemoryStorage();
-    saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+    saveRecentScenario(scenarioInput, storage, savedAt);
     const renamedTasks = tasks.map((task, index) =>
       index === 0 ? { ...task, name: "수정된 API 설계" } : task,
     );
     const renamedResponse = { ...response, analysis: createMockAnalysis(renamedTasks) };
     saveRecentScenario(
-      { tasks: renamedTasks, settings, response: renamedResponse },
+      { selectedProvider: "google", tasks: renamedTasks, settings, response: renamedResponse },
       storage,
       "2026-07-17T01:02:00.000Z",
     );
@@ -89,6 +92,7 @@ describe("recent scenario storage", () => {
     expect(loaded.status).toBe("loaded");
     if (loaded.status === "loaded") {
       expect(loaded.scenario.tasks[0].name).toBe("수정된 API 설계");
+      expect(loaded.scenario.selectedProvider).toBe("google");
     }
   });
 
@@ -103,7 +107,7 @@ describe("recent scenario storage", () => {
     expect(malformedStorage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
 
     const mismatchedStorage = new MemoryStorage();
-    const saved = saveRecentScenario({ tasks, settings, response }, mismatchedStorage, savedAt);
+    const saved = saveRecentScenario(scenarioInput, mismatchedStorage, savedAt);
     expect(saved.ok).toBe(true);
     const raw = JSON.parse(mismatchedStorage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
       response: AnalyzeSuccessResponse;
@@ -117,7 +121,7 @@ describe("recent scenario storage", () => {
 
   it("preserves an unknown future version", () => {
     const storage = new MemoryStorage();
-    const future = JSON.stringify({ schemaVersion: 3, future: true });
+    const future = JSON.stringify({ schemaVersion: 4, future: true });
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, future);
 
     expect(loadRecentScenario(storage)).toEqual({ status: "unsupported" });
@@ -137,7 +141,7 @@ describe("recent scenario storage", () => {
     }
   });
 
-  it("migrates a valid v1 scenario to v2 with medium priorities", () => {
+  it("migrates a valid v1 scenario to v3 with medium priorities and OpenAI selected", () => {
     const storage = new MemoryStorage();
     const legacyTasks = tasks.map((task) => ({
       id: task.id,
@@ -158,16 +162,49 @@ describe("recent scenario storage", () => {
     expect(loaded).toMatchObject({
       status: "loaded",
       scenario: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         savedAt,
+        selectedProvider: "openai",
         tasks: legacyTasks.map((task) => ({ ...task, priority: "medium" })),
         settings,
         response,
       },
     });
     expect(JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}")).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
+      selectedProvider: "openai",
       tasks: legacyTasks.map((task) => ({ ...task, priority: "medium" })),
+    });
+  });
+
+  it("migrates a valid v2 scenario to v3 with OpenAI selected", () => {
+    const storage = new MemoryStorage();
+    const legacy = {
+      schemaVersion: 2,
+      savedAt,
+      tasks,
+      settings,
+      response,
+    };
+    storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadRecentScenario(storage);
+
+    expect(loaded).toMatchObject({
+      status: "loaded",
+      scenario: {
+        schemaVersion: 3,
+        savedAt,
+        selectedProvider: "openai",
+        tasks,
+        settings,
+        response,
+      },
+    });
+    expect(JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}")).toMatchObject({
+      schemaVersion: 3,
+      selectedProvider: "openai",
+      tasks,
     });
   });
 
@@ -197,13 +234,14 @@ describe("recent scenario storage", () => {
     expect(loaded.status).toBe("loaded");
     if (loaded.status === "loaded") {
       expect(loaded.scenario.tasks.map((task) => task.priority)).toEqual(["medium", "medium"]);
+      expect(loaded.scenario.selectedProvider).toBe("openai");
     }
   });
 
-  it("discards v2 data with a missing or invalid priority", () => {
+  it("discards v3 data with a missing or invalid priority", () => {
     for (const priority of [undefined, "urgent"]) {
       const storage = new MemoryStorage();
-      const saved = saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+      const saved = saveRecentScenario(scenarioInput, storage, savedAt);
       expect(saved.ok).toBe(true);
       const raw = JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
         tasks: Array<Record<string, unknown>>;
@@ -217,9 +255,26 @@ describe("recent scenario storage", () => {
     }
   });
 
+  it("discards a current scenario with a missing or invalid selected provider", () => {
+    for (const provider of [undefined, "unknown-provider"]) {
+      const storage = new MemoryStorage();
+      const saved = saveRecentScenario(scenarioInput, storage, savedAt);
+      expect(saved.ok).toBe(true);
+      const raw = JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
+        selectedProvider?: string;
+      };
+      if (provider === undefined) delete raw.selectedProvider;
+      else raw.selectedProvider = provider;
+      storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(raw));
+
+      expect(loadRecentScenario(storage)).toEqual({ status: "discarded" });
+      expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
+    }
+  });
+
   it("persists only source scenario fields and never derived allocation state", () => {
     const storage = new MemoryStorage();
-    saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+    saveRecentScenario(scenarioInput, storage, savedAt);
 
     const raw = JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}") as {
       tasks: Array<Record<string, unknown>>;
@@ -229,6 +284,7 @@ describe("recent scenario storage", () => {
       "response",
       "savedAt",
       "schemaVersion",
+      "selectedProvider",
       "settings",
       "tasks",
     ]);
@@ -240,13 +296,15 @@ describe("recent scenario storage", () => {
     ]);
     expect(JSON.stringify(raw)).not.toContain('"held"');
     expect(JSON.stringify(raw)).not.toContain('"assignedTier"');
+    expect(JSON.stringify(raw)).not.toContain('"providerComparisons"');
+    expect(JSON.stringify(raw)).not.toContain('"providerId"');
   });
 
   it("rejects invalid input before writing", () => {
     const storage = new MemoryStorage();
     const duplicateTasks = [{ ...tasks[0] }, { ...tasks[1], id: tasks[0].id }];
     const saved = saveRecentScenario(
-      { tasks: duplicateTasks, settings, response },
+      { selectedProvider, tasks: duplicateTasks, settings, response },
       storage,
       savedAt,
     );
@@ -272,7 +330,7 @@ describe("recent scenario storage", () => {
       },
       removeItem: () => undefined,
     };
-    expect(saveRecentScenario({ tasks, settings, response }, setFailure, savedAt)).toEqual({
+    expect(saveRecentScenario(scenarioInput, setFailure, savedAt)).toEqual({
       ok: false,
       reason: "write-failed",
     });
@@ -288,7 +346,7 @@ describe("recent scenario storage", () => {
     expect(clearRecentScenario(removeFailure)).toBe(false);
 
     const storage = new MemoryStorage();
-    saveRecentScenario({ tasks, settings, response }, storage, savedAt);
+    saveRecentScenario(scenarioInput, storage, savedAt);
     expect(clearRecentScenario(storage)).toBe(true);
     expect(loadRecentScenario(storage)).toEqual({ status: "empty" });
   });

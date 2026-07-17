@@ -1,3 +1,6 @@
+"use client";
+
+import { useLanguage } from "@/components/language-provider";
 import {
   MAX_TASK_DESCRIPTION_LENGTH,
   MAX_TASK_NAME_LENGTH,
@@ -26,15 +29,18 @@ export function TaskEditor({
   onPriorityChange,
   onLoadSample,
 }: TaskEditorProps) {
+  const { copy } = useLanguage();
+  const taskCopy = copy.taskEditor;
+
   return (
     <section className="min-w-0 rounded-[1.75rem] border border-white/80 bg-white/90 p-5 shadow-[0_24px_70px_rgba(28,47,37,0.1)] backdrop-blur sm:p-7">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#748078]">Workload queue</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">분석할 작업</h2>
-          <p className="mt-1 text-sm text-[#66736b]">한 요청에서 최대 {MAX_TASKS}개를 함께 분석합니다.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#748078]">{taskCopy.eyebrow}</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">{taskCopy.title}</h2>
+          <p className="mt-1 text-sm text-[#66736b]">{taskCopy.maxTasksHelp(MAX_TASKS)}</p>
           <p id="task-priority-help" className="mt-1 text-xs leading-5 text-[#66736b]">
-            우선순위는 GPT의 난이도 판단이 아니라 프로그램의 예산 하향·보류 순서에만 사용됩니다.
+            {taskCopy.priorityHelp}
           </p>
         </div>
         <button
@@ -43,7 +49,7 @@ export function TaskEditor({
           disabled={disabled}
           className="rounded-full border border-[#173f31]/15 px-3.5 py-2 text-sm font-bold text-[#365649] transition hover:border-[#173f31]/35 hover:bg-[#edf3ee] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          샘플 3개 불러오기
+          {taskCopy.loadSample(3)}
         </button>
       </div>
 
@@ -61,31 +67,33 @@ export function TaskEditor({
               key={task.id}
               className="min-w-0 rounded-2xl border border-[#173f31]/12 bg-[#fbfcf9] p-4 sm:p-5"
             >
-              <legend className="sr-only">작업 {index + 1}</legend>
+              <legend className="sr-only">{taskCopy.taskLegend(index + 1)}</legend>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="grid size-8 place-items-center rounded-lg bg-[#e8eee8] font-mono text-xs font-bold text-[#2e5a47]">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <p className="font-semibold text-[#263c32]">작업 {index + 1}</p>
+                  <p className="font-semibold text-[#263c32]">{taskCopy.taskLabel(index + 1)}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => onRemove(task.id)}
                   disabled={disabled || tasks.length === 1}
-                  aria-label={`${task.name.trim() || `작업 ${index + 1}`} 삭제`}
+                  aria-label={taskCopy.removeAriaLabel(
+                    task.name.trim() || taskCopy.taskLabel(index + 1),
+                  )}
                   className="min-h-11 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-[#8a5a48] transition hover:bg-[#fff0e8] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#c66845]/20 disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  삭제
+                  {taskCopy.remove}
                 </button>
               </div>
 
               <div className="grid min-w-0 gap-4">
                 <label htmlFor={nameId} className="block min-w-0">
                   <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-[#34443b]">
-                    <span>작업명</span>
+                    <span>{taskCopy.nameLabel}</span>
                     <span className="font-mono text-xs font-normal text-[#6f7d75]">
-                      {task.name.length} / {MAX_TASK_NAME_LENGTH}
+                      {taskCopy.characterCounter(task.name.length, MAX_TASK_NAME_LENGTH)}
                     </span>
                   </span>
                   <input
@@ -96,18 +104,18 @@ export function TaskEditor({
                     disabled={disabled}
                     aria-invalid={nameInvalid}
                     aria-describedby={nameInvalid ? nameErrorId : undefined}
-                    placeholder="예: 고객 지원 대시보드 API 설계"
+                    placeholder={taskCopy.namePlaceholder}
                     className="w-full min-w-0 rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-base outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
                   />
                   {nameInvalid ? (
                     <span id={nameErrorId} className="mt-1.5 block text-sm text-[#a6452a]">
-                      작업명을 입력해 주세요.
+                      {taskCopy.nameRequired}
                     </span>
                   ) : null}
                 </label>
 
                 <label htmlFor={`task-priority-${task.id}`} className="block min-w-0 sm:max-w-56">
-                  <span className="mb-2 block text-sm font-bold text-[#34443b]">우선순위</span>
+                  <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.priorityLabel}</span>
                   <select
                     id={`task-priority-${task.id}`}
                     value={task.priority}
@@ -118,17 +126,17 @@ export function TaskEditor({
                     aria-describedby="task-priority-help"
                     className="min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-white px-3 py-2.5 text-base font-semibold text-[#34443b] outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="high">High · 높음</option>
-                    <option value="medium">Medium · 보통</option>
-                    <option value="low">Low · 낮음</option>
+                    <option value="high">{copy.enums.priority.high}</option>
+                    <option value="medium">{copy.enums.priority.medium}</option>
+                    <option value="low">{copy.enums.priority.low}</option>
                   </select>
                 </label>
 
                 <label htmlFor={descriptionId} className="block min-w-0">
                   <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-[#34443b]">
-                    <span>작업 설명</span>
+                    <span>{taskCopy.descriptionLabel}</span>
                     <span className="font-mono text-xs font-normal text-[#6f7d75]">
-                      {task.description.length} / {MAX_TASK_DESCRIPTION_LENGTH.toLocaleString()}
+                      {taskCopy.characterCounter(task.description.length, MAX_TASK_DESCRIPTION_LENGTH)}
                     </span>
                   </span>
                   <textarea
@@ -140,12 +148,12 @@ export function TaskEditor({
                     aria-invalid={descriptionInvalid}
                     aria-describedby={descriptionInvalid ? descriptionErrorId : undefined}
                     rows={4}
-                    placeholder="목표, 산출물, 제약, 품질 기준을 구체적으로 적어 주세요."
+                    placeholder={taskCopy.descriptionPlaceholder}
                     className="w-full min-w-0 resize-y rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-base leading-6 outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
                   />
                   {descriptionInvalid ? (
                     <span id={descriptionErrorId} className="mt-1.5 block text-sm text-[#a6452a]">
-                      작업 설명을 입력해 주세요.
+                      {taskCopy.descriptionRequired}
                     </span>
                   ) : null}
                 </label>
@@ -163,7 +171,7 @@ export function TaskEditor({
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#2f6c55]/30 bg-[#f4f8f4] px-4 py-3 text-sm font-bold text-[#365f4d] transition hover:border-[#2f6c55]/55 hover:bg-[#eaf2ec] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:cursor-not-allowed disabled:opacity-45"
       >
         <span aria-hidden="true">＋</span>
-        {tasks.length >= MAX_TASKS ? "최대 8개 작업" : "작업 추가"}
+        {tasks.length >= MAX_TASKS ? taskCopy.maximumReached(MAX_TASKS) : taskCopy.addTask}
       </button>
     </section>
   );

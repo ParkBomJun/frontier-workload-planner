@@ -80,9 +80,32 @@
 - [x] Add the GitHub and deployment URLs to the local Devpost draft
 - [ ] Copy the local draft into the Devpost project
 
+## Provider comparison feature branch
+
+- [x] Create `feature/provider-comparison` without modifying stable `main` or production
+- [x] Verify the six Anthropic and Google model prices and conditions against official sources on 2026-07-17
+- [x] Define GPT-5.6 as the only analyzer and prohibit Claude/Gemini API calls
+- [x] Document tier mapping as a budget heuristic with no quality ranking or “best model” claim
+- [x] Define standard uncached text pricing and exclusions for cache, Batch, tools, and long-context surcharges
+- [x] Add the OpenAI, Anthropic, and Google catalog with official source URLs and verification date
+- [x] Preserve Sonnet 5's 2026-08-31 introductory-price expiry
+- [x] Mark the selected Gemini models preview and disclose the Gemini 3.1 Pro ≤200K condition
+- [x] Calculate independent Low / Expected / High allocation plans and comparison summaries for all providers
+- [x] Select a product family and swap plans locally without an analysis API request
+- [x] Migrate LocalStorage v1/v2 to v3 with OpenAI selected by default
+- [x] Add provider state and comparison/catalog snapshots to Markdown and JSON v3 exports
+- [x] Add catalog, provider-boundary, allocation, migration, and export regression tests
+- [x] Add Korean, English, and Japanese interface selection without an analysis API request
+- [x] Localize UI status, validation, accessibility copy, warnings, samples, and human-readable Markdown
+- [x] Persist locale independently and keep JSON v3 locale-neutral
+- [x] Verify lint, TypeScript, all tests, production build, API behavior, and mobile layout
+- [x] Create one atomic feature commit and request review before any merge or deployment
+
 ## Explicitly deferred
 
-- User-defined arbitrary models
+- User-defined arbitrary providers or models
+- Direct Claude or Gemini API analysis
+- Cross-provider quality benchmarks or automatic “best model” selection
 - Multiple scenario management
 - CSV export
 - Second graph

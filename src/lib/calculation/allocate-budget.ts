@@ -1,4 +1,4 @@
-import { MODEL_PRICING } from "@/config/model-pricing";
+import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import type {
   BudgetAllocationPlan,
   Complexity,
@@ -6,6 +6,7 @@ import type {
   ModelTier,
   PlannedTask,
   PlanningSettings,
+  ProviderId,
   ReasoningDepth,
   TaskAnalysis,
   TaskInput,
@@ -66,8 +67,12 @@ function lowerTier(tier: ModelTier): ModelTier {
   return shiftTier(tier, -1);
 }
 
-function toPlannedTask(item: WorkingTask): PlannedTask {
-  const minimumExpectedCostUsd = estimateTaskCost(item.analysis, "economy").expected.costUsd;
+function toPlannedTask(item: WorkingTask, providerId: ProviderId): PlannedTask {
+  const minimumExpectedCostUsd = estimateTaskCost(
+    item.analysis,
+    "economy",
+    providerId,
+  ).expected.costUsd;
   if (item.status === "held") {
     return {
       taskId: item.task.id,
@@ -94,8 +99,8 @@ function toPlannedTask(item: WorkingTask): PlannedTask {
     minimumExpectedCostUsd,
     status: "active",
     assignedTier: item.assignedTier,
-    modelId: MODEL_PRICING[item.assignedTier].modelId,
-    cost: estimateTaskCost(item.analysis, item.assignedTier),
+    modelId: PROVIDER_CATALOG[providerId].models[item.assignedTier].catalogId,
+    cost: estimateTaskCost(item.analysis, item.assignedTier, providerId),
     wasDowngradedForBudget:
       TIER_ORDER.indexOf(item.assignedTier) < TIER_ORDER.indexOf(item.strategyTargetTier),
   };
@@ -146,22 +151,29 @@ function compareForBudgetRelief(a: WorkingTask, b: WorkingTask): number {
   return a.index - b.index;
 }
 
-function expectedTotalMicroUsd(working: WorkingTask[]): number {
+function expectedTotalMicroUsd(working: WorkingTask[], providerId: ProviderId): number {
   return working.reduce(
     (total, item) =>
       item.status === "held"
         ? total
-        : total + toMicroUsd(estimateTaskCost(item.analysis, item.assignedTier).expected.costUsd),
+        : total +
+          toMicroUsd(
+            estimateTaskCost(item.analysis, item.assignedTier, providerId).expected.costUsd,
+          ),
     0,
   );
 }
 
-function activeMinimumExpectedTotalMicroUsd(working: WorkingTask[]): number {
+function activeMinimumExpectedTotalMicroUsd(
+  working: WorkingTask[],
+  providerId: ProviderId,
+): number {
   return working.reduce(
     (total, item) =>
       item.status === "held"
         ? total
-        : total + toMicroUsd(estimateTaskCost(item.analysis, "economy").expected.costUsd),
+        : total +
+          toMicroUsd(estimateTaskCost(item.analysis, "economy", providerId).expected.costUsd),
     0,
   );
 }
@@ -198,8 +210,12 @@ export function allocateBudget(
   tasks: TaskInput[],
   analyses: TaskAnalysis[],
   settings: PlanningSettings,
+  providerId: ProviderId = "openai",
 ): BudgetAllocationPlan {
   assertInputs(tasks, analyses, settings);
+  if (!Object.hasOwn(PROVIDER_CATALOG, providerId)) {
+    throw new Error("Provider must be one of the supported catalog providers.");
+  }
   const analysisById = new Map(analyses.map((analysis) => [analysis.taskId, analysis]));
   const budgetMicroUsd = toMicroUsd(settings.budgetUsd);
   const working: WorkingTask[] = tasks.map((task, index) => {
@@ -216,12 +232,14 @@ export function allocateBudget(
     };
   });
 
-  const minimumExpectedCostUsd = fromMicroUsd(activeMinimumExpectedTotalMicroUsd(working));
+  const minimumExpectedCostUsd = fromMicroUsd(
+    activeMinimumExpectedTotalMicroUsd(working, providerId),
+  );
 
   while (true) {
     resetActiveTiers(working);
 
-    while (expectedTotalMicroUsd(working) > budgetMicroUsd) {
+    while (expectedTotalMicroUsd(working, providerId) > budgetMicroUsd) {
       const candidate = working
         .filter((item) => item.status === "active" && item.assignedTier !== "economy")
         .sort(compareForBudgetRelief)[0];
@@ -229,7 +247,7 @@ export function allocateBudget(
       candidate.assignedTier = lowerTier(candidate.assignedTier);
     }
 
-    if (expectedTotalMicroUsd(working) <= budgetMicroUsd) break;
+    if (expectedTotalMicroUsd(working, providerId) <= budgetMicroUsd) break;
 
     const holdCandidate = working
       .filter((item) => item.status === "active")
@@ -238,7 +256,7 @@ export function allocateBudget(
     holdCandidate.status = "held";
   }
 
-  const plannedTasks = working.map(toPlannedTask);
+  const plannedTasks = working.map((item) => toPlannedTask(item, providerId));
   const totals = sumTotals(plannedTasks);
   const expectedWithinBudget = toMicroUsd(totals.expectedUsd) <= budgetMicroUsd;
   const highExceedsBudget = toMicroUsd(totals.highUsd) > budgetMicroUsd;
@@ -266,6 +284,7 @@ export function allocateBudget(
   }
 
   return {
+    providerId,
     settings,
     tasks: plannedTasks,
     totals,

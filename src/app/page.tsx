@@ -4,9 +4,12 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { AnalysisResults } from "@/components/analysis-results";
 import { BudgetSettings, type PlanningFormState } from "@/components/budget-settings";
+import { useLanguage } from "@/components/language-provider";
 import { TaskEditor } from "@/components/task-editor";
-import { SAMPLE_TASKS } from "@/data/examples";
-import { allocateBudget } from "@/lib/calculation/allocate-budget";
+import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
+import { MAX_TASKS } from "@/lib/ai/schema";
+import { compareProviderPlans } from "@/lib/calculation/compare-providers";
+import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
   clearRecentScenario,
   loadRecentScenario,
@@ -17,6 +20,8 @@ import type {
   AnalyzeApiResponse,
   AnalyzeSuccessResponse,
   PlanningSettings,
+  PlanningStrategy,
+  ProviderId,
   TaskInput,
   TaskPriority,
 } from "@/types/domain";
@@ -31,17 +36,18 @@ const INITIAL_SETTINGS: PlanningFormState = {
   strategy: "balanced",
 };
 
-const PRIORITY_NOTICE_LABELS: Record<TaskPriority, string> = {
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
-
 type RequestStatus = "idle" | "loading" | "success" | "error";
 
+type VisibleErrorKind =
+  | "invalid-form"
+  | "request-failed"
+  | "api"
+  | "request-timeout"
+  | "network-error";
+
 interface VisibleError {
+  kind: VisibleErrorKind;
   code?: string;
-  message: string;
 }
 
 interface CompletedAnalysis {
@@ -51,8 +57,103 @@ interface CompletedAnalysis {
 
 interface StorageNotice {
   tone: "success" | "warning";
-  message: string;
+  kind:
+    | "restored"
+    | "corrupt"
+    | "future-version"
+    | "unavailable"
+    | "empty"
+    | "saved"
+    | "invalid"
+    | "write-failed"
+    | "deleted"
+    | "delete-failed";
   canClear: boolean;
+  savedAt?: string;
+}
+
+type AllocationNotice =
+  | { kind: "priority"; task: string; priority: TaskPriority }
+  | { kind: "settings"; budgetUsd: number; strategy: PlanningStrategy }
+  | { kind: "provider"; providerId: ProviderId };
+
+type ApiErrorCopyKey =
+  | "requestTooLarge"
+  | "invalidJson"
+  | "invalidInput"
+  | "liveDisabled"
+  | "apiKeyMissing"
+  | "modelRefusal"
+  | "liveAnalysisFailed";
+
+const API_ERROR_COPY_KEYS = {
+  REQUEST_TOO_LARGE: "requestTooLarge",
+  INVALID_JSON: "invalidJson",
+  INVALID_INPUT: "invalidInput",
+  LIVE_ANALYSIS_DISABLED: "liveDisabled",
+  OPENAI_API_KEY_MISSING: "apiKeyMissing",
+  MODEL_REFUSAL: "modelRefusal",
+  LIVE_ANALYSIS_FAILED: "liveAnalysisFailed",
+} as const satisfies Record<string, ApiErrorCopyKey>;
+
+function visibleErrorMessage(error: VisibleError, copy: UiCopy): string {
+  if (error.kind === "invalid-form") return copy.page.invalidForm;
+  if (error.kind === "request-failed") return copy.page.requestFailed;
+  if (error.kind === "request-timeout") return copy.page.requestTimeout;
+  if (error.kind === "network-error") return copy.page.networkError;
+
+  const knownCopyKey = error.code
+    ? API_ERROR_COPY_KEYS[error.code as keyof typeof API_ERROR_COPY_KEYS]
+    : undefined;
+  return knownCopyKey ? copy.page[knownCopyKey] : copy.page.unknownApiError;
+}
+
+function storageNoticeMessage(
+  notice: StorageNotice,
+  copy: UiCopy,
+  dateLocale: string,
+): string {
+  switch (notice.kind) {
+    case "restored":
+      return copy.page.storageRestored(
+        new Date(notice.savedAt ?? 0).toLocaleString(dateLocale),
+      );
+    case "corrupt":
+      return copy.page.storageCorrupt;
+    case "future-version":
+      return copy.page.storageFutureVersion;
+    case "unavailable":
+      return copy.page.storageUnavailable;
+    case "empty":
+      return copy.page.storageEmpty;
+    case "saved":
+      return copy.page.storageSaved;
+    case "invalid":
+      return copy.page.storageInvalid;
+    case "write-failed":
+      return copy.page.storageWriteFailed;
+    case "deleted":
+      return copy.page.storageDeleted;
+    case "delete-failed":
+      return copy.page.storageDeleteFailed;
+  }
+}
+
+function allocationNoticeMessage(notice: AllocationNotice | null, copy: UiCopy): string {
+  if (!notice) return "";
+  if (notice.kind === "priority") {
+    return copy.page.allocationPriorityNotice(
+      notice.task,
+      copy.enums.priority[notice.priority],
+    );
+  }
+  if (notice.kind === "settings") {
+    return copy.page.allocationSettingsNotice(
+      notice.budgetUsd,
+      copy.enums.strategy[notice.strategy],
+    );
+  }
+  return copy.page.allocationProviderNotice(copy.enums.provider[notice.providerId]);
 }
 
 function parsePlanningSettings(value: PlanningFormState): PlanningSettings | null {
@@ -79,9 +180,11 @@ function planningFormState(settings: PlanningSettings): PlanningFormState {
 }
 
 export default function Home() {
+  const { locale, copy, localeMeta } = useLanguage();
   const [tasks, setTasks] = useState<TaskInput[]>(INITIAL_TASKS);
   const [settings, setSettings] = useState<PlanningFormState>(INITIAL_SETTINGS);
   const [mode, setMode] = useState<AnalysisMode>("mock");
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId>("openai");
   const [status, setStatus] = useState<RequestStatus>("idle");
   const [completed, setCompleted] = useState<CompletedAnalysis | null>(null);
   const [visibleError, setVisibleError] = useState<VisibleError | null>(null);
@@ -89,17 +192,18 @@ export default function Home() {
   const [storageChecked, setStorageChecked] = useState(false);
   const [hasRecentScenario, setHasRecentScenario] = useState(false);
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
-  const [allocationNotice, setAllocationNotice] = useState("");
+  const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
   const nextTaskNumber = useRef(2);
 
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
-    setAllocationNotice("");
+    setAllocationNotice(null);
     const result = loadRecentScenario();
 
     if (result.status === "loaded") {
       const restoredTasks = result.scenario.tasks.map((task) => ({ ...task }));
       setTasks(restoredTasks);
       setSettings(planningFormState(result.scenario.settings));
+      setSelectedProvider(result.scenario.selectedProvider);
       setMode(result.scenario.response.mode);
       setCompleted({
         response: result.scenario.response,
@@ -112,28 +216,29 @@ export default function Home() {
       nextTaskNumber.current = nextAvailableTaskNumber(restoredTasks);
       setStorageNotice({
         tone: "success",
-        message: `${new Date(result.scenario.savedAt).toLocaleString("ko-KR")}에 저장된 최근 계획을 복원했습니다.`,
+        kind: "restored",
         canClear: true,
+        savedAt: result.scenario.savedAt,
       });
     } else if (result.status === "discarded") {
       setHasRecentScenario(false);
       setStorageNotice({
         tone: "warning",
-        message: "손상된 최근 저장 기록을 무시했습니다. 가능한 경우 해당 기록도 정리했습니다.",
+        kind: "corrupt",
         canClear: false,
       });
     } else if (result.status === "unsupported") {
       setHasRecentScenario(false);
       setStorageNotice({
         tone: "warning",
-        message: "다른 버전에서 만든 저장 기록은 자동 복원하지 않았습니다.",
+        kind: "future-version",
         canClear: true,
       });
     } else if (result.status === "unavailable") {
       setHasRecentScenario(false);
       setStorageNotice({
         tone: "warning",
-        message: "이 브라우저에서는 최근 계획 저장소를 사용할 수 없습니다. 분석과 내보내기는 계속 작동합니다.",
+        kind: "unavailable",
         canClear: false,
       });
     } else {
@@ -141,7 +246,7 @@ export default function Home() {
       if (announceEmpty) {
         setStorageNotice({
           tone: "warning",
-          message: "복원할 최근 계획이 아직 없습니다.",
+          kind: "empty",
           canClear: false,
         });
       }
@@ -156,19 +261,26 @@ export default function Home() {
   }, [restoreRecentScenario]);
 
   const parsedSettings = useMemo(() => parsePlanningSettings(settings), [settings]);
-  const plan = useMemo(() => {
+  const providerPlanning = useMemo(() => {
     if (!completed || !parsedSettings) return null;
-    return allocateBudget(completed.tasks, completed.response.analysis.tasks, parsedSettings);
+    return compareProviderPlans(
+      completed.tasks,
+      completed.response.analysis.tasks,
+      parsedSettings,
+    );
   }, [completed, parsedSettings]);
+  const plan = providerPlanning?.plans[selectedProvider] ?? null;
 
   function persistCompletedScenario(
     snapshot: CompletedAnalysis,
     planningSettings: PlanningSettings,
+    providerId: ProviderId,
     announceSuccess: boolean,
   ) {
     const saved = saveRecentScenario({
       tasks: snapshot.tasks,
       settings: planningSettings,
+      selectedProvider: providerId,
       response: snapshot.response,
     });
 
@@ -177,7 +289,7 @@ export default function Home() {
       if (announceSuccess) {
         setStorageNotice({
           tone: "success",
-          message: "이 계획을 최근 시나리오로 브라우저에 저장했습니다.",
+          kind: "saved",
           canClear: true,
         });
       }
@@ -186,10 +298,7 @@ export default function Home() {
 
     setStorageNotice({
       tone: "warning",
-      message:
-        saved.reason === "invalid"
-          ? "계획 데이터 계약이 맞지 않아 최근 시나리오로 저장하지 못했습니다."
-          : "브라우저 저장소에 최근 계획을 저장하지 못했습니다. 현재 결과와 내보내기는 계속 사용할 수 있습니다.",
+      kind: saved.reason === "invalid" ? "invalid" : "write-failed",
       canClear: hasRecentScenario,
     });
   }
@@ -198,7 +307,7 @@ export default function Home() {
     setCompleted(null);
     setVisibleError(null);
     setStatus("idle");
-    setAllocationNotice("");
+    setAllocationNotice(null);
   }
 
   function updateTask(taskId: string, field: "name" | "description", value: string) {
@@ -228,17 +337,19 @@ export default function Home() {
     setCompleted(updatedCompleted);
     setStatus("success");
     const changedTask = updatedTasks.find((task) => task.id === taskId);
-    setAllocationNotice(
-      `${changedTask?.name || taskId} 우선순위를 ${PRIORITY_NOTICE_LABELS[priority]}로 바꾸고 API 재호출 없이 계획을 다시 배분했습니다.`,
-    );
+    setAllocationNotice({
+      kind: "priority",
+      task: changedTask?.name || taskId,
+      priority,
+    });
 
     if (hasRecentScenario && parsedSettings) {
-      persistCompletedScenario(updatedCompleted, parsedSettings, false);
+      persistCompletedScenario(updatedCompleted, parsedSettings, selectedProvider, false);
     }
   }
 
   function addTask() {
-    if (tasks.length >= 8) return;
+    if (tasks.length >= MAX_TASKS) return;
     const availableNumber = nextAvailableTaskNumber(tasks, nextTaskNumber.current);
     const taskId = `task-${availableNumber}`;
     nextTaskNumber.current = availableNumber + 1;
@@ -268,7 +379,7 @@ export default function Home() {
   }
 
   function loadSample() {
-    setTasks(SAMPLE_TASKS.map((task) => ({ ...task })));
+    setTasks(SAMPLE_TASKS_BY_LOCALE[locale].map((task) => ({ ...task })));
     nextTaskNumber.current = 4;
     setShowValidation(false);
     invalidateAnalysis();
@@ -280,14 +391,28 @@ export default function Home() {
     setShowValidation(false);
     const nextPlanningSettings = parsePlanningSettings(value);
     if (completed && nextPlanningSettings) {
-      setAllocationNotice(
-        `예산 ${nextPlanningSettings.budgetUsd}달러, ${nextPlanningSettings.strategy} 전략을 반영해 API 재호출 없이 계획을 다시 배분했습니다.`,
-      );
+      setAllocationNotice({
+        kind: "settings",
+        budgetUsd: nextPlanningSettings.budgetUsd,
+        strategy: nextPlanningSettings.strategy,
+      });
     } else {
-      setAllocationNotice("");
+      setAllocationNotice(null);
     }
     if (completed && hasRecentScenario && nextPlanningSettings) {
-      persistCompletedScenario(completed, nextPlanningSettings, false);
+      persistCompletedScenario(completed, nextPlanningSettings, selectedProvider, false);
+    }
+  }
+
+  function updateProvider(providerId: ProviderId) {
+    setSelectedProvider(providerId);
+    setVisibleError(null);
+    if (!completed) return;
+
+    setStatus("success");
+    setAllocationNotice({ kind: "provider", providerId });
+    if (hasRecentScenario && parsedSettings) {
+      persistCompletedScenario(completed, parsedSettings, providerId, false);
     }
   }
 
@@ -301,7 +426,7 @@ export default function Home() {
       setHasRecentScenario(false);
       setStorageNotice({
         tone: "success",
-        message: "브라우저의 최근 저장 기록을 삭제했습니다. 현재 화면의 결과는 새로고침 전까지 유지됩니다.",
+        kind: "deleted",
         canClear: false,
       });
       return;
@@ -309,7 +434,7 @@ export default function Home() {
 
     setStorageNotice({
       tone: "warning",
-      message: "브라우저 저장 기록을 삭제하지 못했습니다.",
+      kind: "delete-failed",
       canClear: hasRecentScenario,
     });
   }
@@ -328,8 +453,8 @@ export default function Home() {
       setCompleted(null);
       setStatus("error");
       setShowValidation(true);
-      setVisibleError({ message: "모든 작업과 계획 설정을 확인해 주세요." });
-      setAllocationNotice("");
+      setVisibleError({ kind: "invalid-form" });
+      setAllocationNotice(null);
       window.requestAnimationFrame(() => {
         document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
       });
@@ -341,7 +466,7 @@ export default function Home() {
     setShowValidation(false);
     setVisibleError(null);
     setCompleted(null);
-    setAllocationNotice("");
+    setAllocationNotice(null);
 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 75_000);
@@ -356,9 +481,9 @@ export default function Home() {
       const payload = (await response.json()) as AnalyzeApiResponse;
 
       if (!response.ok || !payload.ok) {
-        const error = payload.ok
-          ? { message: "분석 요청에 실패했습니다." }
-          : { code: payload.error.code, message: payload.error.message };
+        const error: VisibleError = payload.ok
+          ? { kind: "request-failed" }
+          : { kind: "api", code: payload.error.code };
         setStatus("error");
         setVisibleError(error);
         return;
@@ -370,15 +495,13 @@ export default function Home() {
       };
       setCompleted(completedSnapshot);
       setStatus("success");
-      persistCompletedScenario(completedSnapshot, planningSettings, true);
+      persistCompletedScenario(completedSnapshot, planningSettings, selectedProvider, true);
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus("error");
       setVisibleError({
+        kind: timedOut ? "request-timeout" : "network-error",
         code: timedOut ? "REQUEST_TIMEOUT" : "NETWORK_ERROR",
-        message: timedOut
-          ? "분석 시간이 초과되었습니다. Mock 분석을 사용하거나 잠시 후 다시 시도해 주세요."
-          : "서버에 연결하지 못했습니다. 개발 서버와 네트워크 상태를 확인해 주세요.",
       });
     } finally {
       window.clearTimeout(timeout);
@@ -387,47 +510,48 @@ export default function Home() {
 
   const statusMessage =
     status === "loading"
-      ? `${tasks.length}개 작업을 분석하고 있습니다.`
+      ? copy.page.statusLoading(tasks.length)
       : status === "success"
-        ? `${completed?.tasks.length ?? 0}개 작업 분석이 완료되었습니다.`
+        ? copy.page.statusSuccess(completed?.tasks.length ?? 0)
         : status === "error"
-          ? "분석 요청을 완료하지 못했습니다."
+          ? copy.page.statusError
           : "";
+  const renderedAllocationNotice = allocationNoticeMessage(allocationNotice, copy);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f4f5f0] text-[#17221c]">
+    <main className="min-h-screen overflow-x-hidden bg-[#f4f5f0] pb-20 text-[#17221c] sm:pb-0">
       <div className="pointer-events-none fixed inset-0 opacity-70" aria-hidden="true">
         <div className="absolute -left-24 top-20 h-72 w-72 rounded-full bg-[#d7e7d9] blur-3xl" />
         <div className="absolute -right-20 top-[-5rem] h-80 w-80 rounded-full bg-[#f3d9b3] blur-3xl" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-12">
-        <header className="flex items-center justify-between gap-4 border-b border-[#17221c]/10 pb-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#17221c]/10 pb-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#173f31] font-mono text-sm font-bold text-white shadow-[0_8px_24px_rgba(23,63,49,0.22)]">
               FW
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-[-0.01em]">Frontier Workload Planner</p>
-              <p className="text-xs text-[#536159]">Explainable · budget-aware planning</p>
+              <p className="truncate text-sm font-semibold tracking-[-0.01em]">{copy.common.productName}</p>
+              <p className="text-xs text-[#536159]">{copy.page.headerSubtitle}</p>
             </div>
           </div>
-          <span className="shrink-0 rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur">
-            Mock first · local save
+          <span className="max-w-full rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur">
+            {copy.page.headerBadge}
           </span>
         </header>
 
         <section className="py-10 sm:py-14">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#b85331]">
-            Describe · classify · calculate · allocate
+            {copy.page.heroEyebrow}
           </p>
           <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
             <h1 className="max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#12281f] sm:text-5xl lg:text-[3.5rem]">
-              여러 작업을 하나의 요청으로 분석하고,
-              <br className="hidden sm:block" /> 예산 안에서 모델 등급을 배분합니다.
+              {copy.page.heroTitleLine1}
+              <br className="hidden sm:block" /> {copy.page.heroTitleLine2}
             </h1>
             <p className="max-w-xl text-base leading-7 text-[#536159] lg:justify-self-end">
-              GPT는 등급과 크기 구간만 판단합니다. 토큰·가격·예산 조정은 공개된 고정 규칙으로 계산합니다.
+              {copy.page.heroDescription}
             </p>
           </div>
         </section>
@@ -454,7 +578,7 @@ export default function Home() {
 
             <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6">
               <fieldset>
-                <legend className="mb-2 text-sm font-bold text-[#34443b]">분석 모드</legend>
+                <legend className="mb-2 text-sm font-bold text-[#34443b]">{copy.page.analysisModeLegend}</legend>
                 <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#edf0eb] p-1.5">
                   {(["mock", "live"] as const).map((item) => (
                     <label key={item} className="cursor-pointer">
@@ -468,9 +592,9 @@ export default function Home() {
                         className="peer sr-only"
                       />
                       <span className="block rounded-xl px-3 py-3 text-[#647169] transition peer-checked:bg-white peer-checked:text-[#173f31] peer-checked:shadow-[0_4px_16px_rgba(26,48,37,0.1)] peer-focus-visible:ring-4 peer-focus-visible:ring-[#2f6c55]/20">
-                        <span className="block text-sm font-bold">{item === "mock" ? "Mock" : "Live GPT-5.6"}</span>
+                        <span className="block text-sm font-bold">{copy.enums.analysisMode[item]}</span>
                         <span className="mt-0.5 block text-xs leading-5 opacity-80">
-                          {item === "mock" ? "키와 비용 없이 fixture 사용" : "서버 키로만 실제 요청"}
+                          {item === "mock" ? copy.page.mockDescription : copy.page.liveDescription}
                         </span>
                       </span>
                     </label>
@@ -479,9 +603,7 @@ export default function Home() {
               </fieldset>
 
               <p className="mt-4 rounded-xl border border-[#173f31]/10 bg-[#f7f8f4] px-3.5 py-3 text-xs leading-5 text-[#5f6d65]">
-                계획 만들기 성공 시 최신 계획 1개(작업명·설명 포함)를 이 브라우저
-                LocalStorage에 평문으로 자동 저장합니다. 결과에서 삭제할 수 있으며 API 키는
-                저장하지 않습니다.
+                {copy.page.storageDisclosure}
               </p>
 
               <button
@@ -492,24 +614,24 @@ export default function Home() {
                 {status === "loading" ? (
                   <>
                     <span className="size-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
-                    {tasks.length}개 작업 분석 중…
+                    {copy.page.submitting(tasks.length)}
                   </>
                 ) : (
                   <>
-                    {mode === "mock" ? "Mock 계획 만들기" : "Live 계획 만들기"}
+                    {mode === "mock" ? copy.page.submitMock : copy.page.submitLive}
                     <span aria-hidden="true">→</span>
                   </>
                 )}
               </button>
               <p className="mt-3 text-center text-xs leading-5 text-[#66736b]">
-                Live 요청은 버튼을 누를 때만 실행되며 API 키는 브라우저로 전달되지 않습니다.
+                {copy.page.liveSafety}
               </p>
             </section>
           </aside>
         </form>
 
         <p className="sr-only" aria-live="polite">
-          {allocationNotice || statusMessage}
+          {renderedAllocationNotice || statusMessage}
         </p>
 
         {storageNotice ? (
@@ -521,12 +643,12 @@ export default function Home() {
             }`}
           >
             <div>
-              <p className="text-sm font-bold">최근 시나리오</p>
+              <p className="text-sm font-bold">{copy.page.storageTitle}</p>
               <p role="status" className="mt-1 text-sm leading-6">
-                {storageNotice.message}
+                {storageNoticeMessage(storageNotice, copy, localeMeta.dateLocale)}
               </p>
               <p className="mt-1 text-xs leading-5 opacity-75">
-                작업 설명은 이 브라우저에 평문으로 저장되며 API 키는 저장하지 않습니다.
+                {copy.page.storagePlaintextReminder}
               </p>
             </div>
             {hasRecentScenario || storageNotice.canClear ? (
@@ -538,7 +660,7 @@ export default function Home() {
                     disabled={status === "loading"}
                     className="min-h-11 rounded-xl border border-current/20 px-3.5 py-2 text-xs font-bold transition hover:bg-white/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
                   >
-                    최근 저장본 복원
+                    {copy.page.restoreRecent}
                   </button>
                 ) : null}
                 {storageNotice.canClear ? (
@@ -548,7 +670,7 @@ export default function Home() {
                     disabled={status === "loading"}
                     className="min-h-11 rounded-xl border border-current/20 px-3.5 py-2 text-xs font-bold transition hover:bg-white/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
                   >
-                    저장 기록 삭제
+                    {copy.page.clearRecent}
                   </button>
                 ) : null}
               </div>
@@ -559,11 +681,11 @@ export default function Home() {
         {storageChecked && status === "idle" && !completed ? (
           <section className="mt-6 rounded-2xl border border-dashed border-[#173f31]/20 bg-white/55 p-6 text-center sm:p-8">
             <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-[#6b7a72]">
-              Plan preview
+              {copy.page.emptyEyebrow}
             </p>
-            <h2 className="mt-2 text-lg font-semibold text-[#2b4136]">계획 결과가 여기에 표시됩니다.</h2>
+            <h2 className="mt-2 text-lg font-semibold text-[#2b4136]">{copy.page.emptyTitle}</h2>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#66736b]">
-              작업과 설정을 입력한 뒤 Mock 또는 Live 계획 만들기를 실행해 주세요. Live 분석은 자동으로 호출되지 않습니다.
+              {copy.page.emptyDescription}
             </p>
           </section>
         ) : null}
@@ -571,14 +693,14 @@ export default function Home() {
         {status === "loading" ? (
           <section
             aria-busy="true"
-            aria-label="작업 분석과 비용 계획 생성 중"
+            aria-label={copy.page.loadingTitle}
             className="mt-6 flex items-center gap-4 rounded-2xl border border-[#2f6c55]/15 bg-white/75 p-5"
           >
             <span className="size-6 shrink-0 animate-spin rounded-full border-2 border-[#2f6c55]/20 border-t-[#2f6c55]" />
             <div>
-              <p className="font-bold text-[#294638]">구조화 분석과 비용 계획을 만들고 있습니다.</p>
+              <p className="font-bold text-[#294638]">{copy.page.loadingTitle}</p>
               <p className="mt-1 text-sm leading-6 text-[#66736b]">
-                {tasks.length}개 작업을 한 번에 분류한 뒤 고정 계산 규칙을 적용합니다.
+                {copy.page.loadingDescription(tasks.length)}
               </p>
             </div>
           </section>
@@ -589,8 +711,10 @@ export default function Home() {
             <div className="flex items-start gap-3">
               <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-[#cf6845]/12 font-bold">!</span>
               <div>
-                <p className="font-bold">분석을 완료하지 못했습니다.</p>
-                <p className="mt-1 text-sm leading-6 text-[#91452d]">{visibleError.message}</p>
+                <p className="font-bold">{copy.page.errorTitle}</p>
+                <p className="mt-1 text-sm leading-6 text-[#91452d]">
+                  {visibleErrorMessage(visibleError, copy)}
+                </p>
                 {visibleError.code ? (
                   <p className="mt-2 font-mono text-xs text-[#a45b43]">{visibleError.code}</p>
                 ) : null}
@@ -604,6 +728,9 @@ export default function Home() {
             <AnalysisResults
               sourceTasks={completed.tasks}
               plan={plan}
+              providerComparisons={providerPlanning?.comparisons ?? []}
+              selectedProvider={selectedProvider}
+              onProviderChange={updateProvider}
               analysisMode={completed.response.mode}
               analysisModel={completed.response.model}
               generatedAt={completed.response.generatedAt}
@@ -613,13 +740,13 @@ export default function Home() {
 
         {completed && !plan ? (
           <div className="mt-6 rounded-2xl border border-[#c88743]/25 bg-[#fff8ec] p-4 text-sm text-[#71491f]">
-            예산과 검토 기한을 유효하게 입력하면 기존 GPT 분석으로 비용 계획을 즉시 다시 계산합니다.
+            {copy.page.invalidSettingsForRecalculation}
           </div>
         ) : null}
 
         <footer className="mt-12 flex flex-col gap-2 border-t border-[#17221c]/10 py-5 text-xs text-[#68766e] sm:flex-row sm:items-center sm:justify-between">
-          <span>Budget-aware recommended plan · not mathematical optimization</span>
-          <span>One local scenario · GPT judgment ≠ deterministic calculation</span>
+          <span>{copy.page.footerClaim}</span>
+          <span>{copy.page.footerBoundary}</span>
         </footer>
       </div>
     </main>

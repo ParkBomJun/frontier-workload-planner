@@ -8,10 +8,14 @@ import {
   MAX_TASKS,
   taskInputSchema,
 } from "@/lib/ai/schema";
-import { PLANNING_STRATEGIES, type AnalyzeSuccessResponse } from "@/types/domain";
+import {
+  PLANNING_STRATEGIES,
+  PROVIDER_IDS,
+  type AnalyzeSuccessResponse,
+} from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 2;
+export const RECENT_SCENARIO_VERSION = 3;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -72,10 +76,44 @@ const recentScenarioV1Schema = z
     }
   });
 
+const recentScenarioV2Schema = z
+  .strictObject({
+    schemaVersion: z.literal(2),
+    savedAt: z.iso.datetime(),
+    tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
+    settings: planningSettingsSchema,
+    response: successResponseSchema,
+  })
+  .superRefine(({ tasks, response }, context) => {
+    const taskIds = new Set<string>();
+    tasks.forEach((task, index) => {
+      if (taskIds.has(task.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index, "id"],
+          message: "Stored task IDs must be unique.",
+        });
+      }
+      taskIds.add(task.id);
+    });
+
+    const identitiesMatch =
+      response.analysis.tasks.length === tasks.length &&
+      response.analysis.tasks.every((analysis, index) => analysis.taskId === tasks[index].id);
+    if (!identitiesMatch) {
+      context.addIssue({
+        code: "custom",
+        path: ["response", "analysis", "tasks"],
+        message: "Stored analyses must preserve task order and identity.",
+      });
+    }
+  });
+
 export const recentScenarioSchema = z
   .strictObject({
     schemaVersion: z.literal(RECENT_SCENARIO_VERSION),
     savedAt: z.iso.datetime(),
+    selectedProvider: z.enum(PROVIDER_IDS),
     tasks: z.array(taskInputSchema).min(1).max(MAX_TASKS),
     settings: planningSettingsSchema,
     response: successResponseSchema,
@@ -108,6 +146,7 @@ export const recentScenarioSchema = z
 export type RecentScenario = z.infer<typeof recentScenarioSchema>;
 
 export interface RecentScenarioInput {
+  selectedProvider: RecentScenario["selectedProvider"];
   tasks: RecentScenario["tasks"];
   settings: RecentScenario["settings"];
   response: AnalyzeSuccessResponse;
@@ -175,7 +214,38 @@ export function loadRecentScenario(storage?: KeyValueStorage): LoadRecentScenari
     const migratedScenario = recentScenarioSchema.safeParse({
       schemaVersion: RECENT_SCENARIO_VERSION,
       savedAt: legacyScenario.data.savedAt,
+      selectedProvider: "openai",
       tasks: legacyScenario.data.tasks.map((task) => ({ ...task, priority: "medium" as const })),
+      settings: legacyScenario.data.settings,
+      response: legacyScenario.data.response,
+    });
+    if (!migratedScenario.success) return discardStoredScenario(resolvedStorage);
+
+    try {
+      resolvedStorage.setItem(
+        RECENT_SCENARIO_STORAGE_KEY,
+        JSON.stringify(migratedScenario.data),
+      );
+    } catch {
+      // A validated migration can still be restored when persistence is blocked.
+    }
+    return { status: "loaded", scenario: migratedScenario.data };
+  }
+
+  if (
+    typeof parsedJson === "object" &&
+    parsedJson !== null &&
+    "schemaVersion" in parsedJson &&
+    parsedJson.schemaVersion === 2
+  ) {
+    const legacyScenario = recentScenarioV2Schema.safeParse(parsedJson);
+    if (!legacyScenario.success) return discardStoredScenario(resolvedStorage);
+
+    const migratedScenario = recentScenarioSchema.safeParse({
+      schemaVersion: RECENT_SCENARIO_VERSION,
+      savedAt: legacyScenario.data.savedAt,
+      selectedProvider: "openai",
+      tasks: legacyScenario.data.tasks,
       settings: legacyScenario.data.settings,
       response: legacyScenario.data.response,
     });
@@ -226,6 +296,7 @@ export function saveRecentScenario(
   const parsedScenario = recentScenarioSchema.safeParse({
     schemaVersion: RECENT_SCENARIO_VERSION,
     savedAt,
+    selectedProvider: input.selectedProvider,
     tasks: input.tasks,
     settings: input.settings,
     response: input.response,

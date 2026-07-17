@@ -1,29 +1,48 @@
 import {
-  MODEL_PRICING,
-  MODEL_PRICING_LAST_UPDATED,
-  MODEL_PRICING_SOURCE,
-  PROMPT_CACHE_MIN_INPUT_TOKENS,
-  PROMPT_CACHE_SOURCE,
-} from "@/config/model-pricing";
-import type { ModelTier, PlanExportContext } from "@/types/domain";
+  PROVIDER_CATALOG,
+  PROVIDER_PRICING_BASIS,
+  PROVIDER_PRICING_EXCLUSIONS,
+} from "@/config/provider-catalog";
+import { MODEL_TIERS, PROVIDER_IDS, type PlanExportContext } from "@/types/domain";
 
-export const PLAN_JSON_SCHEMA_VERSION = 2;
+export const PLAN_JSON_SCHEMA_VERSION = 3;
 
 export function createPlanJson(
   context: PlanExportContext,
   exportedAt = new Date().toISOString(),
 ): string {
-  const pricing = Object.fromEntries(
-    (Object.keys(MODEL_PRICING) as ModelTier[]).map((tier) => {
-      const price = MODEL_PRICING[tier];
+  const catalog = Object.fromEntries(
+    PROVIDER_IDS.map((providerId) => {
+      const provider = PROVIDER_CATALOG[providerId];
+      const models = Object.fromEntries(
+        MODEL_TIERS.map((tier) => {
+          const model = provider.models[tier];
+          return [
+            tier,
+            {
+              catalogId: model.catalogId,
+              displayName: model.displayName,
+              inputUsdPerMillion: model.inputUsdPerMillion,
+              outputUsdPerMillion: model.outputUsdPerMillion,
+              preview: model.preview ?? false,
+              effectiveThrough: model.effectiveThrough ?? null,
+              priceAfterEffectiveThrough: model.priceAfterEffectiveThrough ?? null,
+              standardPriceInputLimitTokens: model.standardPriceInputLimitTokens ?? null,
+              excludedLongContextPrice: model.excludedLongContextPrice ?? null,
+            },
+          ];
+        }),
+      );
+
       return [
-        tier,
+        providerId,
         {
-          modelId: price.modelId,
-          inputUsdPerMillion: price.inputUsdPerMillion,
-          cachedInputUsdPerMillion: price.cachedInputUsdPerMillion,
-          cacheWriteInputUsdPerMillion: price.cacheWriteInputUsdPerMillion,
-          outputUsdPerMillion: price.outputUsdPerMillion,
+          displayName: provider.displayName,
+          productFamily: provider.productFamily,
+          pricingSource: provider.pricingSource,
+          modelsSource: provider.modelsSource,
+          verifiedAt: provider.verifiedAt,
+          models,
         },
       ];
     }),
@@ -89,6 +108,7 @@ export function createPlanJson(
       },
       input: {
         tasks: inputTasks,
+        selectedProvider: context.plan.providerId,
         settings: {
           budgetUsd: context.plan.settings.budgetUsd,
           deadlineDays: context.plan.settings.deadlineDays,
@@ -96,6 +116,7 @@ export function createPlanJson(
         },
       },
       result: {
+        providerId: context.plan.providerId,
         totals: context.plan.totals,
         minimumExpectedCostUsd: context.plan.minimumExpectedCostUsd,
         remainingBudgetUsd: context.plan.remainingBudgetUsd,
@@ -107,14 +128,29 @@ export function createPlanJson(
         warnings: context.plan.warnings,
         tasks: resultTasks,
       },
+      comparison: {
+        providers: context.providerComparisons.map((comparison) => ({
+          providerId: comparison.providerId,
+          totals: comparison.totals,
+          expectedWithinBudget: comparison.expectedWithinBudget,
+          allTasksActiveWithinBudget: comparison.allTasksActiveWithinBudget,
+          highExceedsBudget: comparison.highExceedsBudget,
+          activeTaskCount: comparison.activeTaskCount,
+          heldTaskCount: comparison.heldTaskCount,
+          downgradedTaskCount: comparison.downgradedTaskCount,
+        })),
+      },
       pricing: {
-        lastUpdated: MODEL_PRICING_LAST_UPDATED,
-        source: MODEL_PRICING_SOURCE,
-        promptCacheSource: PROMPT_CACHE_SOURCE,
-        cacheWritePricingApplied: true,
-        cacheEligibilityMinInputTokensPerRequest: PROMPT_CACHE_MIN_INPUT_TOKENS,
+        basis: PROVIDER_PRICING_BASIS,
+        exclusions: [...PROVIDER_PRICING_EXCLUSIONS],
+        heuristicTierMapping: true,
+        objectiveQualityRanking: false,
+        cacheWritePricingApplied: false,
         cacheDiscountApplied: false,
-        models: pricing,
+        batchPricingApplied: false,
+        toolCallFeesApplied: false,
+        longContextSurchargesApplied: false,
+        catalog,
       },
     },
     null,

@@ -1,11 +1,17 @@
+"use client";
+
 import type { PlannedTask } from "@/types/domain";
+
+import { useLanguage } from "./language-provider";
 
 interface CostChartProps {
   tasks: PlannedTask[];
+  providerLabel: string;
   formatCurrency: (value: number) => string;
 }
 
-export function CostChart({ tasks, formatCurrency }: CostChartProps) {
+export function CostChart({ tasks, providerLabel, formatCurrency }: CostChartProps) {
+  const { copy } = useLanguage();
   const maximum = Math.max(
     ...tasks.map((task) => (task.status === "active" ? task.cost.expected.costUsd : 0)),
     0.000_001,
@@ -14,7 +20,7 @@ export function CostChart({ tasks, formatCurrency }: CostChartProps) {
   return (
     <figure aria-labelledby="cost-chart-title" className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 sm:p-5">
       <figcaption id="cost-chart-title" className="text-sm font-bold text-[#d9ebe1]">
-        작업별 Expected 비용
+        {copy.costChart.title(providerLabel)}
       </figcaption>
       <ul className="mt-4 space-y-4">
         {tasks.map((task, index) => {
@@ -25,6 +31,12 @@ export function CostChart({ tasks, formatCurrency }: CostChartProps) {
               key={task.taskId}
               data-task-id={task.taskId}
               data-allocation-status={task.status}
+              aria-label={copy.costChart.expectedCostAria(
+                task.taskName,
+                task.status === "held"
+                  ? copy.costChart.heldAllocation
+                  : formatCurrency(task.cost.expected.costUsd),
+              )}
               className="min-w-0"
             >
               <div className="mb-1.5 flex min-w-0 items-center justify-between gap-3 text-xs">
@@ -33,7 +45,7 @@ export function CostChart({ tasks, formatCurrency }: CostChartProps) {
                 </span>
                 <span className="shrink-0 font-mono font-bold text-[#b9ddc9]">
                   {task.status === "held"
-                    ? "보류 · $0 배정"
+                    ? copy.costChart.heldAllocation
                     : formatCurrency(task.cost.expected.costUsd)}
                 </span>
               </div>

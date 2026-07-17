@@ -138,9 +138,9 @@ Raise recent LocalStorage records to schema version 2 and explicitly migrate val
 
 Treat `Content-Length` only as a fast rejection hint. Read the Web request stream in bounded chunks, retain at most 96 KiB, and cancel immediately when accumulated bytes exceed the limit. Stream failures converge on the sanitized `INVALID_JSON` response instead of leaking transport errors or allowing an unbounded `request.text()` allocation.
 
-### Price eligible GPT-5.6 input conservatively
+### Price eligible GPT-5.6 input conservatively (stable main contract)
 
-The official Prompt Caching contract enables caching for requests with at least 1,024 input tokens and bills GPT-5.6 cache writes at 1.25× standard input. Apply the cache-write rate to all modeled input when a scenario's per-iteration input reaches that threshold. Continue to exclude cached-read discounts because the planner cannot guarantee an exact prefix hit. This intentionally raises some estimates and can change downgrade or held decisions; it is a correctness change, not a fourth optimization mode.
+The official Prompt Caching contract enables caching for requests with at least 1,024 input tokens and bills GPT-5.6 cache writes at 1.25× standard input. Apply the cache-write rate to all modeled input when a scenario's per-iteration input reaches that threshold. Continue to exclude cached-read discounts because the planner cannot guarantee an exact prefix hit. This intentionally raises some estimates and can change downgrade or held decisions; it is a correctness change, not a fourth optimization mode. This remains the historical stable-`main` contract and is superseded inside `feature/provider-comparison` by the common standard-uncached-text comparison basis recorded below.
 
 ### Disclose persistence before it occurs
 
@@ -163,3 +163,66 @@ Publish the clean `main` history at <https://github.com/ParkBomJun/frontier-work
 ### Treat Git-based continuous deployment as separate plumbing
 
 The first production deployment uses the authenticated Vercel CLI. Vercel could not attach the GitHub repository until the account receives a GitHub Login Connection, but that does not block the current public deployment. Add the connection later for automatic deploys without changing the application or exposing the API key.
+
+## 2026-07-17 — limited provider-comparison feature branch
+
+### Keep GPT-5.6 as the only analysis engine
+
+Use one Mock fixture or one server-side GPT-5.6 Responses API request to classify all tasks. Reuse
+the returned size bands, iterations, uncertainty, risks, and recommended tier unchanged for every
+provider plan. Do not call Anthropic or Google APIs, and do not imply that their models analyzed or
+validated the work.
+
+### Treat tier alignment as a budget heuristic
+
+Map `economy`, `balanced`, and `frontier` to one model in each provider catalog so the existing
+deterministic allocation can compare planning costs. This mapping is not a benchmark, a claim of
+capability equivalence, a quality ranking, or a “best model” recommendation. Keep this caveat in the
+UI, exports, specification, README, and submission copy.
+
+### Use one auditable standard-price basis
+
+For cross-provider comparability, use only standard uncached text input/output prices. Exclude cache
+writes and reads, cache discounts, Batch/Flex/Priority processing, tool and grounding fees, and
+long-context surcharges. This feature-branch rule supersedes stable main's conservative GPT-5.6
+cache-write assumption. It is a planning normalization, not a prediction of actual billing.
+
+### Preserve catalog conditions and provenance
+
+Keep all catalog values, official pricing and model URLs, and `verifiedAt: 2026-07-17` in program
+data. Record Claude Sonnet 5's `$2 / $10` introductory price through 2026-08-31 and its `$3 / $15`
+price from 2026-09-01. Mark all three selected Gemini 3 models as preview. Restrict the displayed
+Gemini 3.1 Pro `$2 / $12` basis to prompts up to 200K tokens and disclose that the official
+`$4 / $18` greater-than-200K tier is excluded rather than silently applying it.
+
+### Recalculate complete provider plans locally
+
+Build an independent allocation for OpenAI, Anthropic, and Google from the same source tasks,
+settings, and GPT analysis. Each plan owns its Low / Expected / High totals, budget fit, active and
+held counts, downgrades, and warnings. Selecting a product family swaps the displayed precomputed
+plan and must not trigger `/api/analyze` or another network request.
+
+### Version source persistence and result exports separately
+
+Raise the recent-scenario schema to v3 to store `selectedProvider` alongside the existing source
+state; continue to omit derived plans and comparison summaries. Migrate valid v1 records to Medium
+priority plus OpenAI and valid v2 records to OpenAI, then recalculate all plans from the current
+catalog. Raise JSON exports to v3 and include the selected plan, all three comparison summaries,
+catalog snapshot, official sources, time-sensitive/preview conditions, exclusions, and heuristic
+disclaimer. Markdown carries the same material in readable form.
+
+### Isolate the stable release
+
+Implement and verify this work only on `feature/provider-comparison`. The public Vercel URL and
+`main` remain the stable OpenAI-only release until the feature passes tests, lint, typecheck, build,
+mobile verification, review, merge, and an explicit production deployment. Documentation may
+describe the branch contract but must not claim that provider comparison is already live.
+
+### Localize the presentation without coupling calculation to language
+
+Support Korean, English, and Japanese through a typed in-app dictionary and React context rather
+than adding locale routes or another dependency. Store the locale under its own LocalStorage key,
+update `<html lang>`, and render notices from semantic codes so a language change is immediate and
+never calls `/api/analyze`. Keep calculation and JSON contracts locale-independent. Localize the
+human-readable Markdown wrapper, while preserving user input, GPT rationale/risk text, model names,
+machine enums, and precise technical terms without automatic translation.

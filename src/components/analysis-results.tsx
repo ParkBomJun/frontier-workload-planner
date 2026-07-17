@@ -1,80 +1,71 @@
-import {
-  MODEL_PRICING,
-  MODEL_PRICING_LAST_UPDATED,
-  MODEL_PRICING_SOURCE,
-  PROMPT_CACHE_MIN_INPUT_TOKENS,
-  PROMPT_CACHE_SOURCE,
-} from "@/config/model-pricing";
+"use client";
+
 import type {
   AnalysisMode,
   BudgetAllocationPlan,
-  ModelTier,
   PlanExportContext,
-  PlanningStrategy,
+  ProviderComparisonSummary,
+  ProviderId,
   TaskInput,
-  TaskPriority,
 } from "@/types/domain";
 
+import { useLanguage } from "./language-provider";
 import { CostChart } from "./cost-chart";
 import { ExportActions } from "./export-actions";
+import { ProviderComparison } from "./provider-comparison";
+import { ProviderPricingAssumptions } from "./provider-pricing-assumptions";
 
 interface AnalysisResultsProps {
   sourceTasks: TaskInput[];
   plan: BudgetAllocationPlan;
+  providerComparisons: ProviderComparisonSummary[];
+  selectedProvider: ProviderId;
+  onProviderChange: (providerId: ProviderId) => void;
   analysisMode: AnalysisMode;
   analysisModel: string;
   generatedAt: string;
 }
 
-const TIER_LABELS: Record<ModelTier, string> = {
-  economy: "Economy",
-  balanced: "Balanced",
-  frontier: "Frontier",
-};
-
-const STRATEGY_LABELS: Record<PlanningStrategy, string> = {
-  "cost-saver": "비용 절감",
-  balanced: "균형",
-  "quality-first": "품질 우선",
-};
-
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  high: "High · 높음",
-  medium: "Medium · 보통",
-  low: "Low · 낮음",
-};
-
-const moneyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-
-const tokenFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-function formatCurrency(value: number): string {
-  return moneyFormatter.format(value);
-}
-
-function formatTokens(value: number): string {
-  return tokenFormatter.format(value);
-}
-
 export function AnalysisResults({
   sourceTasks,
   plan,
+  providerComparisons,
+  selectedProvider,
+  onProviderChange,
   analysisMode,
   analysisModel,
   generatedAt,
 }: AnalysisResultsProps) {
+  const { copy, localeMeta } = useLanguage();
+  const moneyFormatter = new Intl.NumberFormat(localeMeta.numberLocale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+  const tokenFormatter = new Intl.NumberFormat(localeMeta.numberLocale, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+  const percentFormatter = new Intl.NumberFormat(localeMeta.numberLocale, {
+    maximumFractionDigits: 1,
+  });
+  const formatCurrency = (value: number) => moneyFormatter.format(value);
+  const formatTokens = (value: number) => tokenFormatter.format(value);
   const utilization = Math.min(999, (plan.totals.expectedUsd / plan.settings.budgetUsd) * 100);
+  const localizedWarnings = [
+    !plan.expectedWithinBudget ? copy.analysisResults.expectedBudgetUnresolved : null,
+    plan.heldTaskCount > 0 ? copy.analysisResults.heldWarning(plan.heldTaskCount) : null,
+    plan.downgradedTaskCount > 0
+      ? copy.analysisResults.downgradedWarning(plan.downgradedTaskCount)
+      : null,
+    plan.highExceedsBudget ? copy.analysisResults.highBudgetWarning : null,
+    plan.settings.deadlineDays === 1 ? copy.analysisResults.oneDayDeadlineWarning : null,
+  ].filter((warning): warning is string => warning !== null);
   const exportContext: PlanExportContext = {
     sourceTasks,
     plan,
+    providerComparisons,
     analysisMode,
     analysisModel,
     generatedAt,
@@ -88,18 +79,21 @@ export function AnalysisResults({
       <div className="flex flex-col gap-5 border-b border-white/10 px-5 py-6 sm:flex-row sm:items-start sm:justify-between sm:px-7">
         <div>
           <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#9ed0b8]">
-            Budget-aware recommended plan
+            {copy.analysisResults.eyebrow}
           </p>
           <h2 id="analysis-results-title" className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
-            비용과 모델 배분 결과
+            {copy.analysisResults.title}
           </h2>
         </div>
         <div className="sm:min-w-[250px]">
           <div className="flex flex-wrap items-center gap-2 text-xs sm:justify-end">
-            <span className="rounded-full bg-white/10 px-3 py-1.5 font-bold uppercase text-[#d7e9df]">
-              {analysisMode}
+            <span className="rounded-full bg-white/10 px-3 py-1.5 font-bold text-[#d7e9df]">
+              {copy.analysisResults.aiAnalyzed} · {copy.enums.analysisMode[analysisMode]}
             </span>
             <span className="break-all font-mono text-white/70">{analysisModel}</span>
+            <span className="rounded-full bg-[#9ed0b8]/15 px-3 py-1.5 font-bold text-[#d9ebe1]">
+              {copy.analysisResults.programCalculated} · {copy.enums.provider[selectedProvider]}
+            </span>
           </div>
           <div className="mt-3">
             <ExportActions context={exportContext} />
@@ -110,26 +104,42 @@ export function AnalysisResults({
       <div className="space-y-6 p-5 sm:p-7">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
-            label="예산"
+            label={copy.analysisResults.budget}
             value={formatCurrency(plan.settings.budgetUsd)}
-            detail={`${STRATEGY_LABELS[plan.settings.strategy]} · ${plan.settings.deadlineDays}일 기한`}
+            detail={`${copy.enums.strategy[plan.settings.strategy]} · ${plan.settings.deadlineDays} ${copy.budgetSettings.deadlineUnit}`}
           />
-          <SummaryCard label="Low" value={formatCurrency(plan.totals.lowUsd)} detail="낮은 토큰·반복 가정" />
+          <SummaryCard label="Low" value={formatCurrency(plan.totals.lowUsd)} detail={copy.analysisResults.lowDetail} />
           <SummaryCard
             label="Expected"
             value={formatCurrency(plan.totals.expectedUsd)}
-            detail={`예산 사용 ${utilization.toFixed(1)}% · 실행 ${plan.activeTaskCount} / 보류 ${plan.heldTaskCount}`}
+            detail={copy.analysisResults.expectedDetail(
+              percentFormatter.format(utilization),
+              plan.activeTaskCount,
+              plan.heldTaskCount,
+            )}
             emphasized
           />
           <SummaryCard
             label="High"
             value={formatCurrency(plan.totals.highUsd)}
-            detail={plan.highExceedsBudget ? "예산 초과 위험" : "예산 범위"}
+            detail={
+              plan.highExceedsBudget
+                ? copy.analysisResults.highRisk
+                : copy.analysisResults.highWithinBudget
+            }
             warning={plan.highExceedsBudget}
           />
         </div>
 
-        {plan.warnings.length ? (
+        <ProviderComparison
+          comparisons={providerComparisons}
+          selectedProvider={selectedProvider}
+          onSelect={onProviderChange}
+          formatCurrency={formatCurrency}
+          analysisMode={analysisMode}
+        />
+
+        {localizedWarnings.length ? (
           <div
             className={`rounded-2xl border p-4 ${
               plan.expectedWithinBudget
@@ -137,9 +147,9 @@ export function AnalysisResults({
                 : "border-[#ef8664]/30 bg-[#ef8664]/12"
             }`}
           >
-            <h3 className="text-sm font-bold text-[#ffe4d1]">계획 확인 사항</h3>
+            <h3 className="text-sm font-bold text-[#ffe4d1]">{copy.analysisResults.reviewItems}</h3>
             <ul className="mt-2 space-y-1.5 text-sm leading-6 text-white/75">
-              {plan.warnings.map((warning) => (
+              {localizedWarnings.map((warning) => (
                 <li key={warning} className="flex gap-2">
                   <span aria-hidden="true" className="text-[#efb28b]">•</span>
                   <span>{warning}</span>
@@ -149,18 +159,25 @@ export function AnalysisResults({
           </div>
         ) : (
           <div className="rounded-2xl border border-[#9ed0b8]/20 bg-[#9ed0b8]/10 p-4 text-sm text-[#d9ebe1]">
-            모든 작업의 Expected와 High 시나리오가 입력 예산 안에 있습니다.
+            {copy.analysisResults.allScenariosWithinBudget}
           </div>
         )}
 
-        <CostChart tasks={plan.tasks} formatCurrency={formatCurrency} />
+        <CostChart
+          tasks={plan.tasks}
+          providerLabel={copy.enums.provider[plan.providerId]}
+          formatCurrency={formatCurrency}
+        />
 
         <div>
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <h3 className="text-lg font-semibold">작업별 배분</h3>
+            <h3 className="text-lg font-semibold">{copy.analysisResults.allocationTitle}</h3>
             <p className="text-xs text-white/70">
-              실행 {plan.activeTaskCount} · 보류 {plan.heldTaskCount} · Expected 잔여 예산{" "}
-              {formatCurrency(plan.remainingBudgetUsd)}
+              {copy.analysisResults.allocationSummary(
+                plan.activeTaskCount,
+                plan.heldTaskCount,
+                formatCurrency(plan.remainingBudgetUsd),
+              )}
             </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -181,7 +198,7 @@ export function AnalysisResults({
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="font-mono text-xs font-bold text-[#9ed0b8]">
-                        TASK {String(index + 1).padStart(2, "0")}
+                        {copy.analysisResults.taskNumber(index + 1)}
                       </p>
                       <h4 id={titleId} className="mt-1 break-words text-lg font-semibold leading-6">
                         {task.taskName}
@@ -189,15 +206,15 @@ export function AnalysisResults({
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
                       <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold text-[#d7e9df]">
-                        {PRIORITY_LABELS[task.priority]}
+                        {copy.enums.priority[task.priority]}
                       </span>
                       {task.status === "held" ? (
                         <span className="rounded-full bg-[#efb28b]/20 px-2.5 py-1 text-xs font-bold text-[#ffe0c9]">
-                          On hold · 보류
+                          {copy.analysisResults.onHoldBadge}
                         </span>
                       ) : task.wasDowngradedForBudget ? (
                         <span className="rounded-full bg-[#efb28b]/15 px-2.5 py-1 text-xs font-bold text-[#ffd8bd]">
-                          예산 조정
+                          {copy.analysisResults.budgetAdjustedBadge}
                         </span>
                       ) : null}
                     </div>
@@ -208,11 +225,11 @@ export function AnalysisResults({
                       id={`held-reason-${task.taskId}`}
                       className="mt-4 rounded-xl border border-[#efb28b]/25 bg-[#efb28b]/10 p-3.5"
                     >
-                      <p className="text-sm font-bold text-[#ffe0c9]">이번 계획의 실행 대상에서 제외됨</p>
+                      <p className="text-sm font-bold text-[#ffe0c9]">{copy.analysisResults.heldTitle}</p>
                       <p className="mt-1 text-xs leading-5 text-white/75">
-                        전체 작업의 Economy 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다.
-                        이 작업을 실행하려면 Expected 기준 최소 {formatCurrency(task.minimumExpectedCostUsd)}가
-                        필요합니다.
+                        {copy.analysisResults.heldReason(
+                          formatCurrency(task.minimumExpectedCostUsd),
+                        )}
                       </p>
                     </div>
                   ) : (
@@ -221,20 +238,22 @@ export function AnalysisResults({
                         <div className="flex flex-wrap items-end justify-between gap-3">
                           <div>
                             <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/70">
-                              Assigned model
+                              {copy.analysisResults.assignedModel}
                             </p>
                             <p className="mt-1 break-all text-xl font-semibold">{task.modelId}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-white/70">Assigned tier</p>
+                            <p className="text-xs text-white/70">{copy.analysisResults.assignedTier}</p>
                             <p className="font-mono text-sm font-bold text-[#b9ddc9]">
-                              {TIER_LABELS[task.assignedTier]}
+                              {copy.enums.modelTier[task.assignedTier]}
                             </p>
                           </div>
                         </div>
                         <p className="mt-2 text-xs leading-5 text-white/70">
-                          GPT 권장 {TIER_LABELS[task.analysis.recommendedModelTier]} · 전략 목표{" "}
-                          {TIER_LABELS[task.strategyTargetTier]}
+                          {copy.analysisResults.recommendationTrail(
+                            copy.enums.modelTier[task.analysis.recommendedModelTier],
+                            copy.enums.modelTier[task.strategyTargetTier],
+                          )}
                         </p>
                       </div>
 
@@ -255,23 +274,27 @@ export function AnalysisResults({
 
                       <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/65">
                         <p>
-                          Expected 입력 합계{" "}
+                          {copy.analysisResults.expectedInput}{" "}
                           <strong className="text-white/85">
                             {formatTokens(task.cost.expected.inputTokens)}
                           </strong>
                         </p>
                         <p>
-                          Expected 출력 합계{" "}
+                          {copy.analysisResults.expectedOutput}{" "}
                           <strong className="text-white/85">
                             {formatTokens(task.cost.expected.outputTokens)}
                           </strong>
                         </p>
                         <p>
-                          반복 <strong className="text-white/85">{task.cost.expected.iterations}회</strong>
+                          <strong className="text-white/85">
+                            {copy.analysisResults.iterations(task.cost.expected.iterations)}
+                          </strong>
                         </p>
                         <p>
-                          불확실성{" "}
-                          <strong className="capitalize text-white/85">{task.analysis.uncertainty}</strong>
+                          {copy.analysisResults.uncertainty}{" "}
+                          <strong className="text-white/85">
+                            {copy.enums.uncertainty[task.analysis.uncertainty]}
+                          </strong>
                         </p>
                       </div>
                     </>
@@ -279,12 +302,12 @@ export function AnalysisResults({
 
                   <dl className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                     {[
-                      ["작업 유형", task.analysis.taskType],
-                      ["복잡도", task.analysis.complexity],
-                      ["추론", task.analysis.reasoningDepth],
+                      [copy.analysisResults.taskType, copy.enums.taskType[task.analysis.taskType]],
+                      [copy.analysisResults.complexity, copy.enums.complexity[task.analysis.complexity]],
+                      [copy.analysisResults.reasoning, copy.enums.reasoningDepth[task.analysis.reasoningDepth]],
                       [
-                        "크기 구간",
-                        `${task.analysis.estimatedInputSize} → ${task.analysis.estimatedOutputSize}`,
+                        copy.analysisResults.sizeBand,
+                        `${copy.enums.sizeBand[task.analysis.estimatedInputSize]} → ${copy.enums.sizeBand[task.analysis.estimatedOutputSize]}`,
                       ],
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-lg bg-white/[0.055] px-2.5 py-2">
@@ -296,7 +319,7 @@ export function AnalysisResults({
 
                   {task.analysis.riskFactors.length ? (
                     <div className="mt-4 rounded-xl border border-[#efb28b]/15 bg-[#efb28b]/[0.07] p-3">
-                      <p className="text-xs font-bold text-[#ffd8bd]">위험 요인</p>
+                      <p className="text-xs font-bold text-[#ffd8bd]">{copy.analysisResults.risks}</p>
                       <ul className="mt-1.5 space-y-1 text-xs leading-5 text-white/70">
                         {task.analysis.riskFactors.map((risk, riskIndex) => (
                           <li key={`${task.taskId}-risk-${riskIndex}`} className="flex gap-2">
@@ -317,10 +340,12 @@ export function AnalysisResults({
           </div>
         </div>
 
-        <PricingAssumptions />
+        <ProviderPricingAssumptions />
 
         <p className="border-t border-white/10 pt-4 text-xs leading-5 text-white/65">
-          {new Date(generatedAt).toLocaleString("ko-KR")} · 규칙 기반 추천이며 수학적 최적화를 의미하지 않습니다.
+          {copy.analysisResults.generatedRuleBased(
+            `${new Date(generatedAt).toLocaleString(localeMeta.dateLocale)} · ${copy.enums.provider[plan.providerId]}`,
+          )}
         </p>
       </div>
     </section>
@@ -354,74 +379,5 @@ function SummaryCard({
       <p className="mt-1.5 break-all text-2xl font-semibold tracking-[-0.025em]">{value}</p>
       <p className="mt-1 text-xs leading-5 text-white/70">{detail}</p>
     </div>
-  );
-}
-
-function PricingAssumptions() {
-  return (
-    <details className="rounded-2xl border border-white/10 bg-black/10 p-4">
-      <summary className="cursor-pointer text-sm font-bold text-[#d9ebe1] focus:outline-none focus-visible:ring-4 focus-visible:ring-white/10">
-        가격과 계산 가정 보기
-      </summary>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[700px] text-left text-xs">
-          <thead className="text-white/65">
-            <tr>
-              <th className="pb-2 font-semibold">등급</th>
-              <th className="pb-2 font-semibold">모델</th>
-              <th className="pb-2 text-right font-semibold">일반 입력 / 1M</th>
-              <th className="pb-2 text-right font-semibold">캐시 쓰기 / 1M</th>
-              <th className="pb-2 text-right font-semibold">출력 / 1M</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10 text-white/75">
-            {(Object.keys(MODEL_PRICING) as ModelTier[]).map((tier) => {
-              const price = MODEL_PRICING[tier];
-              return (
-                <tr key={tier}>
-                  <td className="py-2 capitalize">{tier}</td>
-                  <td className="py-2 font-mono">{price.modelId}</td>
-                  <td className="py-2 text-right">${price.inputUsdPerMillion}</td>
-                  <td className="py-2 text-right">${price.cacheWriteInputUsdPerMillion}</td>
-                  <td className="py-2 text-right">${price.outputUsdPerMillion}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <ul className="mt-4 space-y-1.5 text-xs leading-5 text-white/70">
-        <li>크기 구간은 프로그램의 고정 표이며 GPT가 토큰 숫자를 만들지 않습니다.</li>
-        <li>크기 구간은 반복 1회당이며 화면의 토큰은 모든 반복을 합친 시나리오 합계입니다.</li>
-        <li>Low / Expected / High는 예상 반복 횟수 −1(최소 1) / 동일 / +1을 적용합니다.</li>
-        <li>
-          반복 1회 입력이 {PROMPT_CACHE_MIN_INPUT_TOKENS.toLocaleString("en-US")}토큰 이상이면
-          GPT-5.6 기본 캐싱의 보수적 상한으로 모든 입력에 캐시 쓰기 단가를 적용합니다.
-        </li>
-        <li>캐시 적중 할인과 도구 호출 비용은 보장할 수 없어 적용하지 않습니다.</li>
-        <li>입력 구간은 요청당 256K 이하라 272K 초과 장문 입력 추가요금을 적용하지 않습니다.</li>
-        <li>Expected가 예산을 넘으면 사용자 우선순위를 첫 기준으로 낮은 작업부터 한 등급씩 낮춥니다.</li>
-        <li>모든 실행 작업이 Economy여도 예산을 넘으면 낮은 우선순위부터 보류하고 비용 합계에서 제외합니다.</li>
-        <li>불확실성은 하향 순서에만 반영하며 숫자 범위를 임의로 넓히지 않습니다.</li>
-        <li>검토 기한은 참고용이며 비용이나 모델 등급에 영향을 주지 않습니다.</li>
-      </ul>
-      <a
-        href={MODEL_PRICING_SOURCE}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 inline-block text-xs font-bold text-[#b9ddc9] underline decoration-[#b9ddc9]/40 underline-offset-4 hover:text-white"
-      >
-        공식 가격표 · {MODEL_PRICING_LAST_UPDATED} 확인
-      </a>
-      <span className="mx-2 text-white/35" aria-hidden="true">·</span>
-      <a
-        href={PROMPT_CACHE_SOURCE}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 inline-block text-xs font-bold text-[#b9ddc9] underline decoration-[#b9ddc9]/40 underline-offset-4 hover:text-white"
-      >
-        Prompt Caching 기준
-      </a>
-    </details>
   );
 }

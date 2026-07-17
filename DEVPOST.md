@@ -10,7 +10,11 @@ Teams can describe AI work, but turning those descriptions into a credible model
 
 ## Solution
 
-Frontier Workload Planner analyzes up to eight tasks in one structured GPT-5.6 request and asks the model only for bounded workload classifications such as complexity, reasoning depth, size bands, uncertainty, and a recommended tier. A deterministic engine then converts those classifications through fixed token ranges and published Luna, Terra, and Sol prices, calculates Low / Expected / High costs, and produces an explainable budget-aware recommended plan. User priorities control which work is downgraded first and, when even Economy exceeds the budget, which lower-priority work is placed on hold. Raising the budget reconsiders held work locally without another model call. A safe Mock mode demonstrates the complete flow without an API key, and users can restore one recent scenario or export the plan as Markdown and JSON.
+Frontier Workload Planner analyzes up to eight tasks in one structured GPT-5.6 request and asks the model only for bounded workload classifications such as complexity, reasoning depth, size bands, uncertainty, and a recommended tier. GPT-5.6 remains the only analysis engine; the application does not call Claude or Gemini APIs. A deterministic engine projects the same classification through fixed token ranges and published standard uncached text prices for OpenAI GPT-5.6, Anthropic Claude, and Google Gemini product families. It calculates each provider's Low / Expected / High totals, budget fit, and active/held task counts, then lets the user select a family and recalculate locally without another model request.
+
+The Economy / Balanced / Frontier alignment is an explicit budget-planning heuristic, not an objective quality ranking, capability equivalence claim, benchmark, or “best model” recommendation. The comparison excludes caching, Batch or other discounted processing, tool-call fees, and long-context surcharges. It also exposes time-sensitive catalog facts: Claude Sonnet 5's introductory price is effective through August 31, 2026; the selected Gemini 3 models are preview; and the Gemini 3.1 Pro base price applies only to prompts up to 200K tokens. User priorities still control budget relief and held work. A safe Mock mode demonstrates the flow without an API key, and one recent scenario plus Markdown and versioned JSON exports preserve the selected provider and comparison context.
+
+The interface can switch between Korean, English, and Japanese without another analysis request. Human-readable Markdown follows the selected language, while model names, technical terms, user text, GPT-provided rationale, and the locale-neutral JSON contract remain unchanged.
 
 ## Project links
 
@@ -19,4 +23,6 @@ Frontier Workload Planner analyzes up to eight tasks in one structured GPT-5.6 r
 
 ## Demo note
 
-The public deployment intentionally keeps unauthenticated Live analysis disabled and does not contain an OpenAI API key. The complete user flow is available in Mock mode. A separate local validation completed through the server-side `gpt-5.6` alias, returned `gpt-5.6-sol`, and passed the Structured Output schema contract.
+The public deployment intentionally keeps unauthenticated Live analysis disabled and does not contain an OpenAI API key. A separate local validation completed through the server-side `gpt-5.6` alias, returned `gpt-5.6-sol`, and passed the Structured Output schema contract.
+
+The current public URL is still the stable `main` release. Provider comparison is being developed on `feature/provider-comparison` and must not be described as deployed until that branch passes release verification, review, merge, and redeployment.
