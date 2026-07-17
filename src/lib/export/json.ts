@@ -168,6 +168,20 @@ export function createPlanJson(
             }
           : {}),
       },
+      ...(isBestFit
+        ? {
+            allocationEligibilityBasis: {
+              statusMeaning: "cost-projection-not-confirmed-offering-eligibility",
+              minimumQualityApplied: true,
+              invocationLimitsApplied: true,
+              budgetApplied: true,
+              workModeSurfaceApplied: false,
+              requiredCapabilitiesApplied: false,
+              providerCapabilityKnowledge: "unknown",
+              offeringEligibilityApplied: false,
+            },
+          }
+        : {}),
       input: {
         tasks: inputTasks,
         selectedProvider: context.plan.providerId,

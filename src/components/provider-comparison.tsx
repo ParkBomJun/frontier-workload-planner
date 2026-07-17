@@ -17,16 +17,29 @@ export interface ProviderComparisonProps {
   onSelect: (providerId: ProviderId) => void;
   formatCurrency: (value: number) => string;
   analysisMode: AnalysisMode;
+  isBestFitAnalysis: boolean;
   disabled?: boolean;
 }
 
-function budgetFitLabel(comparison: ProviderComparisonSummary, copy: UiCopy): string {
+function budgetFitLabel(
+  comparison: ProviderComparisonSummary,
+  copy: UiCopy,
+  isBestFitAnalysis: boolean,
+): string {
   if (comparison.infeasibleTaskCount > 0) {
-    return copy.providerComparison.infeasibleOfferings;
+    return isBestFitAnalysis
+      ? copy.providerComparison.checkedConstraintsInfeasible
+      : copy.providerComparison.infeasibleOfferings;
   }
   if (!comparison.expectedWithinBudget) return copy.providerComparison.outsideBudget;
-  if (comparison.heldTaskCount > 0) return copy.providerComparison.fitsWithHolds;
-  return copy.providerComparison.allWorkFits;
+  if (comparison.heldTaskCount > 0) {
+    return isBestFitAnalysis
+      ? copy.providerComparison.checkedConstraintsWithHolds
+      : copy.providerComparison.fitsWithHolds;
+  }
+  return isBestFitAnalysis
+    ? copy.providerComparison.checkedConstraintsFit
+    : copy.providerComparison.allWorkFits;
 }
 
 function formatPlainDate(value: string, dateLocale: string): string {
@@ -74,6 +87,7 @@ export function ProviderComparison({
   onSelect,
   formatCurrency,
   analysisMode,
+  isBestFitAnalysis,
   disabled = false,
 }: ProviderComparisonProps) {
   const { copy, localeMeta } = useLanguage();
@@ -108,6 +122,11 @@ export function ProviderComparison({
           <li>• {copy.providerComparison.noQualityRanking}</li>
           <li>• {copy.providerComparison.standardPricingNotice}</li>
           <li>• {copy.providerComparison.activeOnlyNotice}</li>
+          {isBestFitAnalysis ? (
+            <li id="provider-comparison-eligibility-basis">
+              • {copy.providerComparison.eligibilityScopeNotice}
+            </li>
+          ) : null}
         </ul>
       </div>
 
@@ -126,7 +145,7 @@ export function ProviderComparison({
               localeMeta.dateLocale,
               localeMeta.numberLocale,
             );
-            const fitLabel = budgetFitLabel(comparison, copy);
+            const fitLabel = budgetFitLabel(comparison, copy, isBestFitAnalysis);
 
             return (
               <label key={providerId} className="block min-w-0 cursor-pointer">

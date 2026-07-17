@@ -41,6 +41,7 @@ export function AnalysisResults({
   generatedAt,
 }: AnalysisResultsProps) {
   const { copy, localeMeta } = useLanguage();
+  const isBestFitAnalysis = analysisContract.compatibility === "best-fit";
   const moneyFormatter = new Intl.NumberFormat(localeMeta.numberLocale, {
     style: "currency",
     currency: "USD",
@@ -62,7 +63,9 @@ export function AnalysisResults({
     !plan.expectedWithinBudget ? copy.analysisResults.expectedBudgetUnresolved : null,
     plan.heldTaskCount > 0 ? copy.analysisResults.heldWarning(plan.heldTaskCount) : null,
     plan.infeasibleTaskCount > 0
-      ? copy.analysisResults.infeasibleWarning(plan.infeasibleTaskCount)
+      ? isBestFitAnalysis
+        ? copy.analysisResults.infeasibleWarning(plan.infeasibleTaskCount)
+        : copy.analysisResults.legacyInfeasibleWarning(plan.infeasibleTaskCount)
       : null,
     plan.limitReassignedTaskCount > 0
       ? copy.analysisResults.limitReassignedWarning(plan.limitReassignedTaskCount)
@@ -114,6 +117,15 @@ export function AnalysisResults({
       </div>
 
       <div className="space-y-6 p-5 sm:p-7">
+        {isBestFitAnalysis ? (
+          <p
+            data-eligibility-verification="pending"
+            className="rounded-2xl border border-[#e9b082]/25 bg-[#e9b082]/10 p-4 text-sm leading-6 text-[#ffe4d1]"
+          >
+            {copy.analysisResults.eligibilityVerificationPending}
+          </p>
+        ) : null}
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             label={copy.analysisResults.budget}
@@ -150,6 +162,7 @@ export function AnalysisResults({
           onSelect={onProviderChange}
           formatCurrency={formatCurrency}
           analysisMode={analysisMode}
+          isBestFitAnalysis={isBestFitAnalysis}
         />
 
         {localizedWarnings.length ? (
@@ -266,7 +279,9 @@ export function AnalysisResults({
                         {copy.analysisResults.infeasibleTitle}
                       </p>
                       <p className="mt-1 text-xs leading-5 text-white/75">
-                        {copy.analysisResults.infeasibleReason(failureLabels.join(", "))}
+                        {isBestFitTaskAnalysis(task.analysis)
+                          ? copy.analysisResults.infeasibleReason(failureLabels.join(", "))
+                          : copy.analysisResults.legacyInfeasibleReason(failureLabels.join(", "))}
                       </p>
                       <ul className="mt-2 space-y-1 text-[0.68rem] leading-5 text-white/65">
                         {invocationFailures.map((failure, failureIndex) => (

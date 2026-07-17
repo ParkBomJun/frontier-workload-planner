@@ -211,6 +211,14 @@ receives no model or cost, is excluded from totals, and forces `allTasksActiveWi
 Active and budget-held tasks also retain failures for every excluded offering so the UI and exports
 can explain why a cheaper or strategy-target tier was not eligible.
 
+In the checkpoint-3 API-family allocator, `active`, `fit`, and “compatible tier” are deliberately
+scoped to standard API price, the v2 minimum-quality floor, all Low / Expected / High invocation
+limits, and the entered budget. The current provider catalog has `unknown` capability knowledge, so
+this allocator does not yet enforce `workMode` surface or `requiredCapabilities`. `active` is a cost
+projection, not confirmed Offering eligibility. UI, Markdown, and JSON v4 must preserve this
+boundary. A legacy `api-analysis-v1` task has no minimum-quality floor; its infeasible explanation
+must remain invocation-limit-only in UI, Markdown, and unchanged JSON v3 semantics.
+
 ## Budget allocation contract
 
 Planning controls accept a budget from $0.01 through $10,000, a reference deadline from 1 to 90 days, and one strategy:
@@ -1011,6 +1019,13 @@ These fields describe workload requirements. GPT may judge reasoning needs, iter
 bands, risk, work surface, capabilities, and minimum planning quality. It still must not calculate
 token prices, translate subscription quota, compare providers, select an offering, or allocate the
 final route.
+
+Checkpoint 3 records and displays work mode and required capabilities but does not claim that the
+selected API-family model supports them. Until the Offering engine consumes a complete sourced
+capability/surface profile, provider capability knowledge remains `unknown`; current active/fit
+statuses cover only the v2 minimum-quality floor, invocation limits, standard-price cost, and
+budget. JSON v4 exports this eligibility basis as machine-readable data, while legacy JSON v3 is
+unchanged.
 
 Capability and upgrade IDs are closed, versioned schema values. General text is a baseline rather
 than a capability; coding-agent and batch are work modes; long-context eligibility comes from token

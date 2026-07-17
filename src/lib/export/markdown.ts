@@ -340,7 +340,11 @@ function labelWithEnum(label: string, value: string): string {
   return `${label} (\`${value}\`)`;
 }
 
-function localizedWarnings(context: PlanExportContext, ui: UiCopy): string[] {
+function localizedWarnings(
+  context: PlanExportContext,
+  ui: UiCopy,
+  isBestFit: boolean,
+): string[] {
   const { plan } = context;
   const warnings: string[] = [];
 
@@ -351,7 +355,11 @@ function localizedWarnings(context: PlanExportContext, ui: UiCopy): string[] {
     warnings.push(ui.analysisResults.heldWarning(plan.heldTaskCount));
   }
   if (plan.infeasibleTaskCount > 0) {
-    warnings.push(ui.analysisResults.infeasibleWarning(plan.infeasibleTaskCount));
+    warnings.push(
+      isBestFit
+        ? ui.analysisResults.infeasibleWarning(plan.infeasibleTaskCount)
+        : ui.analysisResults.legacyInfeasibleWarning(plan.infeasibleTaskCount),
+    );
   }
   if (plan.limitReassignedTaskCount > 0) {
     warnings.push(ui.analysisResults.limitReassignedWarning(plan.limitReassignedTaskCount));
@@ -391,6 +399,7 @@ export function createPlanMarkdown(
     ...(isBestFit
       ? [
           `- ${copy.analysisContract}: \`${analysisContract.contractVersion}\` / \`${analysisContract.compatibility}\``,
+          `- ${ui.analysisResults.eligibilityVerificationPending}`,
         ]
       : []),
     `- ${copy.analyzedAt}: ${formatTimestamp(generatedAt)}`,
@@ -415,6 +424,7 @@ export function createPlanMarkdown(
     `- ${ui.providerComparison.heuristicNotice}`,
     `- ${ui.providerComparison.noQualityRanking}`,
     `- ${ui.providerComparison.standardPricingNotice}`,
+    ...(isBestFit ? [`- ${ui.providerComparison.eligibilityScopeNotice}`] : []),
     "",
     `| ${copy.productFamily} | Low | Expected | High | ${copy.budgetStatus} | ${copy.active} | ${copy.held} | ${copy.infeasible} |`,
     "| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |",
@@ -422,11 +432,17 @@ export function createPlanMarkdown(
 
   context.providerComparisons.forEach((comparison) => {
     const budgetStatus = comparison.infeasibleTaskCount > 0
-      ? ui.providerComparison.infeasibleOfferings
+      ? isBestFit
+        ? ui.providerComparison.checkedConstraintsInfeasible
+        : ui.providerComparison.infeasibleOfferings
       : comparison.expectedWithinBudget
       ? comparison.allTasksActiveWithinBudget
-        ? ui.providerComparison.allWorkFits
-        : ui.providerComparison.fitsWithHolds
+        ? isBestFit
+          ? ui.providerComparison.checkedConstraintsFit
+          : ui.providerComparison.allWorkFits
+        : isBestFit
+          ? ui.providerComparison.checkedConstraintsWithHolds
+          : ui.providerComparison.fitsWithHolds
       : ui.providerComparison.outsideBudget;
     lines.push(
       `| ${ui.enums.provider[comparison.providerId]} | ${formatUsd(comparison.totals.lowUsd)} | ${formatUsd(comparison.totals.expectedUsd)} | ${formatUsd(comparison.totals.highUsd)} | ${budgetStatus} | ${comparison.activeTaskCount} | ${comparison.heldTaskCount} | ${comparison.infeasibleTaskCount} |`,
@@ -504,7 +520,7 @@ export function createPlanMarkdown(
 
     if (task.status === "infeasible") {
       lines.push(
-        `- ${copy.infeasibleReason}: \`${task.infeasibleReason}\` — ${ui.analysisResults.infeasibleReason(failureLabels.join(", "))}`,
+        `- ${copy.infeasibleReason}: \`${task.infeasibleReason}\` — ${isBestFitTaskAnalysis(task.analysis) ? ui.analysisResults.infeasibleReason(failureLabels.join(", ")) : ui.analysisResults.legacyInfeasibleReason(failureLabels.join(", "))}`,
       );
       failures.forEach((failure) => {
         lines.push(
@@ -544,7 +560,7 @@ export function createPlanMarkdown(
     }
   }
 
-  const warnings = localizedWarnings(context, ui);
+  const warnings = localizedWarnings(context, ui, isBestFit);
   lines.push("", `## ${copy.warnings}`, "");
   if (warnings.length) {
     warnings.forEach((warning) => lines.push(`- ${escapeMarkdownCell(warning)}`));

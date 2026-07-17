@@ -7,7 +7,12 @@ import {
   validateInvocationLimits,
   validateTaskModelFeasibility,
 } from "@/lib/calculation/invocation-feasibility";
-import type { PlanningSettings, TaskAnalysis, TaskInput } from "@/types/domain";
+import type {
+  LegacyTaskAnalysis,
+  PlanningSettings,
+  TaskAnalysis,
+  TaskInput,
+} from "@/types/domain";
 
 const largeTask: TaskInput = {
   id: "large-task",
@@ -42,6 +47,22 @@ const settings: PlanningSettings = {
   deadlineDays: 7,
   strategy: "balanced",
 };
+
+function toLegacyAnalysis(analysis: TaskAnalysis): LegacyTaskAnalysis {
+  return {
+    taskId: analysis.taskId,
+    taskType: analysis.taskType,
+    complexity: analysis.complexity,
+    reasoningDepth: analysis.reasoningDepth,
+    expectedIterations: analysis.expectedIterations,
+    estimatedInputSize: analysis.estimatedInputSize,
+    estimatedOutputSize: analysis.estimatedOutputSize,
+    uncertainty: analysis.uncertainty,
+    recommendedModelTier: analysis.recommendedModelTier,
+    riskFactors: analysis.riskFactors,
+    rationale: analysis.rationale,
+  };
+}
 
 describe("validateInvocationFeasibility", () => {
   it("returns structured input, output, and combined-limit failures", () => {
@@ -177,7 +198,28 @@ describe("limit-aware provider allocation", () => {
     ).toBe(true);
     expect(plan.totals.highUsd).toBe(0);
     expect(plan.infeasibleTaskCount).toBe(1);
+    expect(plan.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("최소 품질과 호출 한도"),
+      ]),
+    );
     expect(planning.comparisons[2].allTasksActiveWithinBudget).toBe(false);
+  });
+
+  it("keeps legacy invocation-only infeasibility separate from the v2 quality floor", () => {
+    const plan = compareProviderPlans(
+      [largeTask],
+      [toLegacyAnalysis(largeAnalysis)],
+      settings,
+    ).plans.google;
+
+    expect(plan.tasks[0]).toMatchObject({
+      status: "infeasible",
+      infeasibleReason: "no-compatible-offering",
+    });
+    expect(plan.warnings.join(" ")).toContain("기존 분석 작업");
+    expect(plan.warnings.join(" ")).toContain("호출 한도");
+    expect(plan.warnings.join(" ")).not.toContain("최소 품질");
   });
 
   it("keeps model infeasibility distinct from a budget hold", () => {

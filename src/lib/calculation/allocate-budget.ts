@@ -17,6 +17,7 @@ import type {
 
 import {
   clampTierToAnalysisMinimum,
+  isBestFitTaskAnalysis,
   minimumLegacyTierForAnalysis,
 } from "@/lib/planning/workload-requirements";
 
@@ -370,6 +371,10 @@ export function allocateBudget(
   const infeasibleTaskCount = plannedTasks.filter(
     (task) => task.status === "infeasible",
   ).length;
+  const legacyInfeasibleTaskCount = plannedTasks.filter(
+    (task) => task.status === "infeasible" && !isBestFitTaskAnalysis(task.analysis),
+  ).length;
+  const bestFitInfeasibleTaskCount = infeasibleTaskCount - legacyInfeasibleTaskCount;
   const downgradedTaskCount = plannedTasks.filter((task) => task.wasDowngradedForBudget).length;
   const limitReassignedTaskCount = plannedTasks.filter(
     (task) => task.status === "active" && task.wasReassignedForLimits,
@@ -384,9 +389,14 @@ export function allocateBudget(
       `${heldTaskCount}개 작업을 예산 부족으로 보류했습니다. 보류 작업 비용은 합계에서 제외됩니다.`,
     );
   }
-  if (infeasibleTaskCount > 0) {
+  if (legacyInfeasibleTaskCount > 0) {
     warnings.push(
-      `${infeasibleTaskCount}개 작업은 최소 품질과 호출 한도를 함께 만족하는 모델이 없어 실행 불가로 표시했습니다.`,
+      `${legacyInfeasibleTaskCount}개 기존 분석 작업은 Low / Expected / High 호출 한도를 모두 지원하는 모델이 없어 실행 불가로 표시했습니다.`,
+    );
+  }
+  if (bestFitInfeasibleTaskCount > 0) {
+    warnings.push(
+      `${bestFitInfeasibleTaskCount}개 작업은 최소 품질과 호출 한도를 함께 만족하는 모델이 없어 실행 불가로 표시했습니다.`,
     );
   }
   if (limitReassignedTaskCount > 0) {

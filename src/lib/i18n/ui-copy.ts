@@ -194,6 +194,7 @@ export interface UiCopy {
     expectedBudgetUnresolved: string;
     heldWarning: (count: number) => string;
     infeasibleWarning: (count: number) => string;
+    legacyInfeasibleWarning: (count: number) => string;
     limitReassignedWarning: (count: number) => string;
     downgradedWarning: (count: number) => string;
     highBudgetWarning: string;
@@ -215,6 +216,8 @@ export interface UiCopy {
     heldReason: (minimum: string) => string;
     infeasibleTitle: string;
     infeasibleReason: (reasons: string) => string;
+    legacyInfeasibleReason: (reasons: string) => string;
+    eligibilityVerificationPending: string;
     excludedOfferingsTitle: string;
     excludedOfferingsReason: (reasons: string) => string;
     assignedModel: string;
@@ -259,10 +262,14 @@ export interface UiCopy {
     noQualityRanking: string;
     standardPricingNotice: string;
     activeOnlyNotice: string;
+    eligibilityScopeNotice: string;
     selectorLegend: string;
     allWorkFits: string;
     fitsWithHolds: string;
     infeasibleOfferings: string;
+    checkedConstraintsFit: string;
+    checkedConstraintsWithHolds: string;
+    checkedConstraintsInfeasible: string;
     outsideBudget: string;
     highExceeds: string;
     activeHeld: (active: number, held: number, infeasible: number) => string;
@@ -325,7 +332,7 @@ const ko: UiCopy = {
     heroTitleLine1: "여러 작업을 하나의 요청으로 분석하고,",
     heroTitleLine2: "예산 안에서 모델 제품군을 비교합니다.",
     heroDescription:
-      "GPT-5.6은 등급과 크기 구간만 판단합니다. 토큰·가격·예산 조정과 공급자 비교는 공개된 고정 규칙으로 계산합니다.",
+      "GPT-5.6은 난이도·크기·작업 모드·최소 품질·필수 기능·실패 위험 등 범위가 제한된 작업 요구사항을 구조화합니다. 프로그램은 공개된 고정 규칙으로 호출 한도를 검증하고 토큰·비용·공급자별 예산 계획을 계산하며, GPT는 가격·공급자·최종 경로를 선택하지 않습니다.",
     analysisModeLegend: "분석 모드",
     mockDescription: "키와 비용 없이 fixture 사용",
     liveDescription: "서버 키로만 실제 요청",
@@ -441,7 +448,9 @@ const ko: UiCopy = {
     expectedBudgetUnresolved: "실행 작업의 Expected 비용을 예산 안으로 조정하지 못했습니다.",
     heldWarning: (count) => `${count}개 작업을 예산 부족으로 보류했습니다. 보류 작업 비용은 합계에서 제외됩니다.`,
     infeasibleWarning: (count) =>
-      `${count}개 작업은 호환되는 모델이 없어 실행 불가입니다. 비용 합계와 예산 적합 판정에서 제외됩니다.`,
+      `${count}개 작업은 최소 품질과 호출 한도를 함께 만족하는 모델이 없어 실행 불가입니다. 비용 합계와 예산 적합 판정에서 제외됩니다.`,
+    legacyInfeasibleWarning: (count) =>
+      `${count}개 기존 분석 작업은 Low / Expected / High 호출 한도를 모두 지원하는 모델이 없어 실행 불가입니다. 비용 합계와 예산 적합 판정에서 제외됩니다.`,
     limitReassignedWarning: (count) =>
       `${count}개 작업을 Low / Expected / High 호출 한도와 호환되는 tier로 재배정했습니다.`,
     downgradedWarning: (count) => `${count}개 작업의 tier를 예산에 맞춰 낮췄습니다.`,
@@ -458,10 +467,14 @@ const ko: UiCopy = {
     limitAdjustedBadge: "호출 한도 재배정",
     heldTitle: "이번 계획의 실행 대상에서 제외됨",
     heldReason: (minimum) =>
-      `전체 작업의 호환 가능한 Expected 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다. 이 작업의 호환 가능한 Expected 최소 필요액은 ${minimum}입니다.`,
-    infeasibleTitle: "호환되는 모델 제품이 없음",
+      `현재 확인한 조건에서 전체 작업의 Expected 최소비용이 예산을 넘어 낮은 우선순위부터 보류했습니다. 이 작업의 같은 조건상 Expected 최소 필요액은 ${minimum}입니다.`,
+    infeasibleTitle: "확인한 조건을 만족하는 모델 없음",
     infeasibleReason: (reasons) =>
       `최소 품질을 충족하는 어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 자동 분할이나 토큰 자르기는 적용하지 않았습니다. 실패 이유: ${reasons}`,
+    legacyInfeasibleReason: (reasons) =>
+      `어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 이 기존 분석에는 최소 품질 floor를 적용하지 않았고, 자동 분할이나 토큰 자르기도 적용하지 않았습니다. 실패 이유: ${reasons}`,
+    eligibilityVerificationPending:
+      "현재 Active·적합 상태는 표준 API 가격·최소 품질 tier·Low / Expected / High 호출 한도·입력 예산만 확인한 비용 계획입니다. 공급자 기능 정보는 아직 unknown이므로 작업 모드와 필수 기능 지원은 검증하지 않았으며, Active는 확인된 Offering 적격성을 뜻하지 않습니다.",
     excludedOfferingsTitle: "호출 한도로 제외된 모델",
     excludedOfferingsReason: (reasons) =>
       `아래 모델은 Low / Expected / High 중 하나 이상을 지원하지 않아 배분 후보에서 제외했습니다. 실패 이유: ${reasons}`,
@@ -510,10 +523,14 @@ const ko: UiCopy = {
     noQualityRanking: "객관적 품질 동등성, 우열 또는 ‘최고 모델’을 뜻하지 않습니다.",
     standardPricingNotice: "표준 uncached text 가격만 사용하며 캐시, Batch, 도구 호출비, 장문 할증은 제외합니다.",
     activeOnlyNotice: "비용은 배분 후 실행 작업만 합산하며 보류·실행 불가 작업은 포함하지 않습니다.",
+    eligibilityScopeNotice: "Active·적합 상태는 표준 API 가격, 최소 품질 tier, Low / Expected / High 호출 한도와 예산만 확인합니다. 공급자 기능 정보는 unknown이며 작업 모드·필수 기능·Offering 적격성은 아직 검증하지 않았습니다.",
     selectorLegend: "상세 계획에 사용할 모델 제품군 선택",
     allWorkFits: "전체 작업 적합",
     fitsWithHolds: "보류 포함 적합",
     infeasibleOfferings: "호환 모델 없음",
+    checkedConstraintsFit: "확인 범위 내 적합",
+    checkedConstraintsWithHolds: "확인 범위 · 일부 보류",
+    checkedConstraintsInfeasible: "확인 범위 내 실행 불가",
     outsideBudget: "예산 밖",
     highExceeds: "예산 초과",
     activeHeld: (active, held, infeasible) =>
@@ -609,7 +626,7 @@ const en: UiCopy = {
     heroTitleLine1: "Analyze multiple tasks in one request,",
     heroTitleLine2: "then compare model families within budget.",
     heroDescription:
-      "GPT-5.6 judges only tiers and size bands. Fixed, published rules calculate tokens, prices, budget adjustments, and provider comparisons.",
+      "GPT-5.6 structures bounded workload requirements such as complexity, size, work mode, minimum quality, required capabilities, and failure risk. Published program rules validate invocation limits and calculate tokens, costs, and per-provider budget plans; GPT does not choose prices, providers, or a final route.",
     analysisModeLegend: "Analysis mode",
     mockDescription: "Use a fixture with no key or cost",
     liveDescription: "Make a real request with the server-side key",
@@ -726,7 +743,9 @@ const en: UiCopy = {
     expectedBudgetUnresolved: "The active Expected cost could not be adjusted within budget.",
     heldWarning: (count) => `${count} task${count === 1 ? " was" : "s were"} put on hold for budget fit. Held-task costs are excluded from totals.`,
     infeasibleWarning: (count) =>
-      `${count} task${count === 1 ? " has" : "s have"} no compatible model and ${count === 1 ? "is" : "are"} infeasible. Infeasible costs are excluded from totals and budget-fit claims.`,
+      `${count} task${count === 1 ? " has" : "s have"} no model meeting both the minimum-quality and invocation-limit checks and ${count === 1 ? "is" : "are"} infeasible. Infeasible costs are excluded from totals and budget-fit claims.`,
+    legacyInfeasibleWarning: (count) =>
+      `${count} legacy-analysis task${count === 1 ? " has" : "s have"} no model supporting all Low / Expected / High invocations and ${count === 1 ? "is" : "are"} infeasible. Infeasible costs are excluded from totals and budget-fit claims.`,
     limitReassignedWarning: (count) =>
       `${count} task${count === 1 ? " was" : "s were"} reassigned to a tier that supports all Low / Expected / High invocation limits.`,
     downgradedWarning: (count) => `${count} task tier${count === 1 ? " was" : "s were"} lowered to fit the budget.`,
@@ -743,10 +762,14 @@ const en: UiCopy = {
     limitAdjustedBadge: "Invocation-limit reassignment",
     heldTitle: "Excluded from this plan's active work",
     heldReason: (minimum) =>
-      `The lowest compatible Expected total exceeded the budget, so lower-priority work was held first. This task needs at least ${minimum} on a compatible offering at Expected.`,
-    infeasibleTitle: "No compatible model offering",
+      `The lowest Expected total under the currently checked constraints exceeded the budget, so lower-priority work was held first. This task needs at least ${minimum} at Expected under those same constraints.`,
+    infeasibleTitle: "No model meets the checked constraints",
     infeasibleReason: (reasons) =>
       `No tier at or above the minimum quality supports all Low / Expected / High invocations. The planner did not truncate tokens or split the task. Failures: ${reasons}`,
+    legacyInfeasibleReason: (reasons) =>
+      `No tier supports every Low / Expected / High invocation. This legacy analysis has no minimum-quality floor, and the planner did not truncate tokens or split the task. Failures: ${reasons}`,
+    eligibilityVerificationPending:
+      "Current Active and fit statuses are cost plans based only on standard API pricing, the minimum-quality tier, all Low / Expected / High invocation limits, and the entered budget. Provider capability knowledge is still unknown, so work-mode and required-capability support are unverified; Active does not mean confirmed Offering eligibility.",
     excludedOfferingsTitle: "Models excluded by invocation limits",
     excludedOfferingsReason: (reasons) =>
       `The models below fail at least one Low / Expected / High invocation and were excluded from allocation. Failures: ${reasons}`,
@@ -795,10 +818,14 @@ const en: UiCopy = {
     noQualityRanking: "They do not claim objective quality equivalence, superiority, or a ‘best model.’",
     standardPricingNotice: "Only standard uncached text prices are used; cache, Batch, tool-call, and long-context fees are excluded.",
     activeOnlyNotice: "Totals include active work after allocation and exclude held and infeasible task costs.",
+    eligibilityScopeNotice: "Active and fit statuses check only standard API pricing, the minimum-quality tier, all Low / Expected / High invocation limits, and budget. Provider capabilities are unknown; work mode, required capabilities, and Offering eligibility remain unverified.",
     selectorLegend: "Choose the model family for the detailed plan",
     allWorkFits: "All work fits",
     fitsWithHolds: "Fits with holds",
     infeasibleOfferings: "No compatible model",
+    checkedConstraintsFit: "Fits checked constraints",
+    checkedConstraintsWithHolds: "Checked fit with holds",
+    checkedConstraintsInfeasible: "Fails checked constraints",
     outsideBudget: "Outside budget",
     highExceeds: "Over budget",
     activeHeld: (active, held, infeasible) =>
@@ -894,7 +921,7 @@ const ja: UiCopy = {
     heroTitleLine1: "複数のタスクを1回のリクエストで分析し、",
     heroTitleLine2: "予算内でモデル製品群を比較します。",
     heroDescription:
-      "GPT-5.6はティアとサイズ帯のみを判定します。トークン、料金、予算調整、プロバイダー比較は公開された固定ルールで計算します。",
+      "GPT-5.6は、複雑さ・サイズ・作業モード・最低品質・必須機能・失敗リスクなど、範囲を限定したワークロード要件を構造化します。プログラムは公開された固定ルールで呼び出し上限を検証し、トークン・コスト・プロバイダー別の予算計画を計算します。GPTは料金・プロバイダー・最終ルートを選びません。",
     analysisModeLegend: "分析モード",
     mockDescription: "キーも料金も使わずfixtureを利用",
     liveDescription: "サーバー側のキーで実リクエスト",
@@ -1010,7 +1037,9 @@ const ja: UiCopy = {
     expectedBudgetUnresolved: "実行タスクのExpectedコストを予算内へ調整できませんでした。",
     heldWarning: (count) => `${count}件のタスクを予算不足で保留しました。保留タスクのコストは合計から除外します。`,
     infeasibleWarning: (count) =>
-      `${count}件のタスクは互換モデルがなく実行不可です。コスト合計と予算適合判定から除外します。`,
+      `${count}件のタスクは最低品質と呼び出し上限の両方を満たすモデルがなく実行不可です。コスト合計と予算適合判定から除外します。`,
+    legacyInfeasibleWarning: (count) =>
+      `${count}件の旧分析タスクはLow / Expected / Highの全呼び出しをサポートするモデルがなく実行不可です。コスト合計と予算適合判定から除外します。`,
     limitReassignedWarning: (count) =>
       `${count}件のタスクをLow / Expected / Highすべての呼び出し上限に対応するtierへ再配分しました。`,
     downgradedWarning: (count) => `${count}件のタスクのtierを予算に合わせて下げました。`,
@@ -1027,10 +1056,14 @@ const ja: UiCopy = {
     limitAdjustedBadge: "呼び出し上限で再配分",
     heldTitle: "今回の計画では実行対象外",
     heldReason: (minimum) =>
-      `全タスクの互換可能なExpected最小コストが予算を超えたため、優先度の低い順に保留しました。このタスクの互換可能なExpected最小必要額は${minimum}です。`,
-    infeasibleTitle: "互換モデル製品なし",
+      `現在確認した条件で全タスクのExpected最小コストが予算を超えたため、優先度の低い順に保留しました。このタスクの同じ条件でのExpected最小必要額は${minimum}です。`,
+    infeasibleTitle: "確認済み条件を満たすモデルなし",
     infeasibleReason: (reasons) =>
       `最低品質以上で、すべてのLow / Expected / High呼び出しを処理できるtierがありません。トークンの切り捨てや自動分割は行っていません。失敗理由: ${reasons}`,
+    legacyInfeasibleReason: (reasons) =>
+      `どのtierもLow / Expected / Highの全呼び出しをサポートしません。この旧分析には最低品質floorを適用せず、トークンの切り捨てや自動分割も行っていません。失敗理由: ${reasons}`,
+    eligibilityVerificationPending:
+      "現在のActive・適合状態は、標準API料金・最低品質tier・Low / Expected / Highの呼び出し上限・入力予算だけに基づくコスト計画です。プロバイダー機能情報はまだunknownのため、作業モードと必須機能のサポートは未検証であり、Activeは確認済みOffering適格性を意味しません。",
     excludedOfferingsTitle: "呼び出し上限により除外したモデル",
     excludedOfferingsReason: (reasons) =>
       `以下のモデルはLow / Expected / Highのいずれかを処理できないため、配分候補から除外しました。失敗理由: ${reasons}`,
@@ -1079,10 +1112,14 @@ const ja: UiCopy = {
     noQualityRanking: "客観的な品質の同等性、優劣、または「最高のモデル」を示すものではありません。",
     standardPricingNotice: "標準uncached text料金のみを使い、キャッシュ、Batch、ツール呼び出し、長文追加料金は除外します。",
     activeOnlyNotice: "コストは配分後の実行タスクのみを合計し、保留・実行不可タスクは含みません。",
+    eligibilityScopeNotice: "Active・適合状態は標準API料金、最低品質tier、Low / Expected / Highの呼び出し上限と予算だけを確認します。プロバイダー機能情報はunknownで、作業モード・必須機能・Offering適格性はまだ検証していません。",
     selectorLegend: "詳細計画に使うモデル製品群を選択",
     allWorkFits: "全タスクが予算内",
     fitsWithHolds: "保留を含め予算内",
     infeasibleOfferings: "互換モデルなし",
+    checkedConstraintsFit: "確認範囲内で適合",
+    checkedConstraintsWithHolds: "確認範囲内・一部保留",
+    checkedConstraintsInfeasible: "確認範囲内で実行不可",
     outsideBudget: "予算外",
     highExceeds: "予算超過",
     activeHeld: (active, held, infeasible) =>

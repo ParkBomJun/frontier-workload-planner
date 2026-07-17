@@ -187,6 +187,8 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 - [x] Enforce the documented work-mode to supported-surface compatibility crosswalk
 - [x] Prevent Cost Saver or another strategy from crossing a hard minimum quality floor
 - [x] Keep price, quota, provider, and final-route decisions out of GPT output
+- [x] Scope current Active/fit UI and exports to price, v2 minimum quality, invocation limits, and budget; disclose that work-mode/capability eligibility is still unknown
+- [x] Keep legacy infeasible explanations invocation-only in UI, Markdown, and unchanged JSON v3 semantics
 - [x] Test v3 byte preservation, legacy API parity, no automatic analysis, adapter/write failures, future versions, and new round-trip
 
 ### Checkpoint 4 — generalized API offering calculation

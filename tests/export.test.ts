@@ -33,6 +33,23 @@ const tasks: TaskInput[] = [
   },
 ];
 const analyses = createMockAnalysis(tasks).tasks;
+
+function toLegacyAnalysis(analysis: (typeof analyses)[number]): LegacyTaskAnalysis {
+  return {
+    taskId: analysis.taskId,
+    taskType: analysis.taskType,
+    complexity: analysis.complexity,
+    reasoningDepth: analysis.reasoningDepth,
+    expectedIterations: analysis.expectedIterations,
+    estimatedInputSize: analysis.estimatedInputSize,
+    estimatedOutputSize: analysis.estimatedOutputSize,
+    uncertainty: analysis.uncertainty,
+    recommendedModelTier: analysis.recommendedModelTier,
+    riskFactors: analysis.riskFactors,
+    rationale: analysis.rationale,
+  };
+}
+
 const planning = compareProviderPlans(tasks, analyses, {
   budgetUsd: 5,
   deadlineDays: 7,
@@ -82,6 +99,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("실패 영향: 높음 (`high`)");
     expect(markdown).toContain("작업 모드: `coding-agent`");
     expect(markdown).toContain("최소 품질: `balanced`");
+    expect(markdown).toContain("작업 모드와 필수 기능 지원은 검증하지 않았으며");
+    expect(markdown).toContain("확인 범위 내 적합");
     expect(markdown).toContain("## 공급자별 비교");
     expect(markdown).toContain("OpenAI · GPT-5.6");
     expect(markdown).toContain("Anthropic · Claude");
@@ -124,7 +143,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## Warnings");
     expect(markdown).toContain("## Pricing and calculation assumptions");
     expect(markdown).toContain("| Low (`low`) | On hold |");
-    expect(markdown).toContain("Reason for hold: The lowest compatible Expected total exceeded the budget");
+    expect(markdown).toContain("Reason for hold: The lowest Expected total under the currently checked constraints exceeded the budget");
+    expect(markdown).toContain("Active does not mean confirmed Offering eligibility");
     expect(markdown).toContain("A stored Mock fixture provides the structured analysis");
     expect(markdown).toContain(
       "GPT-5.6 is the only Live analysis engine; Claude and Gemini APIs are not called.",
@@ -158,7 +178,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## 警告");
     expect(markdown).toContain("## 料金と計算の前提");
     expect(markdown).toContain("| 低 (`low`) | 保留 |");
-    expect(markdown).toContain("保留理由: 全タスクの互換可能なExpected最小コストが予算を超えたため");
+    expect(markdown).toContain("保留理由: 現在確認した条件で全タスクのExpected最小コストが予算を超えたため");
+    expect(markdown).toContain("Activeは確認済みOffering適格性を意味しません");
     expect(markdown).toContain("GPT-5.6がタスクを1回だけ分析し");
     expect(markdown).toContain("Live分析はGPT-5.6のみが行い、ClaudeとGemini APIは呼び出しません。");
     expect(markdown).not.toContain("Mockモードは保存済みfixtureを使用します。");
@@ -182,7 +203,13 @@ describe("plan JSON export", () => {
     const json = createPlanJson(context, exportedAt);
     const parsed = JSON.parse(json) as {
       schemaVersion: number;
-      comparison: { providers: Array<{ providerId: string }> };
+      allocationEligibilityBasis: { requiredCapabilitiesApplied: boolean };
+      comparison: {
+        providers: Array<{
+          providerId: string;
+          allTasksActiveWithinBudget: boolean;
+        }>;
+      };
       pricing: { catalog: Record<string, unknown> };
     } & Record<string, unknown>;
 
@@ -196,6 +223,16 @@ describe("plan JSON export", () => {
         generatedAt: context.generatedAt,
         contractVersion: "best-fit-analysis-v2",
         compatibility: "best-fit",
+      },
+      allocationEligibilityBasis: {
+        statusMeaning: "cost-projection-not-confirmed-offering-eligibility",
+        minimumQualityApplied: true,
+        invocationLimitsApplied: true,
+        budgetApplied: true,
+        workModeSurfaceApplied: false,
+        requiredCapabilitiesApplied: false,
+        providerCapabilityKnowledge: "unknown",
+        offeringEligibilityApplied: false,
       },
       input: {
         tasks,
@@ -233,6 +270,12 @@ describe("plan JSON export", () => {
       "anthropic",
       "google",
     ]);
+    expect(
+      parsed.comparison.providers.every(
+        ({ allTasksActiveWithinBudget }) => allTasksActiveWithinBudget,
+      ),
+    ).toBe(true);
+    expect(parsed.allocationEligibilityBasis.requiredCapabilitiesApplied).toBe(false);
     expect(parsed.pricing.catalog).toMatchObject({
       openai: {
         verifiedAt: "2026-07-17",
@@ -353,19 +396,7 @@ describe("plan JSON export", () => {
   });
 
   it("keeps api-analysis-v1 exports on the unchanged JSON v3 projection", () => {
-    const legacyAnalyses: LegacyTaskAnalysis[] = analyses.map((analysis) => ({
-      taskId: analysis.taskId,
-      taskType: analysis.taskType,
-      complexity: analysis.complexity,
-      reasoningDepth: analysis.reasoningDepth,
-      expectedIterations: analysis.expectedIterations,
-      estimatedInputSize: analysis.estimatedInputSize,
-      estimatedOutputSize: analysis.estimatedOutputSize,
-      uncertainty: analysis.uncertainty,
-      recommendedModelTier: analysis.recommendedModelTier,
-      riskFactors: analysis.riskFactors,
-      rationale: analysis.rationale,
-    }));
+    const legacyAnalyses: LegacyTaskAnalysis[] = analyses.map(toLegacyAnalysis);
     const legacyPlanning = compareProviderPlans(tasks, legacyAnalyses, plan.settings);
     const legacyContext: PlanExportContext = {
       ...context,
@@ -378,14 +409,68 @@ describe("plan JSON export", () => {
       analysisModel: "mock-fixture-v1",
     };
     const json = createPlanJson(legacyContext, "2026-07-17T02:00:00.000Z");
-    const parsed = JSON.parse(json) as { schemaVersion: number };
+    const parsed = JSON.parse(json) as {
+      schemaVersion: number;
+      allocationEligibilityBasis?: unknown;
+    };
 
     expect(parsed.schemaVersion).toBe(LEGACY_PLAN_JSON_SCHEMA_VERSION);
     expect(json).not.toContain('"deadlineDate"');
     expect(json).not.toContain('"failureImpact"');
     expect(json).not.toContain('"requiredQualityTier"');
     expect(json).not.toContain('"workMode"');
-    expect(createPlanMarkdown(legacyContext, "en")).not.toContain("Analysis contract:");
+    expect(parsed.allocationEligibilityBasis).toBeUndefined();
+    const markdown = createPlanMarkdown(legacyContext, "en");
+    expect(markdown).not.toContain("Analysis contract:");
+    expect(markdown).not.toContain("Active does not mean confirmed Offering eligibility");
+  });
+
+  it("keeps legacy infeasibility invocation-only in UI projections and JSON v3", () => {
+    const legacyLargeAnalysis: LegacyTaskAnalysis = toLegacyAnalysis({
+      ...analyses[0],
+      expectedIterations: 1,
+      estimatedInputSize: "xl",
+      estimatedOutputSize: "xl",
+      recommendedModelTier: "economy",
+    });
+    const legacyPlanning = compareProviderPlans(
+      [tasks[0]],
+      [legacyLargeAnalysis],
+      plan.settings,
+    );
+    const legacyContext: PlanExportContext = {
+      ...context,
+      sourceTasks: [tasks[0]],
+      plan: legacyPlanning.plans.google,
+      providerComparisons: legacyPlanning.comparisons,
+      analysisContract: {
+        contractVersion: "api-analysis-v1",
+        compatibility: "legacy-api-only",
+      },
+      analysisModel: "mock-fixture-v1",
+    };
+    const parsed = JSON.parse(createPlanJson(legacyContext)) as {
+      schemaVersion: number;
+      allocationEligibilityBasis?: unknown;
+      result: {
+        warnings: string[];
+        tasks: Array<{ status: string; infeasibleReason: string | null }>;
+      };
+    };
+    const markdown = createPlanMarkdown(legacyContext, "en");
+
+    expect(parsed.schemaVersion).toBe(LEGACY_PLAN_JSON_SCHEMA_VERSION);
+    expect(parsed.allocationEligibilityBasis).toBeUndefined();
+    expect(parsed.result.tasks[0]).toMatchObject({
+      status: "infeasible",
+      infeasibleReason: "no-compatible-offering",
+    });
+    expect(parsed.result.warnings.join(" ")).toContain("기존 분석 작업");
+    expect(parsed.result.warnings.join(" ")).toContain("호출 한도");
+    expect(parsed.result.warnings.join(" ")).not.toContain("최소 품질");
+    expect(markdown).toContain("This legacy analysis has no minimum-quality floor");
+    expect(markdown).toContain("no model supporting all Low / Expected / High invocations");
+    expect(markdown).not.toContain("No tier at or above the minimum quality");
   });
 
   it("rejects crossed discriminators and mixed task contracts in both export formats", () => {
@@ -451,6 +536,10 @@ describe("plan JSON export", () => {
     };
     const markdown = createPlanMarkdown(infeasibleContext, "en");
     const parsed = JSON.parse(createPlanJson(infeasibleContext)) as {
+      allocationEligibilityBasis: {
+        statusMeaning: string;
+        requiredCapabilitiesApplied: boolean;
+      };
       result: {
         infeasibleTaskCount: number;
         tasks: Array<{
@@ -480,6 +569,14 @@ describe("plan JSON export", () => {
     expect(markdown).toContain("| High |");
     expect(markdown).toContain("| Infeasible |");
     expect(markdown).toContain("output limit exceeded (96,000 > 65,536)");
+    expect(markdown).toContain("No tier at or above the minimum quality");
+    expect(markdown).toContain("Active does not mean confirmed Offering eligibility");
+    expect(parsed.allocationEligibilityBasis).toEqual(
+      expect.objectContaining({
+        statusMeaning: "cost-projection-not-confirmed-offering-eligibility",
+        requiredCapabilitiesApplied: false,
+      }),
+    );
     expect(task).toMatchObject({
       status: "infeasible",
       cost: null,

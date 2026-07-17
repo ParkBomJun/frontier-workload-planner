@@ -37,13 +37,47 @@ describe("UI locale contract", () => {
     expect(copy.taskEditor.maximumReached(8)).toContain("8");
     expect(copy.analysisResults.heldWarning(2)).toContain("2");
     expect(copy.analysisResults.infeasibleWarning(2)).toContain("2");
+    expect(copy.analysisResults.legacyInfeasibleWarning(2)).toContain("2");
     expect(copy.analysisResults.infeasibleReason(
       copy.enums.invocationFailure["output-limit-exceeded"],
     )).toContain(copy.enums.invocationFailure["output-limit-exceeded"]);
+    expect(copy.analysisResults.legacyInfeasibleReason(
+      copy.enums.invocationFailure["output-limit-exceeded"],
+    )).toContain(copy.enums.invocationFailure["output-limit-exceeded"]);
+    expect(copy.analysisResults.eligibilityVerificationPending).toMatch(
+      /unknown|미검증|未検証/,
+    );
+    expect(copy.providerComparison.eligibilityScopeNotice).toMatch(
+      /unknown|검증하지 않았|検証していません/,
+    );
     expect(copy.providerComparison.previewModels(3)).toContain("3");
     expect(copy.providerComparison.analysisExplanation.mock).toContain("Mock");
     expect(copy.providerComparison.analysisExplanation.live).toContain("GPT-5.6");
     expect(copy.providerPricing.priceFrom("2026-09-01", 3, 15)).toContain("2026-09-01");
+  });
+
+  it("states the bounded GPT workload contract and deterministic program boundary", () => {
+    expect(getUiCopy("ko").page.heroDescription).toBe(
+      "GPT-5.6은 난이도·크기·작업 모드·최소 품질·필수 기능·실패 위험 등 범위가 제한된 작업 요구사항을 구조화합니다. 프로그램은 공개된 고정 규칙으로 호출 한도를 검증하고 토큰·비용·공급자별 예산 계획을 계산하며, GPT는 가격·공급자·최종 경로를 선택하지 않습니다.",
+    );
+    expect(getUiCopy("en").page.heroDescription).toBe(
+      "GPT-5.6 structures bounded workload requirements such as complexity, size, work mode, minimum quality, required capabilities, and failure risk. Published program rules validate invocation limits and calculate tokens, costs, and per-provider budget plans; GPT does not choose prices, providers, or a final route.",
+    );
+    expect(getUiCopy("ja").page.heroDescription).toBe(
+      "GPT-5.6は、複雑さ・サイズ・作業モード・最低品質・必須機能・失敗リスクなど、範囲を限定したワークロード要件を構造化します。プログラムは公開された固定ルールで呼び出し上限を検証し、トークン・コスト・プロバイダー別の予算計画を計算します。GPTは料金・プロバイダー・最終ルートを選びません。",
+    );
+  });
+
+  it("does not describe legacy invocation failures as minimum-quality failures", () => {
+    expect(getUiCopy("ko").analysisResults.legacyInfeasibleWarning(1)).not.toContain(
+      "최소 품질",
+    );
+    expect(getUiCopy("en").analysisResults.legacyInfeasibleWarning(1)).not.toContain(
+      "minimum-quality",
+    );
+    expect(getUiCopy("ja").analysisResults.legacyInfeasibleWarning(1)).not.toContain(
+      "最低品質",
+    );
   });
 
   it("labels quality-first as a tier heuristic rather than a quality claim", () => {

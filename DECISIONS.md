@@ -578,3 +578,13 @@ Keep historical API-only exports on JSON v3. Because the v2 floor can change a p
 for `best-fit-analysis-v2` and include the new source and workload fields rather than silently
 changing or under-specifying v3. Markdown carries the same fields with localized labels. Future
 route/resource result meaning receives another independently versioned export contract.
+
+### Scope checkpoint-3 Active and fit claims
+
+The checkpoint-3 API-family allocator applies standard API price, the v2 minimum-quality floor,
+all Low / Expected / High invocation limits, and budget. It does not yet apply work-mode surfaces or
+required capabilities because the current provider catalog deliberately records capability
+knowledge as `unknown`. Treat `active` as a cost projection rather than confirmed Offering
+eligibility, disclose that boundary in UI and Markdown, and export it as a machine-readable JSON v4
+eligibility basis. Preserve legacy JSON v3 and describe legacy infeasibility using invocation limits
+only because `api-analysis-v1` has no minimum-quality floor.

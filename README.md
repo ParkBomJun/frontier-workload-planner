@@ -43,6 +43,12 @@ GPT-5.6은 계속 유일한 작업 분석 엔진입니다. Claude나 Gemini API�
 모델·가격에 결정론적으로 투영합니다. 따라서 tier 대응은 예산 계획용 휴리스틱일 뿐 모델의
 실제 품질, 성능, 지연시간 또는 적합성에 대한 객관적 순위가 아닙니다.
 
+현재 feature 브랜치의 `Active`·적합 상태는 표준 API 가격, v2 최소 품질 tier,
+Low / Expected / High 단일 호출 한도와 입력 예산만 적용한 비용 계획입니다. 카탈로그의
+공급자 capability 정보는 아직 `unknown`이므로 `workMode`와 `requiredCapabilities` 지원은
+검증하지 않으며, `Active`는 확인된 Offering 적격성을 뜻하지 않습니다. 기존
+`api-analysis-v1` 계획에는 최소 품질 floor도 적용하지 않고 호출 한도만 검사합니다.
+
 | 공급자 | Economy | Balanced | Frontier |
 | --- | --- | --- | --- |
 | OpenAI | GPT-5.6 Luna `$1 / $6` | GPT-5.6 Terra `$2.50 / $15` | GPT-5.6 Sol `$5 / $30` |
