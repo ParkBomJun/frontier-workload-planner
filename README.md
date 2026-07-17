@@ -2,7 +2,7 @@
 
 여러 작업 설명을 구조화된 워크로드 등급으로 바꾸고, 고정 규칙으로 모델·가격·예산에 매핑하는 도구입니다.
 
-현재 구현은 체크포인트 3 출시 후보입니다.
+현재 구현은 공개 배포를 준비한 MVP 출시 후보입니다.
 
 > 작업 최대 8개 입력 → Mock 또는 서버 측 GPT-5.6 구조화 분석 → 고정 비용 계산 → 예산 기반 모델 배분 → 저장·복원·내보내기
 
@@ -88,13 +88,14 @@ UI와 API 모두 한 요청에 1~8개 작업을 전송합니다.
 
 ## 배포
 
-Vercel에 저장소를 연결한 뒤 위 세 환경 변수를 서버 환경에 설정합니다. 공개 배포에서 Live 비용을 허용하기 전까지 `ENABLE_LIVE_ANALYSIS=false`를 유지하는 것이 기본 정책입니다.
+Vercel에 저장소를 연결한 뒤 필요한 서버 환경 변수를 설정합니다. 공개 production은 인증이나 호출별 rate limit이 없는 현재 MVP에서 OpenAI 비용이 노출되지 않도록 `ENABLE_LIVE_ANALYSIS=false`를 유지합니다. 실제 Live 검증은 로컬 또는 접근이 제한된 preview에서 한 번만 수행하고, 검증 뒤 다시 비활성화합니다. Mock 전체 흐름은 API 키 없이 배포할 수 있습니다.
 
 ## 문서
 
 - [SPEC.md](./SPEC.md): 범위, 계약, 책임 경계, 한계
 - [TASKS.md](./TASKS.md): 체크포인트별 작업과 후속 작업
 - [DECISIONS.md](./DECISIONS.md): 구현 결정 기록
+- [DEVPOST.md](./DEVPOST.md): 제목·문제·해결책 제출 초안
 - [OpenAI GPT-5.6 가이드](https://developers.openai.com/api/docs/guides/latest-model)
 - [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [Responses API 마이그레이션 가이드](https://developers.openai.com/api/docs/guides/migrate-to-responses)

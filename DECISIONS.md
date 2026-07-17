@@ -99,3 +99,17 @@ Keep a short live message for copy results, an inline storage status, and separa
 ### Scope close
 
 Price override UI remains deferred. The configuration file, official source, and visible update date satisfy this release candidate without adding another settings subsystem.
+
+## 2026-07-17 — checkpoint 4 release operations
+
+### Keep public Live analysis off
+
+The MVP route has bounded inputs and retries but no user authentication, rate limit, or per-user quota. Validate one real GPT-5.6 request only from a local environment or protected preview, then keep `ENABLE_LIVE_ANALYSIS=false` in public production. Mock remains the safe public demo path; adding an authentication subsystem would expand the agreed MVP.
+
+### Verify release facts without changing the engine
+
+Rechecked the official GPT-5.6 guide and standard pricing on 2026-07-17. The `gpt-5.6` alias still routes to Sol, and the configured Luna, Terra, and Sol prices remain current. No price or calculation change is required.
+
+### Separate local readiness from external publication
+
+Pin Node.js `>=20.9.0`, remove internal checkpoint wording from the public UI, and keep the Devpost copy in a local draft. A real API call, GitHub publication, Vercel deployment, and Devpost account update remain incomplete until their respective user-owned credentials and target accounts are available. Do not treat local readiness as a successful deployment.

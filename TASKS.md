@@ -44,12 +44,19 @@
 - [x] Pass full unit tests, lint, TypeScript, production/API, browser, and secret checks
 - [x] Create the checkpoint 3 review commit
 
-## External release operations
+## Checkpoint 4 — release operations
 
+- [x] Reconfirm the official GPT-5.6 alias and standard Luna / Terra / Sol pricing
+- [x] Pin the documented Node.js runtime floor in package metadata
+- [x] Remove internal checkpoint wording from the public UI
+- [x] Prepare a local Devpost title, problem, and solution draft
+- [x] Document that public production must keep unauthenticated Live analysis disabled
+- [x] Pass the release-preparation test, lint, TypeScript, build, API, browser, and secret checks
+- [x] Create the checkpoint 4 local release-preparation commit
 - [ ] Complete one real GPT-5.6 Structured Output call with the user's server-side key
 - [ ] Publish the GitHub repository
 - [ ] Configure Vercel environment variables and deploy
-- [ ] Create the Devpost draft
+- [ ] Copy the local draft into Devpost and add the GitHub and deployment URLs
 
 ## Explicitly deferred
 

@@ -357,7 +357,7 @@ export default function Home() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-[-0.01em]">Frontier Workload Planner</p>
-              <p className="text-xs text-[#536159]">Checkpoint 3 · release candidate</p>
+              <p className="text-xs text-[#536159]">Explainable · budget-aware planning</p>
             </div>
           </div>
           <span className="shrink-0 rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur">
