@@ -5,7 +5,10 @@ import {
   type ProviderModelPrice,
 } from "@/config/provider-catalog";
 import {
+  API_CATALOG_REGISTRY_ID,
+  API_CATALOG_REGISTRY_VERSION,
   getProviderRegistryEntry,
+  type ApiCatalogRegistryVersion,
   type RegistryClaimId,
   type RegistryClaimValueById,
 } from "@/config/versioned-provider-registry";
@@ -68,10 +71,11 @@ function mustResolve<I extends RegistryClaimId>(
   providerId: ProviderId,
   tier: ModelTier,
   claimId: I,
+  catalogVersion: ApiCatalogRegistryVersion,
 ): { value: RegistryClaimValueById[I]; evidence: ProviderPublishedEvidence } {
   const result = resolveStoredEvidence(
-    catalogReferenceFor(providerId, tier, claimId),
-    catalogClaimExpectation(providerId, tier, claimId),
+    catalogReferenceFor(providerId, tier, claimId, catalogVersion),
+    catalogClaimExpectation(providerId, tier, claimId, catalogVersion),
   );
   if (result.status !== "resolved") {
     throw new Error(`Bundled provider claim did not resolve: ${result.reasonCode}.`);
@@ -83,15 +87,25 @@ function offeringId(providerId: ProviderId, modelId: string): string {
   return `api.${providerId}.${modelId}.standard-text`;
 }
 
-function adaptEntry(providerId: ProviderId, tier: ModelTier): ResolvedApiCatalogEntry {
-  const registryEntry = getProviderRegistryEntry(providerId, tier);
-  const identity = mustResolve(providerId, tier, "model-identity");
-  const limits = mustResolve(providerId, tier, "invocation-limits");
+function adaptEntry(
+  providerId: ProviderId,
+  tier: ModelTier,
+  catalogVersion: ApiCatalogRegistryVersion,
+): ResolvedApiCatalogEntry {
+  const registryEntry = getProviderRegistryEntry(providerId, tier, catalogVersion);
+  const identity = mustResolve(providerId, tier, "model-identity", catalogVersion);
+  const limits = mustResolve(providerId, tier, "invocation-limits", catalogVersion);
   const price = mustResolve(
     providerId,
     tier,
     "standard-text-pricing",
+    catalogVersion,
   );
+  const registryReference = {
+    registryId: API_CATALOG_REGISTRY_ID,
+    registryVersion: catalogVersion,
+    entryId: registryEntry.legacyModel.catalogId,
+  };
   const accessProviderId = registeredAccessProviderId(providerId);
   const model: ModelDefinition = {
     id: identity.value.modelId,
@@ -109,6 +123,7 @@ function adaptEntry(providerId: ProviderId, tier: ModelTier): ResolvedApiCatalog
       evidence: limits.evidence,
     },
     evidence: identity.evidence,
+    registryReference,
   };
   const offering: ModelBoundOffering & { mode: "api" } = {
     kind: "model-bound",
@@ -120,6 +135,7 @@ function adaptEntry(providerId: ProviderId, tier: ModelTier): ResolvedApiCatalog
     limitPolicy: { kind: "unknown" },
     capabilityPolicy: { kind: "unknown" },
     evidence: identity.evidence,
+    registryReference,
   };
 
   return deepFreeze({
@@ -144,7 +160,9 @@ function adaptEntry(providerId: ProviderId, tier: ModelTier): ResolvedApiCatalog
 
 const allEntries = deepFreeze(
   PROVIDER_IDS.flatMap((providerId) =>
-    MODEL_TIERS.map((tier) => adaptEntry(providerId, tier)),
+    MODEL_TIERS.map((tier) =>
+      adaptEntry(providerId, tier, API_CATALOG_REGISTRY_VERSION),
+    ),
   ),
 );
 
@@ -168,7 +186,7 @@ export function resolveApiCatalogEntry(
   return entry;
 }
 
-export function projectResolvedEntryToLegacyModel(
+function projectCanonicalEntryToLegacyModel(
   entry: ResolvedApiCatalogEntry,
 ): ProviderModelPrice {
   if (entry.model.invocationLimits.knowledge !== "complete") {
@@ -213,4 +231,11 @@ export function projectResolvedEntryToLegacyModel(
       verifiedAt: entry.verifiedAt,
     },
   };
+}
+
+export function projectApiCatalogEntryToLegacyModel(
+  providerId: ProviderId,
+  tier: ModelTier,
+): ProviderModelPrice {
+  return projectCanonicalEntryToLegacyModel(resolveApiCatalogEntry(providerId, tier));
 }

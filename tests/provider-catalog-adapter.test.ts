@@ -4,17 +4,23 @@ import {
   PROVIDER_CATALOG,
   PROVIDER_PRICING_BASIS,
   PROVIDER_PRICING_EXCLUSIONS,
+  type ProviderModelPrice,
 } from "@/config/provider-catalog";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import {
   resolveAllApiCatalogEntries,
   resolveApiCatalogEntry,
-  projectResolvedEntryToLegacyModel,
+  projectApiCatalogEntryToLegacyModel,
 } from "@/lib/offerings/provider-catalog-adapter";
+import {
+  API_CATALOG_REGISTRY_VERSION,
+} from "@/config/versioned-provider-registry";
 import {
   MODEL_TIERS,
   PROVIDER_IDS,
+  type ModelTier,
   type PlanningSettings,
+  type ProviderId,
   type TaskAnalysis,
   type TaskInput,
 } from "@/types/domain";
@@ -45,13 +51,18 @@ describe("provider catalog offering adapter", () => {
     for (const providerId of PROVIDER_IDS) {
       for (const tier of MODEL_TIERS) {
         const entry = resolveApiCatalogEntry(providerId, tier);
-        expect(projectResolvedEntryToLegacyModel(entry)).toEqual(
+        expect(projectApiCatalogEntryToLegacyModel(providerId, tier)).toEqual(
           PROVIDER_CATALOG[providerId].models[tier],
         );
         expect(entry.model.id).toBe(PROVIDER_CATALOG[providerId].models[tier].catalogId);
         expect(entry.model.qualityTier).toBe(
           tier === "frontier" ? "premium" : tier,
         );
+        expect(entry.model.registryReference).toEqual({
+          registryId: "frontier-provider-api-catalog",
+          registryVersion: API_CATALOG_REGISTRY_VERSION,
+          entryId: entry.model.id,
+        });
         expect(entry.offering).toMatchObject({
           kind: "model-bound",
           providerId,
@@ -67,6 +78,80 @@ describe("provider catalog offering adapter", () => {
         });
       }
     }
+  });
+
+  it("projects only a canonical provider/tier lookup and ignores cloned entry mutations", () => {
+    const entry = resolveApiCatalogEntry("anthropic", "balanced");
+    const forged = {
+      ...entry,
+      legacyReference: { providerId: "google", tier: "frontier" },
+      model: {
+        ...entry.model,
+        id: "forged-model",
+        displayName: "Forged model",
+        invocationLimits: {
+          ...entry.model.invocationLimits,
+          limits: { maxInputTokens: 1, maxOutputTokens: 1 },
+          evidence: {
+            ...(
+              entry.model.invocationLimits.knowledge === "complete"
+                ? entry.model.invocationLimits.evidence
+                : entry.model.evidence
+            ),
+            sourceUrl: "https://attacker.invalid/limits",
+            verifiedAt: "2099-01-01",
+          },
+        },
+      },
+      standardTextPrice: {
+        ...entry.standardTextPrice,
+        inputUsdPerMillion: 0,
+        outputUsdPerMillion: 0,
+        evidence: {
+          ...entry.standardTextPrice.evidence,
+          sourceUrl: "https://attacker.invalid/pricing",
+          verifiedAt: "2099-01-01",
+        },
+      },
+      verifiedAt: "2099-01-01",
+    };
+
+    expect(projectApiCatalogEntryToLegacyModel("anthropic", "balanced")).toEqual(
+      PROVIDER_CATALOG.anthropic.models.balanced,
+    );
+    expect(() =>
+      (
+        projectApiCatalogEntryToLegacyModel as unknown as (
+          legacyEntry: unknown,
+        ) => ProviderModelPrice
+      )(forged),
+    ).toThrow(/Resolved API catalog entry is missing/);
+  });
+
+  it("returns fresh nested projection values and rejects invalid references", () => {
+    const first = projectApiCatalogEntryToLegacyModel("anthropic", "balanced");
+    first.inputUsdPerMillion = 999;
+    first.limits.maxOutputTokens = 1;
+    if (first.priceAfterEffectiveThrough) {
+      first.priceAfterEffectiveThrough.inputUsdPerMillion = 999;
+    }
+    const longContext = projectApiCatalogEntryToLegacyModel("google", "frontier");
+    if (longContext.excludedLongContextPrice) {
+      longContext.excludedLongContextPrice.outputUsdPerMillion = 999;
+    }
+
+    expect(projectApiCatalogEntryToLegacyModel("anthropic", "balanced")).toEqual(
+      PROVIDER_CATALOG.anthropic.models.balanced,
+    );
+    expect(projectApiCatalogEntryToLegacyModel("google", "frontier")).toEqual(
+      PROVIDER_CATALOG.google.models.frontier,
+    );
+    expect(() =>
+      projectApiCatalogEntryToLegacyModel("unknown" as ProviderId, "balanced"),
+    ).toThrow(/Resolved API catalog entry is missing/);
+    expect(() =>
+      projectApiCatalogEntryToLegacyModel("openai", "unknown" as ModelTier),
+    ).toThrow(/Resolved API catalog entry is missing/);
   });
 
   it("keeps unverified capabilities unknown instead of inferring them from model names", () => {
@@ -104,7 +189,12 @@ describe("provider catalog offering adapter", () => {
 
   it("does not mutate the legacy catalog or current provider-plan output", () => {
     const before = JSON.stringify(PROVIDER_CATALOG);
-    resolveAllApiCatalogEntries().forEach(projectResolvedEntryToLegacyModel);
+    resolveAllApiCatalogEntries().forEach(({ legacyReference }) => {
+      projectApiCatalogEntryToLegacyModel(
+        legacyReference.providerId,
+        legacyReference.tier,
+      );
+    });
     expect(JSON.stringify(PROVIDER_CATALOG)).toBe(before);
 
     const task: TaskInput = {

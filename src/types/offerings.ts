@@ -110,6 +110,12 @@ export type EvidenceRef =
   | VerifiedConnectorEvidence
   | UserObservedEvidence;
 
+export interface ResolvedRegistryReference {
+  registryId: string;
+  registryVersion: string;
+  entryId: string;
+}
+
 export interface InvocationLimits {
   maxInputTokens?: number;
   maxOutputTokens?: number;
@@ -163,6 +169,7 @@ export interface ModelDefinition {
   capabilityProfile: SourcedCapabilityProfile;
   invocationLimits: SourcedInvocationLimits;
   evidence: EvidenceRef;
+  registryReference: ResolvedRegistryReference;
 }
 
 interface OfferingBase {
@@ -170,6 +177,7 @@ interface OfferingBase {
   providerId: AccessProviderId;
   supportedSurfaces: readonly WorkSurface[];
   evidence: EvidenceRef;
+  registryReference?: ResolvedRegistryReference;
 }
 
 export interface ModelBoundOffering extends OfferingBase {

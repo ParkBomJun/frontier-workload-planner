@@ -768,6 +768,7 @@ type ConditionalReasonCode =
   | "profile-unverified"
   | "model-limits-incomplete"
   | "access-limits-incomplete"
+  | "model-capabilities-incomplete"
   | "access-capabilities-incomplete"
   | "availability-uncertain"
   | "consumption-user-observed"
@@ -848,10 +849,14 @@ Mock fixtures, and current UI. A future adapter may interpret that legacy planni
 Likewise, the current `recommendedModelTier` is a heuristic recommendation, not the future hard
 minimum `requiredQualityTier`.
 
-Checkpoint 2 keeps that adapter passive. It snapshots the current 3×3 API catalog in one immutable
-versioned registry, resolves exact catalog claims, and projects each entry back to its unchanged
-legacy value. The live allocator, UI, LocalStorage, and exports continue to use the reviewed
-API-only path. The provider-published model identity claim does not contain the planner-authored
+Checkpoint 2 keeps that adapter passive. It preserves immutable, reference-independent v1 and v2
+snapshots behind exact `(catalogId, catalogVersion)` lookup. The v1 canonical manifest has a fixed
+SHA-256 golden; changing catalog facts requires a new snapshot version rather than editing a
+published version. Evidence authority includes its exact catalog ID, version, entry, claim, subject,
+field, and value, so equal values in two versions are not interchangeable. Legacy projection accepts
+only a canonical provider/tier lookup and never caller-supplied resolved values. The live allocator,
+UI, LocalStorage, and exports continue to use the reviewed API-only path. The provider-published
+model identity claim does not contain the planner-authored
 quality tier; a separately named resolver verifies the versioned `frontier` → `premium` heuristic
 adapter. Because the current catalog contains no versioned capability claims, adapted
 capability profiles remain `unknown`; model names are not evidence. Official model invocation

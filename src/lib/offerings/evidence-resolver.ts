@@ -2,9 +2,10 @@ import { z } from "zod";
 
 import {
   API_CATALOG_REGISTRY_ID,
-  API_CATALOG_REGISTRY_VERSION,
+  getProviderRegistry,
   getProviderRegistryEntry,
   getProviderRegistryEntryById,
+  type ApiCatalogRegistryVersion,
   type ProviderRegistryClaim,
   type RegistryClaimId,
   type RegistryClaimValueById,
@@ -16,6 +17,7 @@ import type {
   EvidenceSubject,
   ProviderPublishedEvidence,
   PlanningQualityTier,
+  ResolvedRegistryReference,
   StoredCatalogEvidenceInput,
   StoredEvidenceInput,
 } from "@/types/offerings";
@@ -59,7 +61,7 @@ export type StoredEvidenceInputParseResult =
 export interface CatalogClaimExpectation<I extends RegistryClaimId = RegistryClaimId>
   extends EvidenceSubject {
   catalogId: typeof API_CATALOG_REGISTRY_ID;
-  catalogVersion: typeof API_CATALOG_REGISTRY_VERSION;
+  catalogVersion: ApiCatalogRegistryVersion;
   entryId: string;
   claimId: I;
   providerId: ProviderId;
@@ -92,8 +94,11 @@ export function catalogClaimExpectation<I extends RegistryClaimId>(
   providerId: ProviderId,
   tier: ModelTier,
   claimId: I,
+  catalogVersion: ApiCatalogRegistryVersion,
 ): CatalogClaimExpectation<I> {
-  const claim = getProviderRegistryEntry(providerId, tier).claims[claimId];
+  const claim = getProviderRegistryEntry(providerId, tier, catalogVersion).claims[
+    claimId
+  ];
   if (!claim) throw new Error("Provider registry claim is missing.");
   return {
     catalogId: claim.catalogId,
@@ -109,8 +114,14 @@ export function catalogReferenceFor(
   providerId: ProviderId,
   tier: ModelTier,
   claimId: RegistryClaimId,
+  catalogVersion: ApiCatalogRegistryVersion,
 ): StoredCatalogEvidenceInput {
-  const expected = catalogClaimExpectation(providerId, tier, claimId);
+  const expected = catalogClaimExpectation(
+    providerId,
+    tier,
+    claimId,
+    catalogVersion,
+  );
   return {
     kind: "catalog-ref",
     catalogId: expected.catalogId,
@@ -195,10 +206,18 @@ export function resolveStoredEvidence<I extends RegistryClaimId>(
   if (source.catalogId !== API_CATALOG_REGISTRY_ID) {
     return { status: "conditional", reasonCode: "catalog-reference-unresolved", source };
   }
-  if (source.catalogVersion !== API_CATALOG_REGISTRY_VERSION) {
+  const registry = getProviderRegistry(source.catalogId, source.catalogVersion);
+  if (!registry) {
     return { status: "conditional", reasonCode: "catalog-version-mismatch", source };
   }
-  const entry = getProviderRegistryEntryById(source.entryId);
+  if (source.catalogVersion !== expectation.catalogVersion) {
+    return { status: "conditional", reasonCode: "catalog-version-mismatch", source };
+  }
+  const entry = getProviderRegistryEntryById(
+    source.catalogId,
+    source.catalogVersion,
+    source.entryId,
+  );
   if (!entry) {
     return { status: "conditional", reasonCode: "catalog-reference-unresolved", source };
   }
@@ -280,13 +299,21 @@ export function isResolverIssuedEvidenceFor(
 
 export function isResolverIssuedEvidenceForClaim<I extends RegistryClaimId>(
   value: unknown,
-  expectation: EvidenceSubject & { claimId: I },
+  expectation: EvidenceSubject & {
+    catalogId: string;
+    catalogVersion: string;
+    entryId: string;
+    claimId: I;
+  },
   assertedValue: RegistryClaimValueById[I],
 ): value is ProviderPublishedEvidence {
   if (!isResolverIssuedEvidenceFor(value, expectation)) return false;
   const claim = issuedClaims.get(value);
   return (
     claim !== undefined &&
+    claim.catalogId === expectation.catalogId &&
+    claim.catalogVersion === expectation.catalogVersion &&
+    claim.entryId === expectation.entryId &&
     claim.claimId === expectation.claimId &&
     valuesEqual(claim.value, assertedValue)
   );
@@ -298,12 +325,24 @@ export function isResolverIssuedEvidenceForClaim<I extends RegistryClaimId>(
  */
 export function isResolverIssuedPlannerQualityTier(
   value: unknown,
+  registryReference: ResolvedRegistryReference,
   assertedTier: PlanningQualityTier,
 ): boolean {
   if (!isResolverIssuedProviderEvidence(value)) return false;
   const claim = issuedClaims.get(value);
   if (!claim || claim.claimId !== "model-identity") return false;
-  const entry = getProviderRegistryEntryById(claim.entryId);
+  if (
+    claim.catalogId !== registryReference.registryId ||
+    claim.catalogVersion !== registryReference.registryVersion ||
+    claim.entryId !== registryReference.entryId
+  ) {
+    return false;
+  }
+  const entry = getProviderRegistryEntryById(
+    claim.catalogId,
+    claim.catalogVersion,
+    claim.entryId,
+  );
   return (
     entry?.claims["model-identity"] === claim &&
     LEGACY_TO_PLANNING_TIER[entry.legacyTier] === assertedTier

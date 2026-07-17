@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { resolveApiCatalogEntry } from "@/lib/offerings/provider-catalog-adapter";
@@ -20,6 +22,7 @@ import type {
   Offering,
   SubscriptionResourceReference,
 } from "@/types/offerings";
+import { CONDITIONAL_REASON_CODES } from "@/types/offerings";
 
 function subscriptionFixture(): ModelBoundOffering & { mode: "subscription" } {
   const apiEntry = resolveApiCatalogEntry("openai", "economy");
@@ -44,6 +47,17 @@ function resource(
 }
 
 describe("canonical route identity", () => {
+  it("keeps the documented conditional reason-code order identical to runtime", () => {
+    const spec = readFileSync(`${process.cwd()}/SPEC.md`, "utf8");
+    const contract = spec.match(
+      /type ConditionalReasonCode =([\s\S]*?);/,
+    )?.[1];
+    expect(contract).toBeDefined();
+    expect(contract?.match(/"([a-z0-9-]+)"/g)?.map((value) => value.slice(1, -1))).toEqual(
+      [...CONDITIONAL_REASON_CODES],
+    );
+  });
+
   it("uses null only for API routes and stable resource IDs for subscriptions", () => {
     const api = resolveApiCatalogEntry("openai", "economy").offering;
     const subscription = subscriptionFixture();

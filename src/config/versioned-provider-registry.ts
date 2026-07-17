@@ -1,8 +1,12 @@
 import {
-  PROVIDER_CATALOG,
   type ProviderCatalog,
   type ProviderModelPrice,
 } from "./provider-catalog";
+import {
+  API_CATALOG_REGISTRY_VERSIONS,
+  PROVIDER_CATALOG_SNAPSHOTS,
+  type ApiCatalogRegistryVersion,
+} from "./provider-catalog-snapshots";
 import {
   MODEL_TIERS,
   PROVIDER_IDS,
@@ -19,7 +23,10 @@ import type {
 } from "@/types/offerings";
 
 export const API_CATALOG_REGISTRY_ID = "frontier-provider-api-catalog" as const;
-export const API_CATALOG_REGISTRY_VERSION = "provider-comparison-stable-v1" as const;
+export const API_CATALOG_REGISTRY_V1_VERSION = API_CATALOG_REGISTRY_VERSIONS[0];
+export const API_CATALOG_REGISTRY_VERSION = API_CATALOG_REGISTRY_VERSIONS[1];
+export const PLANNER_TIER_ADAPTER_VERSION = "legacy-tier-adapter-v1" as const;
+export type { ApiCatalogRegistryVersion } from "./provider-catalog-snapshots";
 
 export const REGISTRY_CLAIM_IDS = [
   "model-identity",
@@ -109,7 +116,7 @@ export interface ProviderRegistryClaim<
   I extends RegistryClaimId = RegistryClaimId,
 > {
   catalogId: typeof API_CATALOG_REGISTRY_ID;
-  catalogVersion: typeof API_CATALOG_REGISTRY_VERSION;
+  catalogVersion: ApiCatalogRegistryVersion;
   entryId: string;
   claimId: I;
   subject: EvidenceSubject;
@@ -128,6 +135,14 @@ export interface VersionedProviderRegistryEntry {
   verifiedAt: ProviderCatalog["verifiedAt"];
   legacyModel: ProviderModelPrice;
   claims: Readonly<Partial<{ [I in RegistryClaimId]: ProviderRegistryClaim<I> }>>;
+}
+
+export interface VersionedProviderRegistry {
+  id: typeof API_CATALOG_REGISTRY_ID;
+  version: ApiCatalogRegistryVersion;
+  entries: readonly VersionedProviderRegistryEntry[];
+  entriesByProviderTier: Readonly<Record<string, VersionedProviderRegistryEntry>>;
+  entriesById: Readonly<Record<string, VersionedProviderRegistryEntry>>;
 }
 
 function deepFreeze<T>(value: T): T {
@@ -197,6 +212,7 @@ function standardPrice(model: ProviderModelPrice): StandardTextPriceClaimValue {
 function claim<I extends RegistryClaimId>(
   provider: ProviderCatalog,
   model: ProviderModelPrice,
+  catalogVersion: ApiCatalogRegistryVersion,
   claimId: I,
   fieldPath: EvidenceFieldPath,
   value: RegistryClaimValueById[I],
@@ -204,7 +220,7 @@ function claim<I extends RegistryClaimId>(
 ): ProviderRegistryClaim<I> {
   return deepFreeze({
     catalogId: API_CATALOG_REGISTRY_ID,
-    catalogVersion: API_CATALOG_REGISTRY_VERSION,
+    catalogVersion,
     entryId: model.catalogId,
     claimId,
     subject: {
@@ -221,11 +237,13 @@ function claim<I extends RegistryClaimId>(
 function createEntry(
   provider: ProviderCatalog,
   tier: ModelTier,
+  catalogVersion: ApiCatalogRegistryVersion,
 ): VersionedProviderRegistryEntry {
   const model = cloneModel(provider.models[tier]);
   const identity = claim(
     provider,
     model,
+    catalogVersion,
     "model-identity",
     "model.identity",
     {
@@ -239,6 +257,7 @@ function createEntry(
   const limits = claim(
     provider,
     model,
+    catalogVersion,
     "invocation-limits",
     "model.invocation-limits",
     invocationLimits(model),
@@ -247,6 +266,7 @@ function createEntry(
   const pricing = claim(
     provider,
     model,
+    catalogVersion,
     "standard-text-pricing",
     "api.standard-text-pricing",
     standardPrice(model),
@@ -274,28 +294,82 @@ function registryEntryKey(providerId: ProviderId, tier: ModelTier): string {
   return `${providerId}:${tier}`;
 }
 
-const entries = PROVIDER_IDS.flatMap((providerId) =>
-  MODEL_TIERS.map((tier) => createEntry(PROVIDER_CATALOG[providerId], tier)),
+function assertUniqueRegistryEntries(
+  entries: readonly VersionedProviderRegistryEntry[],
+): void {
+  const providerTiers = new Set<string>();
+  const entryIds = new Set<string>();
+  entries.forEach((entry) => {
+    const providerTier = registryEntryKey(entry.providerId, entry.legacyTier);
+    if (providerTiers.has(providerTier)) {
+      throw new Error("Provider registry contains a duplicate provider/tier entry.");
+    }
+    providerTiers.add(providerTier);
+    if (entryIds.has(entry.legacyModel.catalogId)) {
+      throw new Error("Provider registry contains a duplicate entry ID.");
+    }
+    entryIds.add(entry.legacyModel.catalogId);
+
+    const claimIds = new Set<string>();
+    Object.entries(entry.claims).forEach(([claimId, registryClaim]) => {
+      if (claimIds.has(claimId) || registryClaim.claimId !== claimId) {
+        throw new Error("Provider registry contains a duplicate or mismatched claim ID.");
+      }
+      claimIds.add(claimId);
+    });
+  });
+}
+
+function createRegistry(
+  version: ApiCatalogRegistryVersion,
+): VersionedProviderRegistry {
+  const snapshot = PROVIDER_CATALOG_SNAPSHOTS[version];
+  const entries = PROVIDER_IDS.flatMap((providerId) =>
+    MODEL_TIERS.map((tier) => createEntry(snapshot[providerId], tier, version)),
+  );
+  assertUniqueRegistryEntries(entries);
+  return deepFreeze({
+    id: API_CATALOG_REGISTRY_ID,
+    version,
+    entries,
+    entriesByProviderTier: Object.fromEntries(
+      entries.map((entry) => [registryEntryKey(entry.providerId, entry.legacyTier), entry]),
+    ) as Record<string, VersionedProviderRegistryEntry>,
+    entriesById: Object.fromEntries(
+      entries.map((entry) => [entry.legacyModel.catalogId, entry]),
+    ) as Record<string, VersionedProviderRegistryEntry>,
+  });
+}
+
+const registriesByVersion: Readonly<
+  Record<ApiCatalogRegistryVersion, VersionedProviderRegistry>
+> = deepFreeze(
+  Object.fromEntries(
+    API_CATALOG_REGISTRY_VERSIONS.map((version) => [version, createRegistry(version)]),
+  ) as Record<ApiCatalogRegistryVersion, VersionedProviderRegistry>,
 );
 
-export const VERSIONED_PROVIDER_REGISTRY = deepFreeze({
-  id: API_CATALOG_REGISTRY_ID,
-  version: API_CATALOG_REGISTRY_VERSION,
-  entries,
-  entriesByProviderTier: Object.fromEntries(
-    entries.map((entry) => [registryEntryKey(entry.providerId, entry.legacyTier), entry]),
-  ) as Record<string, VersionedProviderRegistryEntry>,
-  entriesById: Object.fromEntries(entries.map((entry) => [entry.legacyModel.catalogId, entry])) as Record<
-    string,
-    VersionedProviderRegistryEntry
-  >,
-});
+export const VERSIONED_PROVIDER_REGISTRY =
+  registriesByVersion[API_CATALOG_REGISTRY_VERSION];
+
+export function getProviderRegistry(
+  catalogId: string,
+  catalogVersion: string,
+): VersionedProviderRegistry | undefined {
+  if (catalogId !== API_CATALOG_REGISTRY_ID) return undefined;
+  return Object.hasOwn(registriesByVersion, catalogVersion)
+    ? registriesByVersion[catalogVersion as ApiCatalogRegistryVersion]
+    : undefined;
+}
 
 export function getProviderRegistryEntry(
   providerId: ProviderId,
   tier: ModelTier,
+  catalogVersion: ApiCatalogRegistryVersion,
 ): VersionedProviderRegistryEntry {
-  const entry = VERSIONED_PROVIDER_REGISTRY.entriesByProviderTier[
+  const registry = getProviderRegistry(API_CATALOG_REGISTRY_ID, catalogVersion);
+  if (!registry) throw new Error("Provider registry version is missing.");
+  const entry = registry.entriesByProviderTier[
     registryEntryKey(providerId, tier)
   ];
   if (!entry) throw new Error("Provider registry entry is missing.");
@@ -303,9 +377,13 @@ export function getProviderRegistryEntry(
 }
 
 export function getProviderRegistryEntryById(
+  catalogId: string,
+  catalogVersion: string,
   entryId: string,
 ): VersionedProviderRegistryEntry | undefined {
-  return Object.hasOwn(VERSIONED_PROVIDER_REGISTRY.entriesById, entryId)
-    ? VERSIONED_PROVIDER_REGISTRY.entriesById[entryId]
+  const registry = getProviderRegistry(catalogId, catalogVersion);
+  if (!registry) return undefined;
+  return Object.hasOwn(registry.entriesById, entryId)
+    ? registry.entriesById[entryId]
     : undefined;
 }

@@ -148,11 +148,13 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [x] Separate untrusted stored evidence inputs from resolver-only provider/connector evidence types
 - [x] Resolve exact immutable catalog IDs, versions, entries, claims, subjects, and field paths from an allowlist
 - [x] Keep preset and connector references conditional until their versioned allowlists/resolvers exist
-- [x] Preserve the immutable current registry version and reject missing or mismatched versions without trusting URLs
+- [x] Preserve immutable v1 and v2 registry snapshots behind exact catalog/version lookup
+- [x] Pin the v1 canonical manifest digest and test v1/v2 simultaneous restore without silent upgrade
 - [x] Add stable access-provider identity and one structured provider/Offering/resource route identity
 - [x] Assign Custom providers to the exact `custom.` namespace and reject registered-ID impersonation
 - [x] Reject duplicate route tuples and resource-to-Offering/provider reference mismatches
 - [x] Adapt the current 3×3 provider catalog without deleting or changing its public meaning
+- [x] Restrict legacy projection to canonical provider/tier lookup; never project caller-supplied resolved values
 - [x] Keep the planner-authored quality-tier heuristic outside provider-published identity claims
 - [x] Preserve current provider-plan outputs with API-offering parity tests
 - [x] Keep the closed current API `ProviderId` separate from extensible `AccessProviderId`
@@ -160,6 +162,7 @@ conflicts are explicit, the full regression suite still passes, and no runtime c
 - [x] Test same-as-model versus unknown, tighter limit/capability intersections, and partial/user-observed conditional results
 - [x] Test forged official kinds/URLs, Custom metadata, unknown registry versions, claim mismatches, and user override non-escalation
 - [x] Test model-opaque provider ordering and API `resourceId: null` canonical route keys
+- [x] Keep the documented and runtime conditional reason-code arrays identical and ordered
 
 Checkpoint 2 is intentionally passive: the adapter does not replace the current allocator, UI,
 LocalStorage, or exports. Current catalog capabilities remain `unknown` until a versioned official

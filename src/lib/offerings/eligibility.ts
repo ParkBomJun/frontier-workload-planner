@@ -26,6 +26,7 @@ import {
   type OfferingIneligibleReasonCode,
   type OfferingScenarioFailure,
   type PlanningQualityTier,
+  type ResolvedRegistryReference,
   type SourcedCapabilityProfile,
   type SourcedInvocationLimits,
 } from "@/types/offerings";
@@ -110,15 +111,25 @@ export function intersectInvocationLimits(
 
 function supportsClaim<I extends RegistryClaimId>(
   evidence: EvidenceRef | undefined,
+  registryReference: ResolvedRegistryReference | undefined,
   claimId: I,
   providerId: string,
   subjectId: string,
   fieldPath: EvidenceFieldPath,
   assertedValue: RegistryClaimValueById[I],
 ): boolean {
+  if (!registryReference) return false;
   return isResolverIssuedEvidenceForClaim(
     evidence,
-    { claimId, providerId, subjectId, fieldPath },
+    {
+      catalogId: registryReference.registryId,
+      catalogVersion: registryReference.registryVersion,
+      entryId: registryReference.entryId,
+      claimId,
+      providerId,
+      subjectId,
+      fieldPath,
+    },
     assertedValue,
   );
 }
@@ -135,6 +146,7 @@ function modelIdentityValue(model: ModelDefinition): ModelIdentityClaimValue {
 function modelIdentityTrusted(model: ModelDefinition): boolean {
   return supportsClaim(
     model.evidence,
+    model.registryReference,
     "model-identity",
     model.modelProviderId,
     model.id,
@@ -158,6 +170,7 @@ function modelBoundOfferingIdentityTrusted(offering: ModelBoundOffering): boolea
   const api = offering.mode === "api";
   return supportsClaim(
     offering.evidence,
+    offering.registryReference,
     api ? "api-offering-identity" : "subscription-offering-identity",
     offering.providerId,
     offering.id,
@@ -175,6 +188,7 @@ function modelLimitKnowledge(
   }
   const trusted = supportsClaim(
     profile.evidence,
+    model.registryReference,
     "invocation-limits",
     model.modelProviderId,
     model.id,
@@ -210,6 +224,7 @@ function accessLimitKnowledge(
     if (
       !supportsClaim(
         policy.evidence,
+        offering.registryReference,
         claimId,
         offering.providerId,
         offering.id,
@@ -241,6 +256,7 @@ function accessLimitKnowledge(
     offering.mode === "api" ? "api.access-limits" : "subscription.access-limits";
   const trusted = supportsClaim(
     profile.evidence,
+    offering.registryReference,
     claimId,
     offering.providerId,
     offering.id,
@@ -272,6 +288,7 @@ function modelCapabilityKnowledge(
   }
   const trusted = supportsClaim(
     profile.evidence,
+    model.registryReference,
     "model-capabilities",
     model.modelProviderId,
     model.id,
@@ -310,6 +327,7 @@ function accessCapabilityKnowledge(
     if (
       !supportsClaim(
         policy.evidence,
+        offering.registryReference,
         claimId,
         offering.providerId,
         offering.id,
@@ -342,6 +360,7 @@ function accessCapabilityKnowledge(
       : "subscription.access-capabilities";
   const trusted = supportsClaim(
     profile.evidence,
+    offering.registryReference,
     claimId,
     offering.providerId,
     offering.id,
@@ -454,6 +473,7 @@ function opaqueProfileEvidenceTrusted(
     value !== undefined &&
     supportsClaim(
       evidence,
+      offering.registryReference,
       "subscription-eligibility-profile",
       offering.providerId,
       offering.id,
@@ -523,7 +543,11 @@ function resolveModelBoundEligibility(
   const identityTrusted = modelIdentityTrusted(model);
   const qualityTierTrusted =
     identityTrusted &&
-    isResolverIssuedPlannerQualityTier(model.evidence, model.qualityTier);
+    isResolverIssuedPlannerQualityTier(
+      model.evidence,
+      model.registryReference,
+      model.qualityTier,
+    );
   if (!identityTrusted || !qualityTierTrusted) {
     conditionalReasons.push("evidence-authority-invalid");
   }

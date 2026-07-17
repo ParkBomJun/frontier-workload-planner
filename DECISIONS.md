@@ -515,3 +515,20 @@ Use the locale-independent tuple `(providerId, offeringId, resourceId)` everywhe
 layer. API resources are always `null`; subscription resources use stable non-empty IDs. Compare
 tuple elements directly, reject duplicates and mismatched references, and use only registered IDs
 or the planner-owned `custom.<stable-id>` provider namespace.
+
+### Preserve registry history and narrow projection authority
+
+Published registry versions are immutable data, not aliases over the mutable live catalog. Keep v1
+and v2 as separate recursively frozen object graphs behind exact catalog/version lookup, record the
+v1 canonical manifest digest, and reject unknown versions without selecting the current version.
+Evidence checks include catalog ID, version, and entry as well as claim, subject, field, and value.
+The current adapter explicitly uses v2; historical evidence continues to resolve against v1.
+
+Legacy projection is not an evidence-validation API. Accept only the closed current provider/tier
+reference, resolve the canonical entry internally, and return a fresh deep projection. Never accept
+a caller-supplied `ResolvedApiCatalogEntry`, because a shallow clone could retain valid evidence
+while replacing its model, price, or limits.
+
+Keep the closed conditional-reason list in SPEC and `CONDITIONAL_REASON_CODES` identical and in the
+same order. A contract test reads the documented union so future parser/export work cannot drift
+from runtime values.

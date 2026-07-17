@@ -17,11 +17,17 @@ import {
 } from "@/lib/offerings/evidence-resolver";
 describe("stored evidence authority", () => {
   it("resolves only the exact immutable registry claim", () => {
-    const reference = catalogReferenceFor("openai", "economy", "invocation-limits");
+    const reference = catalogReferenceFor(
+      "openai",
+      "economy",
+      "invocation-limits",
+      API_CATALOG_REGISTRY_VERSION,
+    );
     const expectation = catalogClaimExpectation(
       "openai",
       "economy",
       "invocation-limits",
+      API_CATALOG_REGISTRY_VERSION,
     );
     const first = resolveStoredEvidence(reference, expectation);
     const second = resolveStoredEvidence(reference, expectation);
@@ -54,6 +60,7 @@ describe("stored evidence authority", () => {
       "openai",
       "economy",
       "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
     );
     const forged = {
       kind: "provider-published",
@@ -62,7 +69,12 @@ describe("stored evidence authority", () => {
       verifiedAt: "2026-07-17",
     };
     const extraField = {
-      ...catalogReferenceFor("openai", "economy", "model-identity"),
+      ...catalogReferenceFor(
+        "openai",
+        "economy",
+        "model-identity",
+        API_CATALOG_REGISTRY_VERSION,
+      ),
       sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
     };
 
@@ -79,11 +91,17 @@ describe("stored evidence authority", () => {
   });
 
   it("keeps catalog ID, version, entry, and claim mismatches distinct", () => {
-    const reference = catalogReferenceFor("openai", "economy", "model-identity");
+    const reference = catalogReferenceFor(
+      "openai",
+      "economy",
+      "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
+    );
     const expectation = catalogClaimExpectation(
       "openai",
       "economy",
       "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
     );
 
     expect(
@@ -101,7 +119,12 @@ describe("stored evidence authority", () => {
     expect(
       resolveStoredEvidence(
         reference,
-        catalogClaimExpectation("openai", "balanced", "model-identity"),
+        catalogClaimExpectation(
+          "openai",
+          "balanced",
+          "model-identity",
+          API_CATALOG_REGISTRY_VERSION,
+        ),
       ),
     ).toMatchObject({ status: "conditional", reasonCode: "catalog-claim-mismatch" });
   });
@@ -111,26 +134,55 @@ describe("stored evidence authority", () => {
       "openai",
       "economy",
       "invocation-limits",
+      API_CATALOG_REGISTRY_VERSION,
     );
     const limits = resolveStoredEvidence(
-      catalogReferenceFor("openai", "economy", "invocation-limits"),
+      catalogReferenceFor(
+        "openai",
+        "economy",
+        "invocation-limits",
+        API_CATALOG_REGISTRY_VERSION,
+      ),
       limitsExpectation,
     );
     const identity = resolveStoredEvidence(
-      catalogReferenceFor("openai", "economy", "model-identity"),
-      catalogClaimExpectation("openai", "economy", "model-identity"),
+      catalogReferenceFor(
+        "openai",
+        "economy",
+        "model-identity",
+        API_CATALOG_REGISTRY_VERSION,
+      ),
+      catalogClaimExpectation(
+        "openai",
+        "economy",
+        "model-identity",
+        API_CATALOG_REGISTRY_VERSION,
+      ),
     );
     expect(limits.status).toBe("resolved");
     expect(identity.status).toBe("resolved");
     if (limits.status !== "resolved" || identity.status !== "resolved") return;
 
     expect(identity.value).not.toHaveProperty("planningQualityTier");
-    expect(isResolverIssuedPlannerQualityTier(identity.evidence, "economy")).toBe(
-      true,
-    );
-    expect(isResolverIssuedPlannerQualityTier(identity.evidence, "premium")).toBe(
-      false,
-    );
+    const identityRegistryReference = {
+      registryId: identity.evidence.registryId,
+      registryVersion: identity.evidence.registryVersion,
+      entryId: identity.evidence.entryId,
+    };
+    expect(
+      isResolverIssuedPlannerQualityTier(
+        identity.evidence,
+        identityRegistryReference,
+        "economy",
+      ),
+    ).toBe(true);
+    expect(
+      isResolverIssuedPlannerQualityTier(
+        identity.evidence,
+        identityRegistryReference,
+        "premium",
+      ),
+    ).toBe(false);
 
     expect(
       isResolverIssuedEvidenceForClaim(
@@ -163,11 +215,17 @@ describe("stored evidence authority", () => {
   });
 
   it("treats inherited-property entry and claim names as unresolved data", () => {
-    const reference = catalogReferenceFor("openai", "economy", "model-identity");
+    const reference = catalogReferenceFor(
+      "openai",
+      "economy",
+      "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
+    );
     const expectation = catalogClaimExpectation(
       "openai",
       "economy",
       "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
     );
     for (const specialKey of ["__proto__", "constructor", "toString"]) {
       expect(
@@ -196,6 +254,7 @@ describe("stored evidence authority", () => {
       "openai",
       "economy",
       "model-identity",
+      API_CATALOG_REGISTRY_VERSION,
     );
     const observed = {
       kind: "user-observed" as const,
@@ -232,11 +291,17 @@ describe("stored evidence authority", () => {
   });
 
   it("does not restore authority from an exported resolved evidence snapshot", () => {
-    const reference = catalogReferenceFor("google", "balanced", "standard-text-pricing");
+    const reference = catalogReferenceFor(
+      "google",
+      "balanced",
+      "standard-text-pricing",
+      API_CATALOG_REGISTRY_VERSION,
+    );
     const expectation = catalogClaimExpectation(
       "google",
       "balanced",
       "standard-text-pricing",
+      API_CATALOG_REGISTRY_VERSION,
     );
     const resolved = resolveStoredEvidence(reference, expectation);
     expect(resolved.status).toBe("resolved");
