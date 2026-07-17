@@ -23,6 +23,7 @@ import {
 import { deriveAppliedUpgradeTriggers } from "@/lib/planning/workload-requirements";
 import {
   compareRouteIdentities,
+  normalizeConditionalReasonCodes,
   routeIdentityToCanonicalKey,
   sortConditionalAlternatives,
 } from "@/lib/offerings/route-identity";
@@ -120,7 +121,7 @@ function copyConditionalAlternatives(
     routeIdentity: {
       ...alternative.routeIdentity,
     },
-    reasonCodes: [...alternative.reasonCodes] as [
+    reasonCodes: [...normalizeConditionalReasonCodes(alternative.reasonCodes)] as [
       (typeof alternative.reasonCodes)[number],
       ...(typeof alternative.reasonCodes)[number][],
     ],
@@ -494,10 +495,7 @@ function taskPolicy(
       route.resource.ownership === "owned" ||
       activatedCandidateResources.has(routeKey(route.routeIdentity)),
   );
-  let triggers = deriveAppliedUpgradeTriggers(normalized.task, normalized.analysis);
-  if (normalized.analysis.requiredQualityTier === "premium") {
-    triggers = withOrderedTrigger(triggers, "minimum-quality-requires-premium");
-  }
+  const triggers = deriveAppliedUpgradeTriggers(normalized.task, normalized.analysis);
   const hasHeadroomTrigger = triggers.some(
     (trigger) => trigger !== "minimum-quality-requires-premium",
   );
@@ -559,6 +557,8 @@ function resultWhyEnough(
   }
   if (
     strategy === "quality-first" &&
+    tierRank(selected.qualityTier) >
+      tierRank(normalized.analysis.requiredQualityTier) &&
     tierRank(policy.strategyTargetTier) > tierRank(normalized.analysis.requiredQualityTier)
   ) {
     return "quality-headroom-triggered";
@@ -635,20 +635,23 @@ function buildPlan(
     );
     const alternatives = copyConditionalAlternatives(normalized.conditionalAlternatives);
     const forbidden = forbiddenRoutes.get(normalized.task.id) ?? new Set<string>();
-    const allEvaluated = basePolicy.routes
-      .filter((route) => !forbidden.has(routeKey(route.routeIdentity)))
+    const allFeasible = basePolicy.routes
       .map((route) => evaluateRoute(route, ledgers))
       .filter((route): route is EvaluatedRoute => route !== null);
-    const feasibleSubPremium = allEvaluated.some(
+    const feasibleSubPremium = allFeasible.some(
       ({ qualityTier }) => qualityTier !== "premium",
     );
-    const feasiblePremium = allEvaluated.some(
+    const feasiblePremium = allFeasible.some(
       ({ qualityTier }) => qualityTier === "premium",
     );
+    const compatibilityFallbackRequired =
+      normalized.analysis.requiredQualityTier !== "premium" &&
+      !feasibleSubPremium &&
+      feasiblePremium;
     const policy: TaskPolicy = {
       ...basePolicy,
       appliedUpgradeTriggers:
-        !feasibleSubPremium && feasiblePremium
+        compatibilityFallbackRequired
           ? withOrderedTrigger(
               basePolicy.appliedUpgradeTriggers,
               "minimum-quality-requires-premium",
@@ -669,9 +672,13 @@ function buildPlan(
       continue;
     }
 
-    const premiumAllowed = policy.appliedUpgradeTriggers.length > 0;
-    const evaluated = allEvaluated.filter(
-      (route) => route.qualityTier !== "premium" || premiumAllowed,
+    const premiumAllowed =
+      normalized.analysis.requiredQualityTier === "premium" ||
+      policy.appliedUpgradeTriggers.length > 0;
+    const evaluated = allFeasible.filter(
+      (route) =>
+        !forbidden.has(routeKey(route.routeIdentity)) &&
+        (route.qualityTier !== "premium" || premiumAllowed),
     );
     const sorted = sortBestFitRoutes(
       evaluated,
@@ -798,11 +805,15 @@ function buildPlan(
       if (!(error instanceof BestFitCashRangeError)) throw error;
     }
   }
-  const activeSubscriptions = orderedResults
+  const activatedCandidateSubscriptions = orderedResults
     .flatMap((result) =>
       result.status === "active" && result.routeIdentity.resourceId !== null
         ? [result.routeIdentity]
         : [],
+    )
+    .filter(
+      (route) =>
+        resources.get(routeKey(route))?.ownership === "candidate-new",
     )
     .filter(
       (route, index, all) =>
@@ -858,7 +869,7 @@ function buildPlan(
     tasks: orderedResults,
     reservationOrderTaskIds,
     reliefOrderTaskIds,
-    activatedSubscriptionRoutes: activeSubscriptions,
+    activatedSubscriptionRoutes: activatedCandidateSubscriptions,
     cash: {
       lowMicroUsd: totalCash.low,
       expectedMicroUsd: totalCash.expected,
@@ -975,30 +986,43 @@ function buildBudgetAwarePlan(
       })),
     );
     for (const { normalized } of reliefTasks) {
-      const result = current.output.tasks.find(
-        ({ taskId }) => taskId === normalized.task.id,
-      );
-      if (!result || result.status !== "active") continue;
       const candidateForbidden = cloneForbidden(forbidden);
       const routes = candidateForbidden.get(normalized.task.id) ?? new Set<string>();
-      routes.add(routeKey(result.routeIdentity));
       candidateForbidden.set(normalized.task.id, routes);
-      const candidate = buildPlan(
-        input,
-        activatedCandidateResources,
-        held,
-        candidateForbidden,
-      );
-      if (
-        statusVectorEqual(candidate, current) &&
-        candidate.exactCashMicroUsd.expected <
-          current.exactCashMicroUsd.expected
+
+      let trial = current;
+      for (
+        let routeAttempt = 0;
+        routeAttempt < normalized.confirmedRoutes.length;
+        routeAttempt += 1
       ) {
-        current = candidate;
-        forbidden = candidateForbidden;
-        reassigned = true;
-        break;
+        const trialResult = trial.output.tasks.find(
+          ({ taskId }) => taskId === normalized.task.id,
+        );
+        if (!trialResult || trialResult.status !== "active") break;
+        const selectedRouteKey = routeKey(trialResult.routeIdentity);
+        if (routes.has(selectedRouteKey)) break;
+        routes.add(selectedRouteKey);
+
+        const candidate = buildPlan(
+          input,
+          activatedCandidateResources,
+          held,
+          candidateForbidden,
+        );
+        if (
+          statusVectorEqual(candidate, current) &&
+          candidate.exactCashMicroUsd.expected <
+            current.exactCashMicroUsd.expected
+        ) {
+          current = candidate;
+          forbidden = candidateForbidden;
+          reassigned = true;
+          break;
+        }
+        trial = candidate;
       }
+      if (reassigned) break;
     }
     if (reassigned) continue;
 

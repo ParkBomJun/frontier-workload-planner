@@ -559,6 +559,51 @@ describe("Best-fit complete allocation", () => {
     });
   });
 
+  it("does not treat an owned paid-overage route as a new subscription activation", () => {
+    const ownedIdentity = subscriptionIdentity(
+      "subscription.openai.z-owned",
+      "resource.openai.z-owned-0001",
+    );
+    const owned = subscriptionRoute(
+      subscriptionResource(ownedIdentity, {
+        availableMicrounits: 0,
+        overage: {
+          rateUsdPerUnit: { coefficient: "1", decimalScale: 0 },
+          maxOverageMicrounits: null,
+        },
+      }),
+      "economy",
+    );
+    const candidateIdentity = subscriptionIdentity(
+      "subscription.openai.a-new",
+      "resource.openai.a-new-0001",
+    );
+    const candidate = subscriptionRoute(
+      subscriptionResource(candidateIdentity, {
+        ownership: "candidate-new",
+        availableMicrounits: 1_000_000,
+        fullPlanPeriodFeeMicroUsd: 1_000_000,
+      }),
+      "economy",
+    );
+
+    const plan = allocate([
+      normalizedTask("task-owned-not-activated", 0, [candidate, owned]),
+    ], { strategy: "balanced" });
+
+    expect(resultFor(plan, "task-owned-not-activated")).toMatchObject({
+      status: "active",
+      routeIdentity: ownedIdentity,
+      routeKind: "owned-paid-overage",
+    });
+    expect(plan.activatedSubscriptionRoutes).toEqual([]);
+    expect(plan.cash).toMatchObject({
+      expectedMicroUsd: 1_000_000,
+      subscriptionFeeMicroUsd: 0,
+      paidOverageMicroUsd: scenario(1_000_000),
+    });
+  });
+
   it("applies Quality First only for closed triggers, excludes untriggered Premium, and permits the minimum Premium fallback", () => {
     const economy = apiRoute("api.openai.economy", "economy", scenario(0));
     const balanced = apiRoute("api.openai.balanced", "balanced", scenario(2));
@@ -598,6 +643,72 @@ describe("Best-fit complete allocation", () => {
       qualityTier: "premium",
       appliedUpgradeTriggers: ["minimum-quality-requires-premium"],
       whyEnough: "minimum-quality-requires-premium",
+    });
+  });
+
+  it("keeps a Premium hard floor separate from the compatibility fallback trigger", () => {
+    const premium = apiRoute(
+      "api.openai.premium-hard-floor",
+      "premium",
+      scenario(3),
+    );
+
+    for (const strategy of [
+      "cost-saver",
+      "balanced",
+      "quality-first",
+    ] as const) {
+      const plan = allocate([
+        normalizedTask(`task-premium-floor-${strategy}`, 0, [premium], {
+          analysis: { requiredQualityTier: "premium" },
+        }),
+      ], { strategy });
+      expect(resultFor(plan, `task-premium-floor-${strategy}`)).toMatchObject({
+        status: "active",
+        routeIdentity: premium.routeIdentity,
+        appliedUpgradeTriggers: [],
+        whyEnough: "minimum-quality-met",
+      });
+    }
+
+    const belowFloor = allocate([
+      normalizedTask(
+        "task-premium-floor-unavailable",
+        0,
+        [apiRoute("api.openai.balanced-only", "balanced", scenario(1))],
+        { analysis: { requiredQualityTier: "premium" } },
+      ),
+    ]);
+    expect(resultFor(belowFloor, "task-premium-floor-unavailable")).toMatchObject({
+      status: "infeasible",
+      appliedUpgradeTriggers: [],
+    });
+  });
+
+  it("does not invent a Premium fallback trigger from a relief-only route ban", () => {
+    const economy = apiRoute(
+      "api.openai.relief-untriggered-economy",
+      "economy",
+      scenario(10),
+    );
+    const premium = apiRoute(
+      "api.openai.relief-untriggered-premium",
+      "premium",
+      scenario(1),
+    );
+
+    const plan = allocate([
+      normalizedTask("task-relief-untriggered-premium", 0, [premium, economy]),
+    ], { incrementalCashBudgetMicroUsd: 5 });
+
+    expect(resultFor(plan, "task-relief-untriggered-premium")).toMatchObject({
+      status: "held",
+      appliedUpgradeTriggers: [],
+    });
+    expect(plan).toMatchObject({
+      activeTaskCount: 0,
+      heldTaskCount: 1,
+      cash: { expectedMicroUsd: 0 },
     });
   });
 
@@ -808,6 +919,50 @@ describe("Best-fit complete allocation", () => {
     expect(held.cash.expectedMicroUsd).toBe(4_000_000);
   });
 
+  it("checks every compatible route before holding when an intermediate alternative costs more", () => {
+    const balanced = apiRoute(
+      "api.openai.relief-balanced-10",
+      "balanced",
+      scenario(10),
+    );
+    const premium = apiRoute(
+      "api.openai.relief-premium-12",
+      "premium",
+      scenario(12),
+    );
+    const economy = apiRoute(
+      "api.openai.relief-economy-5",
+      "economy",
+      scenario(5),
+    );
+    const routes = [balanced, premium, economy] as const;
+    const task = (confirmedRoutes: readonly BestFitConfirmedRouteCandidate[]) =>
+      normalizedTask("task-progressive-relief", 0, confirmedRoutes, {
+        analysis: { upgradeConditions: ["deep-reasoning"] },
+      });
+    const options = {
+      strategy: "quality-first" as const,
+      incrementalCashBudgetMicroUsd: 6,
+    };
+
+    const plan = allocate([task(routes)], options);
+    const permuted = allocate([task([...routes].reverse())], options);
+
+    expect(permuted).toEqual(plan);
+    expect(resultFor(plan, "task-progressive-relief")).toMatchObject({
+      status: "active",
+      routeIdentity: economy.routeIdentity,
+      qualityTier: "economy",
+      appliedUpgradeTriggers: ["deep-reasoning"],
+      whyEnough: "minimum-quality-met",
+    });
+    expect(plan).toMatchObject({
+      expectedWithinBudget: true,
+      heldTaskCount: 0,
+      cash: { expectedMicroUsd: 5 },
+    });
+  });
+
   it("rebuilds surviving work from its preferred routes after a lower-priority hold", () => {
     const lowOnly = apiRoute(
       "api.openai.low-only",
@@ -888,6 +1043,30 @@ describe("Best-fit complete allocation", () => {
       routeIdentity: null,
       conditionalAlternatives: [conditional],
     });
+
+    const unorderedReasons: ConditionalAlternative = {
+      ...conditional,
+      reasonCodes: ["quota-opaque", "profile-unverified", "quota-opaque"],
+    };
+    const canonicalReasons: ConditionalAlternative = {
+      ...conditional,
+      reasonCodes: ["profile-unverified", "quota-opaque"],
+    };
+    const unorderedPlan = allocate([
+      normalizedTask("task-conditional-reasons", 0, [fallback], {
+        conditionalAlternatives: [unorderedReasons],
+      }),
+    ]);
+    const canonicalPlan = allocate([
+      normalizedTask("task-conditional-reasons", 0, [fallback], {
+        conditionalAlternatives: [canonicalReasons],
+      }),
+    ]);
+    expect(unorderedPlan).toEqual(canonicalPlan);
+    expect(
+      resultFor(unorderedPlan, "task-conditional-reasons")
+        .conditionalAlternatives[0]?.reasonCodes,
+    ).toEqual(["profile-unverified", "quota-opaque"]);
   });
 
   it("is deterministic across task and confirmed-route enumeration order", () => {
