@@ -91,7 +91,7 @@ GPT rationale, and locale-neutral JSON values remain unchanged.
 
 ## Project links
 
-- Stable live demo: <https://frontier-workload-planner.vercel.app>
+- Current public demo (pre-Ver3 build): <https://frontier-workload-planner.vercel.app>
 - Source code: <https://github.com/ParkBomJun/frontier-workload-planner>
 
 ## Release and demo note
@@ -101,6 +101,7 @@ OpenAI API key. A previous API-only contract validation completed through the se
 `gpt-5.6` alias, but the Ver3 `best-fit-analysis-v2` contract still requires its own release
 revalidation.
 
-The public URL currently points to stable `main`. Ver3 and its LocalStorage v6 / Best-fit JSON v5
-contracts are feature-branch work and must not be described as merged or deployed until release
-verification, review, merge, and redeployment are complete.
+The Ver3 source and its LocalStorage v6 / Best-fit JSON v5 contracts are now merged into `main`.
+The public URL still serves the pre-Ver3 stable deployment. Ver3 must not be described as available
+on the public demo until release revalidation, explicit redeployment, and production verification
+are complete.

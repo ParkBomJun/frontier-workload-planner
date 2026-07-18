@@ -37,12 +37,12 @@ an objective order between vendors.
 | `balanced` | GPT-5.6 Terra | Claude Sonnet 5 | Gemini 3 Flash |
 | `frontier` | GPT-5.6 Sol | Claude Fable 5 | Gemini 3.1 Pro |
 
-## Feature branch target — not production yet
+## Release source on main — not deployed yet
 
-Stable `main` remains the production release at <https://frontier-workload-planner.vercel.app>.
-The following provider-comparison and workload-contract extension belongs to
-`feature/best-fit-offerings` and must not be described as deployed until it is verified, merged,
-and redeployed:
+The reviewed Ver3 source is now merged into `main`. The public URL at
+<https://frontier-workload-planner.vercel.app> still serves the pre-Ver3 stable deployment. The
+following provider-comparison and workload-contract extension must not be described as publicly
+deployed until explicit redeployment and production verification:
 
 1. One to eight task names, descriptions, user priorities, optional date-only deadlines, and bounded failure impacts in a single-page UI.
 2. Budget, reference deadline, and planning-strategy controls.
@@ -151,7 +151,7 @@ Catalog sources:
 Every comparison uses **standard uncached text** prices. The engine intentionally excludes cache
 writes, cache reads or discounts, Batch/Flex/Priority processing, tool and grounding fees, and
 long-context surcharges. In particular, Gemini 3.1 Pro prompts above 200K have an official
-$4 / $18 input/output tier, but this branch does not apply it. The UI and exports must expose this
+$4 / $18 input/output tier, but this planner does not apply it. The UI and exports must expose this
 exclusion and must not present the result as an invoice estimate for excluded workloads.
 
 ### Token bands per iteration
@@ -382,9 +382,10 @@ Unsupported, unsafe, or severely underspecified tasks may be refused or classifi
 This section defines the staged Ver3 product contract. Checkpoints 2 through 7 provide the passive
 adapters, versioned workload boundary, generalized API calculation, subscription resource engine,
 deterministic Best-fit core, localized source editors, route results, and the monotonic restore
-clock on this feature branch. Checkpoint 7 is the accepted UI/clock baseline. Checkpoint 8 replaces
-its temporary session-only boundary with source-only LocalStorage v6, frozen v1–v5 migration,
-restore-time re-resolution, and separate Best-fit JSON v5/Markdown projections. The reviewed
+clock while this work was developed on `feature/best-fit-offerings`. Checkpoint 7 is the accepted
+UI/clock baseline. Checkpoint 8 replaces its temporary session-only boundary with source-only
+LocalStorage v6, frozen v1–v5 migration, restore-time re-resolution, and separate Best-fit JSON
+v5/Markdown projections. The approved Checkpoint 8 source is now merged into `main`. The reviewed
 API-only provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route

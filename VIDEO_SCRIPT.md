@@ -2,8 +2,8 @@
 
 Target length: 3–4 minutes
 
-Recording status: feature-branch demo. Do not describe Ver3 as merged or deployed. The public URL
-still serves stable `main`, and unauthenticated Live analysis remains disabled.
+Recording status: merged-source, pre-deployment demo. Ver3 is merged into `main`, but the public URL
+still serves the pre-Ver3 stable deployment. Unauthenticated Live analysis remains disabled.
 
 ## Recording truthfulness rules
 
@@ -171,14 +171,14 @@ user descriptions longer than needed.
 
 ### 3:40–3:55 — Close
 
-**Shot:** Return to the separated cash/quota summary and feature-branch footer or README status.
+**Shot:** Return to the separated cash/quota summary and merged-source / not-deployed README status.
 
 **Narration:**
 
-> The result is an explainable planning estimate, not a quote or guarantee. Ver3 is still
-> feature-branch work; the stable public deployment has not yet been replaced by this build.
+> The result is an explainable planning estimate, not a quote or guarantee. Ver3 source is merged
+> into `main`, but the public deployment has not yet been replaced by this build.
 
-**Caption:** `Feature-branch demo · not yet the public deployment`
+**Caption:** `Merged into main · not yet the public deployment`
 
 ## Pre-recording checklist
 

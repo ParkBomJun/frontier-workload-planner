@@ -2,10 +2,9 @@
 
 여러 작업 설명을 구조화된 워크로드 등급으로 바꾸고, 고정 규칙으로 모델·가격·예산에 매핑하는 도구입니다.
 
-`main`은 공개 배포와 실제 GPT-5.6 검증을 마친 안정된 MVP입니다. 현재
-`feature/best-fit-offerings` 브랜치는 체크포인트 7에서 승인된 Best-fit 입력·결과·복원 시계
-기준 위에 체크포인트 8의 source-only LocalStorage v6와 route/resource 내보내기를 추가하며,
-아직 production에 배포된 상태가 아닙니다.
+`main`에는 체크포인트 8에서 승인된 Ver3 Best-fit 릴리스 소스가 포함되어 있습니다. 공개
+production은 아직 이 빌드로 재배포되지 않았으며, 현재 공개 URL은 병합 전 안정된 MVP를
+계속 제공합니다.
 
 - 공개 데모: <https://frontier-workload-planner.vercel.app>
 - GitHub: <https://github.com/ParkBomJun/frontier-workload-planner>
@@ -14,7 +13,7 @@
 
 이 제품은 수학적 최적화를 주장하지 않으며 **Budget-aware recommended plan**이라는 표현을 사용합니다.
 
-## 현재 feature 브랜치 기능
+## 현재 main 소스의 기능
 
 - 작업 1~8개 추가·삭제, High / Medium / Low 우선순위, 선택 날짜 기한, 실패 영향, 샘플 3개 불러오기
 - 한국어·English·日本語 UI 선택과 별도 브라우저 언어 설정 저장
@@ -49,7 +48,7 @@ GPT-5.6은 계속 유일한 작업 분석 엔진입니다. Claude나 Gemini API�
 모델·가격에 결정론적으로 투영합니다. 따라서 tier 대응은 예산 계획용 휴리스틱일 뿐 모델의
 실제 품질, 성능, 지연시간 또는 적합성에 대한 객관적 순위가 아닙니다.
 
-현재 feature 브랜치의 `Active`·적합 상태는 표준 API 가격, v2 최소 품질 tier,
+현재 main 소스의 `Active`·적합 상태는 표준 API 가격, v2 최소 품질 tier,
 Low / Expected / High 단일 호출 한도와 입력 예산만 적용한 비용 계획입니다. 카탈로그의
 공급자 capability 정보는 아직 `unknown`이므로 `workMode`와 `requiredCapabilities` 지원은
 검증하지 않으며, `Active`는 확인된 Offering 적격성을 뜻하지 않습니다. 기존
@@ -95,7 +94,7 @@ Best-fit JSON v5/Markdown에 별도로 기록합니다. 공식 기본값·출처
 
 ### 체크포인트 5 내부 엔진 경계
 
-이 브랜치에는 구독 자원의 원본 계약과 계산 엔진이 내부 모듈로 추가되었습니다. 보유/신규
+현재 소스에는 구독 자원의 원본 계약과 계산 엔진이 내부 모듈로 추가되었습니다. 보유/신규
 구독, 요청·크레딧·관측 잔여율·불투명 한도, reset, 누적 paid overage, 기존 비용 `$0`과
 신규 plan-period fee 1회 계산을 서로 분리합니다. quota는 6자리 고정소수 microunit로
 예약하며 저장된 잔여량을 직접 변경하지 않습니다. 같은 입력과 `planningAsOf`는 같은 결과를
@@ -114,7 +113,7 @@ route/resource export에 포함합니다. 저장되었다는 사실은 권위를
 전체 Best-fit route 선택, 신규 구독 활성화 비교, incremental-cash budget의
 active/held/infeasible 판정은 체크포인트 6 엔진을 사용합니다. 현재 실제 preset과 catalog에는
 확정 subscription 경로를 만들 공식 claim이 없으므로 production 계산은 이를 조건부·제외로
-유지합니다. 공개 production URL은 여전히 기존 안정된 `main`의 API 비교 흐름입니다.
+유지합니다. 공개 production URL은 아직 병합 전 안정 배포본의 API 비교 흐름입니다.
 
 ### 체크포인트 7 UI 경계
 
@@ -242,7 +241,7 @@ API Route Handler는 `Content-Length`만 신뢰하지 않고 실제 본문 스�
 
 ## 배포
 
-공개 production <https://frontier-workload-planner.vercel.app>은 안정된 `main` 버전입니다. 이 문서의 Ver3 변경은 `feature/best-fit-offerings` 브랜치 범위이며 검증·병합·재배포 전까지 공개 URL에서 제공된다고 간주하지 않습니다. 인증이나 호출별 rate limit이 없는 현재 MVP에서 OpenAI 비용이 노출되지 않도록 Vercel에는 API 키를 등록하지 않았고 `ENABLE_LIVE_ANALYSIS=false`를 유지합니다. 공개 Mock 전체 흐름은 정상 작동하며 Live 요청은 `403 LIVE_ANALYSIS_DISABLED`로 차단됩니다.
+`main`에는 Ver3 소스가 병합되어 있지만 공개 production <https://frontier-workload-planner.vercel.app>은 아직 병합 전 안정 배포본을 제공합니다. 명시적 재배포와 production 검증 전에는 Ver3가 공개 URL에서 제공된다고 간주하지 않습니다. 인증이나 호출별 rate limit이 없는 현재 MVP에서 OpenAI 비용이 노출되지 않도록 Vercel에는 API 키를 등록하지 않았고 `ENABLE_LIVE_ANALYSIS=false`를 유지합니다. 현재 공개 Mock 전체 흐름은 정상 작동하며 Live 요청은 `403 LIVE_ANALYSIS_DISABLED`로 차단됩니다.
 
 기존 API 분석 계약은 서버 전용 키를 사용해 로컬에서 한 번 실제 검증했으며 `gpt-5.6-sol` 응답을 확인했습니다. 이번 `best-fit-analysis-v2` Structured Output은 Mock·스키마·build 검증 뒤 별도의 실제 Live 1회 재검증이 필요합니다. 공개 환경의 Live는 계속 비활성화합니다.
 

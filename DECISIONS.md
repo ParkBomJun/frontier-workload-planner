@@ -847,3 +847,23 @@ is the disclosed compatible all-Premium API counterfactual, never money received
 Align README, SPEC, DEVPOST, VIDEO_SCRIPT, and Korean/English/Japanese disclosure copy to these
 boundaries. Do not describe the feature branch as merged, publicly deployed, or verified against a
 real subscription merely because all deterministic paths and exports pass locally.
+
+## 2026-07-18 — Ver3 approved source merge and learning freeze
+
+### Separate the GitHub source merge from public deployment
+
+Checkpoint 8 was approved at `d4a6d39` with no P0/P1 findings and merged into `main`. This updates
+the GitHub source but does not by itself redeploy Vercel. Until an explicit redeployment and
+production verification complete, describe Ver3 as merged source rather than as the public
+deployment. Keep unauthenticated Live analysis disabled and do not add an OpenAI API key to the
+public environment.
+
+This supersedes only the earlier unmerged-status restriction. All fixture, evidence-authority,
+pricing, and truthfulness boundaries remain unchanged.
+
+### Freeze the source while learning
+
+Publish the reviewed merge as `ver3-checkpoint-8-stable` and use that immutable tag for code and
+architecture learning. Learning sessions do not modify the repository. If a genuine defect is
+found, pause learning, fix it on a separate branch, repeat the full review and release gates, and
+publish a new explicit baseline before resuming.
