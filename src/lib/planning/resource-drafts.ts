@@ -289,7 +289,7 @@ export function relinkAvailableAiResourceDraftPreset(
   return {
     ...draft,
     preset: { id: preset.id, version: preset.version },
-    surface: preset.suggestedSurfaces[0] ?? "",
+    surface: "",
     quota:
       draft.ownership === "candidate-new"
         ? { kind: "opaque", description: "" }

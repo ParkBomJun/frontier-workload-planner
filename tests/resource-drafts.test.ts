@@ -459,7 +459,7 @@ describe("Available AI resource draft adapter", () => {
       displayName: "My preserved account name",
       ownership: "owned",
       availability: "available",
-      surface: "ide-cli",
+      surface: "",
       feeUsd: "14.5",
       quota: { kind: "opaque", description: "" },
       reset: { kind: "rolling", windowHours: "" },
@@ -480,6 +480,23 @@ describe("Available AI resource draft adapter", () => {
     ).toEqual({
       evidenceChanged: true,
       observedAt: createAvailableAiResourceEvidenceObservedAt(changedAt),
+    });
+  });
+
+  it("requires an explicit surface selection after preset relink", () => {
+    const retired: AvailableAiResourceDraft = {
+      ...ownedMeteredDraft(),
+      preset: { id: "retired-credit-plan", version: "retired-v3" },
+    };
+    const relinked = relinkAvailableAiResourceDraftPreset(
+      retired,
+      "github-copilot-like-credits",
+    );
+
+    expect(relinked.surface).toBe("");
+    expect(adaptAvailableAiResourceDraft(relinked, CONTEXT)).toEqual({
+      success: false,
+      fieldErrors: expect.objectContaining({ surface: "required" }),
     });
   });
 
