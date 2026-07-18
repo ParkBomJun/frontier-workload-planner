@@ -70,6 +70,9 @@ export interface UiCopy {
     languageSelectorHelp: string;
     selected: string;
     select: string;
+    required: string;
+    optional: string;
+    defaultValue: string;
     active: string;
     held: string;
     none: string;
@@ -155,6 +158,7 @@ export interface UiCopy {
     deadlineHelp: string;
     failureImpactLabel: string;
     failureImpactHelp: string;
+    settingsHelp: string;
     descriptionLabel: string;
     descriptionPlaceholder: string;
     descriptionRequired: string;
@@ -178,6 +182,9 @@ export interface UiCopy {
   analysisResults: {
     eyebrow: string;
     title: string;
+    referenceEyebrow: string;
+    referenceTitle: string;
+    referenceNotice: string;
     aiAnalyzed: string;
     programCalculated: string;
     budget: string;
@@ -201,6 +208,7 @@ export interface UiCopy {
     oneDayDeadlineWarning: string;
     allScenariosWithinBudget: string;
     allocationTitle: string;
+    referenceAllocationTitle: string;
     allocationSummary: (
       active: number,
       held: number,
@@ -223,6 +231,9 @@ export interface UiCopy {
     assignedModel: string;
     assignedTier: string;
     recommendationTrail: (recommended: string, target: string) => string;
+    referenceAssignedModel: string;
+    referenceAssignedTier: string;
+    referenceTrail: (analyzed: string, target: string) => string;
     expectedInput: string;
     expectedOutput: string;
     iterations: (count: number) => string;
@@ -237,6 +248,7 @@ export interface UiCopy {
     failureRisk: string;
     risks: string;
     generatedRuleBased: (date: string) => string;
+    referenceGeneratedRuleBased: (date: string) => string;
   };
   costChart: {
     title: (provider: string) => string;
@@ -317,6 +329,9 @@ const ko: UiCopy = {
     languageSelectorHelp: "화면에 표시할 언어를 선택합니다.",
     selected: "선택됨",
     select: "선택",
+    required: "필수",
+    optional: "선택",
+    defaultValue: "기본값 있음",
     active: "실행",
     held: "보류",
     none: "없음",
@@ -327,21 +342,21 @@ const ko: UiCopy = {
   },
   page: {
     headerSubtitle: "설명 가능한 예산 중심 계획",
-    headerBadge: "Mock 우선 · 로컬 저장",
+    headerBadge: "예시로 체험 가능 · 브라우저 저장",
     heroEyebrow: "설명 · 분류 · 계산 · 배분",
     heroTitleLine1: "여러 작업을 하나의 요청으로 분석하고,",
     heroTitleLine2: "예산 안에서 모델 제품군을 비교합니다.",
     heroDescription:
       "GPT-5.6은 난이도·크기·작업 모드·최소 품질·필수 기능·실패 위험 등 범위가 제한된 작업 요구사항을 구조화합니다. 프로그램은 공개된 고정 규칙으로 호출 한도를 검증하고 토큰·비용·공급자별 예산 계획을 계산하며, GPT는 가격·공급자·최종 경로를 선택하지 않습니다.",
-    analysisModeLegend: "분석 모드",
-    mockDescription: "키와 비용 없이 fixture 사용",
-    liveDescription: "서버 키로만 실제 요청",
+    analysisModeLegend: "3단계 · 계획을 만드는 방식",
+    mockDescription: "비용 없이 예시 결과로 체험",
+    liveDescription: "입력한 작업을 GPT-5.6으로 분석",
     storageDisclosure:
-      "계획 만들기 성공 시 최신 계획 1개(작업명·설명 포함)를 이 브라우저 LocalStorage에 평문으로 자동 저장합니다. API 키는 저장하지 않습니다.",
-    submitMock: "Mock 계획 만들기",
-    submitLive: "Live 계획 만들기",
+      "계획을 만들면 작업명·설명과 완성된 계획 1개가 이 브라우저에 평문(암호화되지 않은 글)으로 자동 저장됩니다. API 키는 저장하지 않습니다.",
+    submitMock: "예시 계획 만들기",
+    submitLive: "내 작업으로 계획 만들기",
     submitting: (count) => `${count}개 작업 분석 중…`,
-    liveSafety: "Live 요청은 버튼을 누를 때만 실행되며 API 키는 브라우저로 전달되지 않습니다.",
+    liveSafety: "버튼을 눌러야 실제 분석이 시작됩니다.\nAPI 키는 브라우저로 보내지지 않습니다.",
     statusLoading: (count) => `${count}개 작업을 분석하고 있습니다.`,
     statusSuccess: (count) => `${count}개 작업 분석이 완료되었습니다.`,
     statusError: "분석 요청을 완료하지 못했습니다.",
@@ -350,17 +365,17 @@ const ko: UiCopy = {
     requestTooLarge: "요청 내용이 허용 크기를 초과했습니다.",
     invalidJson: "분석 요청 형식이 올바르지 않습니다.",
     invalidInput: "작업 입력을 확인해 주세요.",
-    liveDisabled: "Live 분석이 서버 설정에서 비활성화되어 있습니다. Mock 분석은 계속 사용할 수 있습니다.",
-    apiKeyMissing: "서버에 OpenAI API 키가 설정되지 않았습니다. Mock 분석은 계속 사용할 수 있습니다.",
-    modelRefusal: "모델이 이 작업 분석을 거부했습니다. 입력을 조정하거나 Mock 분석을 사용해 주세요.",
-    liveAnalysisFailed: "Live 분석에 실패했습니다. 잠시 후 다시 시도하거나 Mock 분석을 사용해 주세요.",
+    liveDisabled: "실제 분석이 서버 설정에서 비활성화되어 있습니다. 예시 계획은 계속 사용할 수 있습니다.",
+    apiKeyMissing: "서버에 OpenAI API 키가 설정되지 않았습니다. 예시 계획은 계속 사용할 수 있습니다.",
+    modelRefusal: "모델이 이 작업 분석을 거부했습니다. 입력을 조정하거나 예시 계획을 사용해 주세요.",
+    liveAnalysisFailed: "실제 분석에 실패했습니다. 잠시 후 다시 시도하거나 예시 계획을 사용해 주세요.",
     unknownApiError: "분석 요청을 처리하지 못했습니다.",
-    requestTimeout: "분석 시간이 초과되었습니다. Mock 분석을 사용하거나 잠시 후 다시 시도해 주세요.",
+    requestTimeout: "분석 시간이 초과되었습니다. 예시 계획을 사용하거나 잠시 후 다시 시도해 주세요.",
     networkError: "서버에 연결하지 못했습니다. 개발 서버와 네트워크 상태를 확인해 주세요.",
     storageTitle: "최근 시나리오",
     storageRestored: (date) => `${date}에 저장된 최근 계획을 복원했습니다.`,
     storageLegacyRestored: (date) =>
-      `${date}의 기존 API 계획을 복원했습니다. Best-fit 요구사항을 사용하려면 Mock 또는 Live 분석을 다시 실행하세요.`,
+      `${date}의 기존 API 계획을 복원했습니다. 새 맞춤 계획을 만들려면 예시 또는 실제 분석을 다시 실행하세요.`,
     storageMigrationRequired:
       "기존 저장 기록은 보존했지만 자동 변환하지 못했습니다. 기록을 삭제하거나 새 분석을 실행할 수 있습니다.",
     storageCorrupt: "손상된 최근 저장 기록을 무시했습니다.",
@@ -377,11 +392,11 @@ const ko: UiCopy = {
     clearRecent: "저장 기록 삭제",
     emptyEyebrow: "계획 미리보기",
     emptyTitle: "계획 결과가 여기에 표시됩니다.",
-    emptyDescription: "작업과 설정을 입력한 뒤 Mock 또는 Live 계획 만들기를 실행해 주세요.",
+    emptyDescription: "작업과 설정을 입력한 뒤 예시 계획 또는 내 작업 계획을 만들어 주세요.",
     loadingTitle: "구조화 분석과 비용 계획을 만들고 있습니다.",
     loadingDescription: (count) => `${count}개 작업을 한 번에 분류한 뒤 고정 계산 규칙을 적용합니다.`,
     errorTitle: "분석을 완료하지 못했습니다.",
-    invalidSettingsForRecalculation: "유효한 예산과 검토 기한을 입력하면 기존 분석으로 즉시 다시 계산합니다.",
+    invalidSettingsForRecalculation: "유효한 예산과 참고 기간을 입력하면 기존 분석으로 즉시 다시 계산합니다.",
     allocationPriorityNotice: (task, priority) =>
       `${task} 우선순위를 ${priority}로 바꾸고 API 재호출 없이 다시 배분했습니다.`,
     allocationSettingsNotice: (budget, strategy) =>
@@ -392,10 +407,10 @@ const ko: UiCopy = {
     footerBoundary: "최근 시나리오 1개 · GPT 판단 ≠ 결정론적 계산",
   },
   taskEditor: {
-    eyebrow: "작업 대기열",
-    title: "분석할 작업",
-    maxTasksHelp: (max) => `한 요청에서 최대 ${max}개를 함께 분석합니다.`,
-    priorityHelp: "우선순위는 GPT 판단이 아니라 프로그램의 예산 하향·보류 순서에만 사용됩니다.",
+    eyebrow: "1단계",
+    title: "하려는 작업을 적어주세요",
+    maxTasksHelp: (max) => `한 번에 최대 ${max}개까지 계획할 수 있습니다.`,
+    priorityHelp: "우선순위는 제한된 한도를 먼저 배정하고 예산 부족 시 보류할 순서를 정하는 첫 기준이며, GPT의 작업 판단과는 별개입니다.",
     loadSample: (count) => `샘플 ${count}개 불러오기`,
     taskLegend: (index) => `작업 ${index}`,
     taskLabel: (index) => `작업 ${index}`,
@@ -405,10 +420,11 @@ const ko: UiCopy = {
     namePlaceholder: "예: 고객 지원 대시보드 API 설계",
     nameRequired: "작업명을 입력해 주세요.",
     priorityLabel: "우선순위",
-    deadlineLabel: "작업 기한 (선택)",
-    deadlineHelp: "날짜만 저장하며 전역 검토 기한과 별개입니다.",
+    deadlineLabel: "작업 기한",
+    deadlineHelp: "빠른 기한을 먼저 고려하며, 분석된 실패 위험이 높으면 상위 등급 검토 조건에도 반영됩니다. 전체 계획의 참고 기간과는 별개입니다.",
     failureImpactLabel: "실패 영향",
-    failureImpactHelp: "실패했을 때의 결과를 사용자가 정합니다. GPT의 실패 가능성과는 별개입니다.",
+    failureImpactHelp: "실패했을 때의 결과를 사용자가 정합니다. 한도 배정 순서와 상위 등급 검토에 쓰이며, GPT의 실패 가능성과는 별개입니다.",
+    settingsHelp: "우선순위가 높고 기한이 빠르며 실패 영향이 큰 작업부터 제한된 한도와 예산을 배정합니다. 기한·실패 영향은 분석된 위험과 함께 상위 등급 검토 조건이 될 수 있습니다.",
     descriptionLabel: "작업 설명",
     descriptionPlaceholder: "목표, 산출물, 제약, 품질 기준을 구체적으로 적어 주세요.",
     descriptionRequired: "작업 설명을 입력해 주세요.",
@@ -417,25 +433,28 @@ const ko: UiCopy = {
     characterCounter: (current, max) => `${current} / ${max}`,
   },
   budgetSettings: {
-    eyebrow: "계획 제어",
-    title: "계획 설정",
+    eyebrow: "2단계",
+    title: "예산과 선택 기준",
     budgetLabel: "전체 예산 (USD)",
     budgetHelp: "Expected 비용을 기준으로 등급을 조정합니다.",
     budgetError: "$0.01~$10,000 사이의 예산을 입력해 주세요.",
-    deadlineLabel: "검토 기한 (일)",
+    deadlineLabel: "참고 기간 (일)",
     deadlineUnit: "일",
-    deadlineHelp: "참고용이며 비용이나 등급을 임의로 바꾸지 않습니다.",
+    deadlineHelp: "비용과 등급에는 영향을 주지 않습니다.",
     deadlineError: "1~90 사이의 정수를 입력해 주세요.",
-    strategyLegend: "배분 전략",
+    strategyLegend: "무엇을 우선할까요?",
     strategies: {
-      "cost-saver": { label: "비용 절감", description: "GPT 권장보다 한 등급 낮게 시작" },
-      balanced: { label: "균형", description: "GPT 권장 등급을 기준으로 시작" },
-      "quality-first": { label: "상위 tier 우선", description: "예산 휴리스틱으로 GPT 권장보다 한 tier 높게 시작" },
+      "cost-saver": { label: "비용 절감", description: "조건을 만족하는 저렴한 선택부터 검토합니다." },
+      balanced: { label: "균형", description: "비용과 필요한 품질을 함께 고려합니다." },
+      "quality-first": { label: "상위 등급도 검토", description: "예산 안에서 한 단계 높은 선택도 함께 검토합니다." },
     },
   },
   analysisResults: {
     eyebrow: "예산 중심 추천 계획",
     title: "비용과 모델 배분 결과",
+    referenceEyebrow: "검증 전 참고 비용",
+    referenceTitle: "API 가격과 토큰 한도 기준 결과",
+    referenceNotice: "아래 값은 API 가격과 토큰 한도만으로 만든 참고 비용입니다. 화면의 ‘실행’은 비용 계산에 포함했다는 뜻이며, 실제 이용 가능이나 확정 추천을 뜻하지 않습니다. 이 결과는 위 확정 계획의 비용·예산 판정에 포함되지 않습니다.",
     aiAnalyzed: "AI 분석",
     programCalculated: "프로그램 계산",
     budget: "예산",
@@ -458,6 +477,7 @@ const ko: UiCopy = {
     oneDayDeadlineWarning: "1일 기한은 참고 정보이며 이 MVP는 정교한 시간 예측을 제공하지 않습니다.",
     allScenariosWithinBudget: "모든 실행 작업의 Expected와 High 시나리오가 입력 예산 안에 있습니다.",
     allocationTitle: "작업별 배분",
+    referenceAllocationTitle: "작업별 참고 비용 배분",
     allocationSummary: (active, held, infeasible, remaining) =>
       `실행 ${active} · 보류 ${held} · 실행 불가 ${infeasible} · Expected 잔여 예산 ${remaining}`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
@@ -474,13 +494,16 @@ const ko: UiCopy = {
     legacyInfeasibleReason: (reasons) =>
       `어떤 tier도 Low / Expected / High 호출을 모두 지원하지 않습니다. 이 기존 분석에는 최소 품질 floor를 적용하지 않았고, 자동 분할이나 토큰 자르기도 적용하지 않았습니다. 실패 이유: ${reasons}`,
     eligibilityVerificationPending:
-      "현재 Active·적합 상태는 표준 API 가격·최소 품질 tier·Low / Expected / High 호출 한도·입력 예산만 확인한 비용 계획입니다. 공급자 기능 정보는 아직 unknown이므로 작업 모드와 필수 기능 지원은 검증하지 않았으며, Active는 확인된 Offering 적격성을 뜻하지 않습니다.",
+      "이 참고 비용 화면은 표준 API 가격·최소 품질 tier·Low / Expected / High 호출 한도·입력 예산만 비교하며 작업 모드와 필수 기능은 판정하지 않습니다. 확정 이용 경로와 기능 적격성은 위 맞춤 계획의 별도 카탈로그 판정을 따릅니다.",
     excludedOfferingsTitle: "호출 한도로 제외된 모델",
     excludedOfferingsReason: (reasons) =>
       `아래 모델은 Low / Expected / High 중 하나 이상을 지원하지 않아 배분 후보에서 제외했습니다. 실패 이유: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT 권장 ${recommended} · 전략 목표 ${target}`,
+    referenceAssignedModel: "참고 모델",
+    referenceAssignedTier: "참고 등급",
+    referenceTrail: (analyzed, target) => `분석 기준 ${analyzed} · 비용 계획 기준 ${target}`,
     expectedInput: "Expected 입력 합계",
     expectedOutput: "Expected 출력 합계",
     iterations: (count) => `반복 ${count}회`,
@@ -495,6 +518,7 @@ const ko: UiCopy = {
     failureRisk: "실패 가능성",
     risks: "위험 요인",
     generatedRuleBased: (date) => `${date} · 규칙 기반 추천이며 수학적 최적화를 의미하지 않습니다.`,
+    referenceGeneratedRuleBased: (date) => `${date} · 가격과 토큰 한도만 적용한 참고 계산입니다.`,
   },
   costChart: {
     title: (provider) => `${provider} 작업별 Expected 비용`,
@@ -523,7 +547,7 @@ const ko: UiCopy = {
     noQualityRanking: "객관적 품질 동등성, 우열 또는 ‘최고 모델’을 뜻하지 않습니다.",
     standardPricingNotice: "표준 uncached text 가격만 사용하며 캐시, Batch, 도구 호출비, 장문 할증은 제외합니다.",
     activeOnlyNotice: "비용은 배분 후 실행 작업만 합산하며 보류·실행 불가 작업은 포함하지 않습니다.",
-    eligibilityScopeNotice: "Active·적합 상태는 표준 API 가격, 최소 품질 tier, Low / Expected / High 호출 한도와 예산만 확인합니다. 공급자 기능 정보는 unknown이며 작업 모드·필수 기능·Offering 적격성은 아직 검증하지 않았습니다.",
+    eligibilityScopeNotice: "이 참고 비교의 적합 상태는 가격, 최소 품질 tier, 호출 한도와 예산만 확인합니다. 작업 모드·필수 기능·확정 이용 경로는 위 맞춤 계획에서 별도로 판정합니다.",
     selectorLegend: "상세 계획에 사용할 모델 제품군 선택",
     allWorkFits: "전체 작업 적합",
     fitsWithHolds: "보류 포함 적합",
@@ -575,7 +599,7 @@ const ko: UiCopy = {
     },
   },
   enums: {
-    analysisMode: { mock: "Mock", live: "Live GPT-5.6" },
+    analysisMode: { mock: "예시로 먼저 보기", live: "내 작업 분석" },
     taskType: {
       "software-development": "소프트웨어 개발",
       research: "리서치",
@@ -592,7 +616,7 @@ const ko: UiCopy = {
     uncertainty: { low: "낮음", medium: "보통", high: "높음" },
     modelTier: { economy: "Economy", balanced: "Balanced", frontier: "Frontier" },
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
-    strategy: { "cost-saver": "비용 절감", balanced: "균형", "quality-first": "상위 tier 우선" },
+    strategy: { "cost-saver": "비용 절감", balanced: "균형", "quality-first": "상위 등급도 검토" },
     priority: { high: "높음", medium: "보통", low: "낮음" },
     failureImpact: { high: "높음", medium: "보통", low: "낮음", unspecified: "미지정" },
     allocationStatus: { active: "실행", held: "보류", infeasible: "실행 불가" },
@@ -611,6 +635,9 @@ const en: UiCopy = {
     languageSelectorHelp: "Choose the language used in the interface.",
     selected: "Selected",
     select: "Select",
+    required: "Required",
+    optional: "Optional",
+    defaultValue: "Default set",
     active: "Active",
     held: "On hold",
     none: "None",
@@ -621,21 +648,21 @@ const en: UiCopy = {
   },
   page: {
     headerSubtitle: "Explainable, budget-aware planning",
-    headerBadge: "Mock first · local save",
+    headerBadge: "Try a sample · saved in your browser",
     heroEyebrow: "Describe · classify · calculate · allocate",
     heroTitleLine1: "Analyze multiple tasks in one request,",
     heroTitleLine2: "then compare model families within budget.",
     heroDescription:
       "GPT-5.6 structures bounded workload requirements such as complexity, size, work mode, minimum quality, required capabilities, and failure risk. Published program rules validate invocation limits and calculate tokens, costs, and per-provider budget plans; GPT does not choose prices, providers, or a final route.",
-    analysisModeLegend: "Analysis mode",
-    mockDescription: "Use a fixture with no key or cost",
-    liveDescription: "Make a real request with the server-side key",
+    analysisModeLegend: "Step 3 · How to create the plan",
+    mockDescription: "Try a sample result at no cost",
+    liveDescription: "Analyze your tasks with GPT-5.6",
     storageDisclosure:
-      "After a successful plan, the latest scenario—including task names and descriptions—is saved as plaintext in this browser's LocalStorage. The API key is never stored.",
-    submitMock: "Create Mock plan",
-    submitLive: "Create Live plan",
+      "When you create a plan, task names, descriptions, and one completed plan are automatically saved as unencrypted plaintext in this browser. The API key is never stored.",
+    submitMock: "Create a sample plan",
+    submitLive: "Create a plan from my tasks",
     submitting: (count) => `Analyzing ${count} task${count === 1 ? "" : "s"}…`,
-    liveSafety: "A Live request runs only after you press the button. The API key is never sent to the browser.",
+    liveSafety: "Real analysis starts only from this button.\nThe API key is never sent to the browser.",
     statusLoading: (count) => `Analyzing ${count} task${count === 1 ? "" : "s"}.`,
     statusSuccess: (count) => `Analysis complete for ${count} task${count === 1 ? "" : "s"}.`,
     statusError: "The analysis request could not be completed.",
@@ -644,17 +671,17 @@ const en: UiCopy = {
     requestTooLarge: "The request exceeded the allowed size.",
     invalidJson: "The analysis request format was invalid.",
     invalidInput: "Check the task input.",
-    liveDisabled: "Live analysis is disabled by the server configuration. Mock analysis remains available.",
-    apiKeyMissing: "The server does not have an OpenAI API key. Mock analysis remains available.",
-    modelRefusal: "The model declined this analysis. Adjust the input or use Mock analysis.",
-    liveAnalysisFailed: "Live analysis failed. Try again shortly or use Mock analysis.",
+    liveDisabled: "Real analysis is disabled by the server configuration. A sample plan remains available.",
+    apiKeyMissing: "The server does not have an OpenAI API key. A sample plan remains available.",
+    modelRefusal: "The model declined this analysis. Adjust the input or use a sample plan.",
+    liveAnalysisFailed: "Real analysis failed. Try again shortly or use a sample plan.",
     unknownApiError: "The analysis request could not be processed.",
-    requestTimeout: "The analysis timed out. Use Mock analysis or try again shortly.",
+    requestTimeout: "The analysis timed out. Use a sample plan or try again shortly.",
     networkError: "Could not reach the server. Check the development server and network connection.",
     storageTitle: "Recent scenario",
     storageRestored: (date) => `Restored the recent plan saved at ${date}.`,
     storageLegacyRestored: (date) =>
-      `Restored the legacy API plan saved at ${date}. Run Mock or Live analysis again to use Best-fit requirements.`,
+      `Restored the legacy API plan saved at ${date}. Run a sample or real analysis to create a new tailored plan.`,
     storageMigrationRequired:
       "The legacy record was preserved but could not be migrated automatically. You can delete it or run a new analysis.",
     storageCorrupt: "Ignored a damaged recent scenario.",
@@ -671,12 +698,12 @@ const en: UiCopy = {
     clearRecent: "Delete saved plan",
     emptyEyebrow: "Plan preview",
     emptyTitle: "Your plan results will appear here.",
-    emptyDescription: "Enter tasks and settings, then create a Mock or Live plan.",
+    emptyDescription: "Enter tasks and settings, then create a sample plan or a plan from your tasks.",
     loadingTitle: "Building the structured analysis and cost plan.",
     loadingDescription: (count) =>
       `Classifying ${count} task${count === 1 ? "" : "s"} together, then applying fixed calculation rules.`,
     errorTitle: "Analysis could not be completed.",
-    invalidSettingsForRecalculation: "Enter a valid budget and review deadline to recalculate from the existing analysis.",
+    invalidSettingsForRecalculation: "Enter a valid budget and reference period to recalculate from the existing analysis.",
     allocationPriorityNotice: (task, priority) =>
       `Changed ${task} to ${priority} and reallocated without another API request.`,
     allocationSettingsNotice: (budget, strategy) =>
@@ -687,10 +714,10 @@ const en: UiCopy = {
     footerBoundary: "One recent scenario · GPT judgment ≠ deterministic calculation",
   },
   taskEditor: {
-    eyebrow: "Workload queue",
-    title: "Tasks to analyze",
-    maxTasksHelp: (max) => `Analyze up to ${max} tasks in one request.`,
-    priorityHelp: "Priority affects only the program's downgrade and hold order, not GPT's workload judgment.",
+    eyebrow: "Step 1",
+    title: "Describe what you want to do",
+    maxTasksHelp: (max) => `Plan up to ${max} tasks at once.`,
+    priorityHelp: "Priority is the first signal for scarce-capacity reservation and budget relief; it is separate from GPT's workload judgment.",
     loadSample: (count) => `Load ${count} sample tasks`,
     taskLegend: (index) => `Task ${index}`,
     taskLabel: (index) => `Task ${index}`,
@@ -700,10 +727,11 @@ const en: UiCopy = {
     namePlaceholder: "Example: Design a customer support dashboard API",
     nameRequired: "Enter a task name.",
     priorityLabel: "Priority",
-    deadlineLabel: "Task deadline (optional)",
-    deadlineHelp: "Stored as a date only and separate from the global review deadline.",
+    deadlineLabel: "Task deadline",
+    deadlineHelp: "Earlier dates are considered first, and a deadline can contribute to an upper-tier review when analyzed failure risk is high. It is separate from the plan's reference period.",
     failureImpactLabel: "Failure impact",
-    failureImpactHelp: "You set the consequence of failure; it is separate from GPT's failure likelihood.",
+    failureImpactHelp: "You set the consequence of failure. It affects capacity order and upper-tier review, and is separate from GPT's failure likelihood.",
+    settingsHelp: "Tasks with higher priority, earlier deadlines, and greater failure impact receive scarce capacity and budget first. Deadlines and failure impact can also combine with analyzed risk to trigger an upper-tier review.",
     descriptionLabel: "Task description",
     descriptionPlaceholder: "Describe the goal, deliverable, constraints, and quality bar.",
     descriptionRequired: "Enter a task description.",
@@ -712,25 +740,28 @@ const en: UiCopy = {
     characterCounter: (current, max) => `${current} / ${max}`,
   },
   budgetSettings: {
-    eyebrow: "Plan controls",
-    title: "Planning settings",
+    eyebrow: "Step 2",
+    title: "Budget and preferences",
     budgetLabel: "Total budget (USD)",
     budgetHelp: "Tiers are adjusted against the Expected cost.",
     budgetError: "Enter a budget from $0.01 to $10,000.",
-    deadlineLabel: "Review deadline (days)",
+    deadlineLabel: "Reference period (days)",
     deadlineUnit: "days",
-    deadlineHelp: "Reference only; it does not change costs or tiers.",
+    deadlineHelp: "Does not change costs or tiers.",
     deadlineError: "Enter a whole number from 1 to 90.",
-    strategyLegend: "Allocation strategy",
+    strategyLegend: "What should the plan prioritize?",
     strategies: {
-      "cost-saver": { label: "Cost saver", description: "Start one tier below GPT's recommendation" },
-      balanced: { label: "Balanced", description: "Start from GPT's recommended tier" },
-      "quality-first": { label: "Upper-tier preference", description: "Use the budget heuristic to start one tier above GPT's recommendation" },
+      "cost-saver": { label: "Save money", description: "Check lower-cost choices that still meet the requirements first." },
+      balanced: { label: "Balanced", description: "Consider required quality and cost together." },
+      "quality-first": { label: "Consider higher tiers", description: "Also consider one tier higher when the budget allows." },
     },
   },
   analysisResults: {
     eyebrow: "Budget-aware recommended plan",
     title: "Cost and model allocation",
+    referenceEyebrow: "Pre-verification reference cost",
+    referenceTitle: "API price and token-limit result",
+    referenceNotice: "These are reference costs based only on API prices and token limits. ‘Active’ means included in this cost calculation; it does not mean confirmed access or a final recommendation. This result is excluded from the confirmed plan totals and budget assessment above.",
     aiAnalyzed: "AI analyzed",
     programCalculated: "Program calculated",
     budget: "Budget",
@@ -753,6 +784,7 @@ const en: UiCopy = {
     oneDayDeadlineWarning: "The one-day deadline is reference information; this MVP does not provide detailed time estimates.",
     allScenariosWithinBudget: "Expected and High scenarios for every active task are within the entered budget.",
     allocationTitle: "Task allocation",
+    referenceAllocationTitle: "Reference cost allocation by task",
     allocationSummary: (active, held, infeasible, remaining) =>
       `${active} active · ${held} on hold · ${infeasible} infeasible · ${remaining} Expected budget remaining`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
@@ -769,13 +801,16 @@ const en: UiCopy = {
     legacyInfeasibleReason: (reasons) =>
       `No tier supports every Low / Expected / High invocation. This legacy analysis has no minimum-quality floor, and the planner did not truncate tokens or split the task. Failures: ${reasons}`,
     eligibilityVerificationPending:
-      "Current Active and fit statuses are cost plans based only on standard API pricing, the minimum-quality tier, all Low / Expected / High invocation limits, and the entered budget. Provider capability knowledge is still unknown, so work-mode and required-capability support are unverified; Active does not mean confirmed Offering eligibility.",
+      "This reference cost view compares only standard API pricing, the minimum-quality tier, all Low / Expected / High invocation limits, and the entered budget. It does not assess work mode or required capabilities; confirmed routes and capability eligibility come from the separate catalog check in the plan above.",
     excludedOfferingsTitle: "Models excluded by invocation limits",
     excludedOfferingsReason: (reasons) =>
       `The models below fail at least one Low / Expected / High invocation and were excluded from allocation. Failures: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT recommendation ${recommended} · strategy target ${target}`,
+    referenceAssignedModel: "Reference model",
+    referenceAssignedTier: "Reference tier",
+    referenceTrail: (analyzed, target) => `Analysis basis ${analyzed} · cost-plan basis ${target}`,
     expectedInput: "Expected total input",
     expectedOutput: "Expected total output",
     iterations: (count) => `${count} iteration${count === 1 ? "" : "s"}`,
@@ -790,6 +825,7 @@ const en: UiCopy = {
     failureRisk: "Failure risk",
     risks: "Risk factors",
     generatedRuleBased: (date) => `${date} · Rule-based recommendation, not mathematical optimization.`,
+    referenceGeneratedRuleBased: (date) => `${date} · Reference calculation using prices and token limits only.`,
   },
   costChart: {
     title: (provider) => `${provider} Expected cost by task`,
@@ -818,7 +854,7 @@ const en: UiCopy = {
     noQualityRanking: "They do not claim objective quality equivalence, superiority, or a ‘best model.’",
     standardPricingNotice: "Only standard uncached text prices are used; cache, Batch, tool-call, and long-context fees are excluded.",
     activeOnlyNotice: "Totals include active work after allocation and exclude held and infeasible task costs.",
-    eligibilityScopeNotice: "Active and fit statuses check only standard API pricing, the minimum-quality tier, all Low / Expected / High invocation limits, and budget. Provider capabilities are unknown; work mode, required capabilities, and Offering eligibility remain unverified.",
+    eligibilityScopeNotice: "Fit in this reference comparison checks only price, minimum quality, invocation limits, and budget. Work mode, required capabilities, and confirmed routes are assessed separately in the plan above.",
     selectorLegend: "Choose the model family for the detailed plan",
     allWorkFits: "All work fits",
     fitsWithHolds: "Fits with holds",
@@ -870,7 +906,7 @@ const en: UiCopy = {
     },
   },
   enums: {
-    analysisMode: { mock: "Mock", live: "Live GPT-5.6" },
+    analysisMode: { mock: "Try a sample", live: "Analyze my tasks" },
     taskType: {
       "software-development": "Software development",
       research: "Research",
@@ -887,7 +923,7 @@ const en: UiCopy = {
     uncertainty: { low: "Low", medium: "Medium", high: "High" },
     modelTier: { economy: "Economy", balanced: "Balanced", frontier: "Frontier" },
     provider: { openai: "OpenAI · GPT-5.6", anthropic: "Anthropic · Claude", google: "Google · Gemini 3" },
-    strategy: { "cost-saver": "Cost saver", balanced: "Balanced", "quality-first": "Upper-tier preference" },
+    strategy: { "cost-saver": "Save money", balanced: "Balanced", "quality-first": "Consider higher tiers" },
     priority: { high: "High", medium: "Medium", low: "Low" },
     failureImpact: { high: "High", medium: "Medium", low: "Low", unspecified: "Unspecified" },
     allocationStatus: { active: "Active", held: "On hold", infeasible: "Infeasible" },
@@ -906,6 +942,9 @@ const ja: UiCopy = {
     languageSelectorHelp: "画面に表示する言語を選択します。",
     selected: "選択済み",
     select: "選択",
+    required: "必須",
+    optional: "任意",
+    defaultValue: "初期値あり",
     active: "実行",
     held: "保留",
     none: "なし",
@@ -916,21 +955,21 @@ const ja: UiCopy = {
   },
   page: {
     headerSubtitle: "説明可能な予算重視の計画",
-    headerBadge: "Mock優先・ローカル保存",
+    headerBadge: "サンプルで体験・ブラウザ保存",
     heroEyebrow: "説明・分類・計算・配分",
     heroTitleLine1: "複数のタスクを1回のリクエストで分析し、",
     heroTitleLine2: "予算内でモデル製品群を比較します。",
     heroDescription:
       "GPT-5.6は、複雑さ・サイズ・作業モード・最低品質・必須機能・失敗リスクなど、範囲を限定したワークロード要件を構造化します。プログラムは公開された固定ルールで呼び出し上限を検証し、トークン・コスト・プロバイダー別の予算計画を計算します。GPTは料金・プロバイダー・最終ルートを選びません。",
-    analysisModeLegend: "分析モード",
-    mockDescription: "キーも料金も使わずfixtureを利用",
-    liveDescription: "サーバー側のキーで実リクエスト",
+    analysisModeLegend: "ステップ3・計画の作り方",
+    mockDescription: "料金なしでサンプル結果を試す",
+    liveDescription: "入力した作業をGPT-5.6で分析",
     storageDisclosure:
-      "計画作成に成功すると、最新の1件（タスク名・説明を含む）をこのブラウザのLocalStorageへ平文で自動保存します。APIキーは保存しません。",
-    submitMock: "Mock計画を作成",
-    submitLive: "Live計画を作成",
+      "計画を作成すると、タスク名・説明と完成した計画1件が暗号化されていない平文でこのブラウザに自動保存されます。APIキーは保存しません。",
+    submitMock: "サンプル計画を作成",
+    submitLive: "自分の作業から計画を作成",
     submitting: (count) => `${count}件のタスクを分析中…`,
-    liveSafety: "Liveリクエストはボタンを押した場合のみ実行され、APIキーはブラウザへ送られません。",
+    liveSafety: "このボタンを押した場合のみ実際の分析が始まります。\nAPIキーはブラウザへ送られません。",
     statusLoading: (count) => `${count}件のタスクを分析しています。`,
     statusSuccess: (count) => `${count}件のタスク分析が完了しました。`,
     statusError: "分析リクエストを完了できませんでした。",
@@ -939,17 +978,17 @@ const ja: UiCopy = {
     requestTooLarge: "リクエストが許容サイズを超えました。",
     invalidJson: "分析リクエストの形式が正しくありません。",
     invalidInput: "タスク入力を確認してください。",
-    liveDisabled: "Live分析はサーバー設定で無効です。Mock分析は引き続き利用できます。",
-    apiKeyMissing: "サーバーにOpenAI APIキーが設定されていません。Mock分析は引き続き利用できます。",
-    modelRefusal: "モデルがこの分析を拒否しました。入力を調整するかMock分析を使用してください。",
-    liveAnalysisFailed: "Live分析に失敗しました。しばらくしてから再試行するかMock分析を使用してください。",
+    liveDisabled: "実際の分析はサーバー設定で無効です。サンプル計画は引き続き利用できます。",
+    apiKeyMissing: "サーバーにOpenAI APIキーが設定されていません。サンプル計画は引き続き利用できます。",
+    modelRefusal: "モデルがこの分析を拒否しました。入力を調整するかサンプル計画を使用してください。",
+    liveAnalysisFailed: "実際の分析に失敗しました。しばらくしてから再試行するかサンプル計画を使用してください。",
     unknownApiError: "分析リクエストを処理できませんでした。",
-    requestTimeout: "分析がタイムアウトしました。Mock分析を使うか、しばらくしてから再試行してください。",
+    requestTimeout: "分析がタイムアウトしました。サンプル計画を使うか、しばらくしてから再試行してください。",
     networkError: "サーバーに接続できません。開発サーバーとネットワークを確認してください。",
     storageTitle: "最近のシナリオ",
     storageRestored: (date) => `${date}に保存された最近の計画を復元しました。`,
     storageLegacyRestored: (date) =>
-      `${date}の旧API計画を復元しました。Best-fit要件を使うにはMockまたはLive分析を再実行してください。`,
+      `${date}の旧API計画を復元しました。新しい計画を作るにはサンプルまたは実際の分析を再実行してください。`,
     storageMigrationRequired:
       "旧保存データは保持しましたが、自動移行できませんでした。削除するか新しい分析を実行できます。",
     storageCorrupt: "破損した最近の保存データを無視しました。",
@@ -966,11 +1005,11 @@ const ja: UiCopy = {
     clearRecent: "保存データを削除",
     emptyEyebrow: "計画プレビュー",
     emptyTitle: "計画結果がここに表示されます。",
-    emptyDescription: "タスクと設定を入力し、MockまたはLive計画を作成してください。",
+    emptyDescription: "タスクと設定を入力し、サンプル計画または自分の作業計画を作成してください。",
     loadingTitle: "構造化分析とコスト計画を作成しています。",
     loadingDescription: (count) => `${count}件のタスクをまとめて分類し、固定計算ルールを適用します。`,
     errorTitle: "分析を完了できませんでした。",
-    invalidSettingsForRecalculation: "有効な予算と確認期限を入力すると、既存分析からすぐに再計算します。",
+    invalidSettingsForRecalculation: "有効な予算と参考期間を入力すると、既存分析からすぐに再計算します。",
     allocationPriorityNotice: (task, priority) =>
       `${task}の優先度を${priority}に変更し、APIを再呼び出しせず再配分しました。`,
     allocationSettingsNotice: (budget, strategy) =>
@@ -981,10 +1020,10 @@ const ja: UiCopy = {
     footerBoundary: "最近のシナリオ1件・GPTの判断 ≠ 決定論的計算",
   },
   taskEditor: {
-    eyebrow: "ワークロードキュー",
-    title: "分析するタスク",
-    maxTasksHelp: (max) => `1回のリクエストで最大${max}件をまとめて分析します。`,
-    priorityHelp: "優先度はGPTの判断ではなく、プログラムの降格・保留順にのみ使います。",
+    eyebrow: "ステップ1",
+    title: "やりたい作業を入力してください",
+    maxTasksHelp: (max) => `一度に最大${max}件まで計画できます。`,
+    priorityHelp: "優先度は、限られた利用枠の予約と予算不足時の調整順を決める最初の基準であり、GPTの作業判断とは別です。",
     loadSample: (count) => `サンプル${count}件を読み込む`,
     taskLegend: (index) => `タスク${index}`,
     taskLabel: (index) => `タスク${index}`,
@@ -994,10 +1033,11 @@ const ja: UiCopy = {
     namePlaceholder: "例：カスタマーサポートダッシュボードAPIの設計",
     nameRequired: "タスク名を入力してください。",
     priorityLabel: "優先度",
-    deadlineLabel: "タスク期限（任意）",
-    deadlineHelp: "日付のみを保存し、全体の確認期限とは別に扱います。",
+    deadlineLabel: "タスク期限",
+    deadlineHelp: "早い期限を先に考慮し、分析された失敗リスクが高い場合は上位グレードの検討条件にも使います。計画全体の参考期間とは別です。",
     failureImpactLabel: "失敗時の影響",
-    failureImpactHelp: "失敗した場合の影響をユーザーが設定します。GPTの失敗確率とは別です。",
+    failureImpactHelp: "失敗した場合の影響をユーザーが設定します。利用枠の順序と上位グレードの検討に使い、GPTの失敗確率とは別です。",
+    settingsHelp: "優先度が高く、期限が早く、失敗時の影響が大きい作業から、限られた利用枠と予算を配分します。期限と失敗時の影響は、分析されたリスクと合わせて上位グレードの検討条件になる場合があります。",
     descriptionLabel: "タスク説明",
     descriptionPlaceholder: "目的、成果物、制約、品質基準を具体的に記載してください。",
     descriptionRequired: "タスク説明を入力してください。",
@@ -1006,25 +1046,28 @@ const ja: UiCopy = {
     characterCounter: (current, max) => `${current} / ${max}`,
   },
   budgetSettings: {
-    eyebrow: "計画コントロール",
-    title: "計画設定",
+    eyebrow: "ステップ2",
+    title: "予算と選択基準",
     budgetLabel: "総予算 (USD)",
     budgetHelp: "Expectedコストを基準にティアを調整します。",
     budgetError: "$0.01〜$10,000の予算を入力してください。",
-    deadlineLabel: "確認期限（日）",
+    deadlineLabel: "参考期間（日）",
     deadlineUnit: "日",
-    deadlineHelp: "参考情報であり、料金やティアは変更しません。",
+    deadlineHelp: "料金やティアには影響しません。",
     deadlineError: "1〜90の整数を入力してください。",
-    strategyLegend: "配分戦略",
+    strategyLegend: "何を優先しますか？",
     strategies: {
-      "cost-saver": { label: "コスト優先", description: "GPT推奨より1段階低いティアから開始" },
-      balanced: { label: "バランス", description: "GPT推奨ティアから開始" },
-      "quality-first": { label: "上位tier優先", description: "予算ヒューリスティックでGPT推奨より1段階高いtierから開始" },
+      "cost-saver": { label: "コストを節約", description: "条件を満たす低コストの選択肢から確認します。" },
+      balanced: { label: "バランス", description: "必要な品質とコストを一緒に考慮します。" },
+      "quality-first": { label: "上位グレードも検討", description: "予算内で一段階上の選択肢もあわせて検討します。" },
     },
   },
   analysisResults: {
     eyebrow: "予算重視の推奨計画",
     title: "コストとモデル配分結果",
+    referenceEyebrow: "検証前の参考コスト",
+    referenceTitle: "API料金とトークン上限に基づく結果",
+    referenceNotice: "以下はAPI料金とトークン上限だけで算出した参考コストです。「実行」はこのコスト計算に含めたという意味で、実際の利用可否や確定推奨を意味しません。この結果は上の確定計画の合計と予算判定には含まれません。",
     aiAnalyzed: "AI分析",
     programCalculated: "プログラム計算",
     budget: "予算",
@@ -1047,6 +1090,7 @@ const ja: UiCopy = {
     oneDayDeadlineWarning: "1日の期限は参考情報です。このMVPは詳細な時間予測を提供しません。",
     allScenariosWithinBudget: "すべての実行タスクのExpectedとHighシナリオが入力予算内です。",
     allocationTitle: "タスク別配分",
+    referenceAllocationTitle: "タスク別の参考コスト配分",
     allocationSummary: (active, held, infeasible, remaining) =>
       `実行${active}・保留${held}・実行不可${infeasible}・Expected残予算 ${remaining}`,
     taskNumber: (index) => `TASK ${String(index).padStart(2, "0")}`,
@@ -1063,13 +1107,16 @@ const ja: UiCopy = {
     legacyInfeasibleReason: (reasons) =>
       `どのtierもLow / Expected / Highの全呼び出しをサポートしません。この旧分析には最低品質floorを適用せず、トークンの切り捨てや自動分割も行っていません。失敗理由: ${reasons}`,
     eligibilityVerificationPending:
-      "現在のActive・適合状態は、標準API料金・最低品質tier・Low / Expected / Highの呼び出し上限・入力予算だけに基づくコスト計画です。プロバイダー機能情報はまだunknownのため、作業モードと必須機能のサポートは未検証であり、Activeは確認済みOffering適格性を意味しません。",
+      "この参考コスト画面は、標準API料金・最低品質tier・Low / Expected / Highの呼び出し上限・入力予算だけを比較し、作業モードと必須機能は判定しません。確定経路と機能適格性は、上の計画にある別のカタログ判定に従います。",
     excludedOfferingsTitle: "呼び出し上限により除外したモデル",
     excludedOfferingsReason: (reasons) =>
       `以下のモデルはLow / Expected / Highのいずれかを処理できないため、配分候補から除外しました。失敗理由: ${reasons}`,
     assignedModel: "Assigned model",
     assignedTier: "Assigned tier",
     recommendationTrail: (recommended, target) => `GPT推奨 ${recommended}・戦略目標 ${target}`,
+    referenceAssignedModel: "参考モデル",
+    referenceAssignedTier: "参考ティア",
+    referenceTrail: (analyzed, target) => `分析基準 ${analyzed}・コスト計画基準 ${target}`,
     expectedInput: "Expected入力合計",
     expectedOutput: "Expected出力合計",
     iterations: (count) => `反復 ${count}回`,
@@ -1084,6 +1131,7 @@ const ja: UiCopy = {
     failureRisk: "失敗確率",
     risks: "リスク要因",
     generatedRuleBased: (date) => `${date}・ルールベースの推奨であり、数学的最適化ではありません。`,
+    referenceGeneratedRuleBased: (date) => `${date}・料金とトークン上限だけを使った参考計算です。`,
   },
   costChart: {
     title: (provider) => `${provider} タスク別Expectedコスト`,
@@ -1112,7 +1160,7 @@ const ja: UiCopy = {
     noQualityRanking: "客観的な品質の同等性、優劣、または「最高のモデル」を示すものではありません。",
     standardPricingNotice: "標準uncached text料金のみを使い、キャッシュ、Batch、ツール呼び出し、長文追加料金は除外します。",
     activeOnlyNotice: "コストは配分後の実行タスクのみを合計し、保留・実行不可タスクは含みません。",
-    eligibilityScopeNotice: "Active・適合状態は標準API料金、最低品質tier、Low / Expected / Highの呼び出し上限と予算だけを確認します。プロバイダー機能情報はunknownで、作業モード・必須機能・Offering適格性はまだ検証していません。",
+    eligibilityScopeNotice: "この参考比較の適合状態は、料金・最低品質tier・呼び出し上限・予算だけを確認します。作業モード・必須機能・確定経路は、上の計画で別に判定します。",
     selectorLegend: "詳細計画に使うモデル製品群を選択",
     allWorkFits: "全タスクが予算内",
     fitsWithHolds: "保留を含め予算内",
@@ -1164,7 +1212,7 @@ const ja: UiCopy = {
     },
   },
   enums: {
-    analysisMode: { mock: "Mock", live: "Live GPT-5.6" },
+    analysisMode: { mock: "サンプルで試す", live: "自分の作業を分析" },
     taskType: {
       "software-development": "ソフトウェア開発",
       research: "リサーチ",
@@ -1181,7 +1229,7 @@ const ja: UiCopy = {
     uncertainty: { low: "低", medium: "中", high: "高" },
     modelTier: { economy: "Economy", balanced: "Balanced", frontier: "Frontier" },
     provider: { openai: "OpenAI・GPT-5.6", anthropic: "Anthropic・Claude", google: "Google・Gemini 3" },
-    strategy: { "cost-saver": "コスト優先", balanced: "バランス", "quality-first": "上位tier優先" },
+    strategy: { "cost-saver": "コストを節約", balanced: "バランス", "quality-first": "上位グレードも検討" },
     priority: { high: "高", medium: "中", low: "低" },
     failureImpact: { high: "高", medium: "中", low: "低", unspecified: "未指定" },
     allocationStatus: { active: "実行", held: "保留", infeasible: "実行不可" },

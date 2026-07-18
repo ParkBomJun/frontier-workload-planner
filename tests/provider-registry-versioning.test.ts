@@ -4,9 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { PROVIDER_CATALOG_SNAPSHOTS } from "@/config/provider-catalog-snapshots";
+import { PLANNER_API_ROUTE_ADAPTER_VERSION } from "@/config/planner-api-route-adapter";
 import {
   API_CATALOG_REGISTRY_ID,
   API_CATALOG_REGISTRY_V1_VERSION,
+  API_CATALOG_REGISTRY_V2_VERSION,
+  API_CATALOG_REGISTRY_V3_VERSION,
   API_CATALOG_REGISTRY_VERSION,
   PLANNER_TIER_ADAPTER_VERSION,
   getProviderRegistry,
@@ -98,10 +101,23 @@ describe("versioned provider registry", () => {
     );
   });
 
-  it("resolves v1 and v2 simultaneously without silently upgrading either", () => {
+  it("keeps the historical v2 canonical manifest at its recorded digest", () => {
+    expect(manifestDigest(API_CATALOG_REGISTRY_V2_VERSION)).toBe(
+      "947b8431b32c873f218a0e84a745574fb21bdf90d27e9893790ea87a822f253e",
+    );
+  });
+
+  it("records the v3 canonical manifest including API claim source facts", () => {
+    expect(manifestDigest(API_CATALOG_REGISTRY_V3_VERSION)).toBe(
+      "f8e1f34ec4d8bb7a622d7bc97b653a82bf586055580c0b0b92d97acea0822e12",
+    );
+  });
+
+  it("resolves v1, v2, and v3 simultaneously without silently upgrading any", () => {
     const resolutions = [
       API_CATALOG_REGISTRY_V1_VERSION,
-      API_CATALOG_REGISTRY_VERSION,
+      API_CATALOG_REGISTRY_V2_VERSION,
+      API_CATALOG_REGISTRY_V3_VERSION,
     ].map((version) => {
       const expectation = catalogClaimExpectation(
         "openai",
@@ -120,11 +136,9 @@ describe("versioned provider registry", () => {
       return { expectation, resolution };
     });
 
-    expect(
-      resolutions[0].resolution.status === "resolved" &&
-        resolutions[1].resolution.status === "resolved" &&
-        resolutions[0].resolution.evidence !== resolutions[1].resolution.evidence,
-    ).toBe(true);
+    expect(new Set(resolutions.map(({ resolution }) =>
+      resolution.status === "resolved" ? resolution.evidence : null,
+    )).size).toBe(3);
   });
 
   it("does not accept evidence or references across registry versions", () => {
@@ -179,6 +193,8 @@ describe("versioned provider registry", () => {
     const v1Snapshot =
       PROVIDER_CATALOG_SNAPSHOTS[API_CATALOG_REGISTRY_V1_VERSION];
     const v2Snapshot = PROVIDER_CATALOG_SNAPSHOTS[API_CATALOG_REGISTRY_VERSION];
+    const historicalV2Snapshot =
+      PROVIDER_CATALOG_SNAPSHOTS[API_CATALOG_REGISTRY_V2_VERSION];
     const v1Registry = getProviderRegistry(
       API_CATALOG_REGISTRY_ID,
       API_CATALOG_REGISTRY_V1_VERSION,
@@ -187,24 +203,93 @@ describe("versioned provider registry", () => {
       API_CATALOG_REGISTRY_ID,
       API_CATALOG_REGISTRY_VERSION,
     );
+    const historicalV2Registry = getProviderRegistry(
+      API_CATALOG_REGISTRY_ID,
+      API_CATALOG_REGISTRY_V2_VERSION,
+    );
     expect(v1Snapshot).not.toBe(v2Snapshot);
+    expect(v1Snapshot).not.toBe(historicalV2Snapshot);
+    expect(historicalV2Snapshot).not.toBe(v2Snapshot);
     expect(v1Snapshot.openai).not.toBe(v2Snapshot.openai);
     expect(v1Snapshot.openai.models.economy).not.toBe(
       v2Snapshot.openai.models.economy,
     );
+    expect(v1Snapshot.openai.models.economy.verifiedApiClaims).toBeUndefined();
+    expect(
+      historicalV2Snapshot.openai.models.economy.verifiedApiClaims,
+    ).toBeUndefined();
+    expect(v2Snapshot.openai.models.economy.verifiedApiClaims).toBeDefined();
     expect(v2Snapshot).not.toBe(PROVIDER_CATALOG);
     expect(v2Snapshot.openai.models.economy).not.toBe(
       PROVIDER_CATALOG.openai.models.economy,
     );
     expect(Object.isFrozen(v1Snapshot.openai.models.economy.limits)).toBe(true);
     expect(Object.isFrozen(v2Snapshot.openai.models.economy.limits)).toBe(true);
+    expect(
+      Object.isFrozen(
+        v2Snapshot.openai.models.economy.verifiedApiClaims?.modelCapabilities
+          .capabilityIds,
+      ),
+    ).toBe(true);
     expect(v1Registry).not.toBe(v2Registry);
+    expect(v1Registry).not.toBe(historicalV2Registry);
+    expect(historicalV2Registry).not.toBe(v2Registry);
     expect(v1Registry?.entries[0]).not.toBe(v2Registry?.entries[0]);
     expect(Object.isFrozen(v1Registry?.entries[0].claims["model-identity"]?.value)).toBe(
       true,
     );
     expect(Object.isFrozen(v2Registry?.entries[0].claims["model-identity"]?.value)).toBe(
       true,
+    );
+  });
+
+  it("publishes v3 API facts without rewriting historical registries or provider-owned surfaces", () => {
+    const v1 = getProviderRegistry(
+      API_CATALOG_REGISTRY_ID,
+      API_CATALOG_REGISTRY_V1_VERSION,
+    );
+    const v2 = getProviderRegistry(
+      API_CATALOG_REGISTRY_ID,
+      API_CATALOG_REGISTRY_V2_VERSION,
+    );
+    const v3 = getProviderRegistry(
+      API_CATALOG_REGISTRY_ID,
+      API_CATALOG_REGISTRY_V3_VERSION,
+    );
+    const newClaimIds = [
+      "model-capabilities",
+      "api-offering-identity",
+      "api-access-limits",
+      "api-access-capabilities",
+    ] as const;
+
+    for (const historical of [v1, v2]) {
+      for (const entry of historical?.entries ?? []) {
+        for (const claimId of newClaimIds) {
+          expect(entry.claims[claimId]).toBeUndefined();
+        }
+      }
+    }
+    for (const entry of v3?.entries ?? []) {
+      for (const claimId of newClaimIds) {
+        expect(entry.claims[claimId]).toBeDefined();
+      }
+      const apiIdentity = entry.claims["api-offering-identity"];
+      expect(apiIdentity?.value).toMatchObject({
+        modelId: entry.legacyModel.catalogId,
+        mode: "api",
+      });
+      expect(apiIdentity?.value).not.toHaveProperty("supportedSurfaces");
+      expect(apiIdentity?.value).not.toHaveProperty("offeringId");
+      expect(apiIdentity?.subject).toEqual({
+        providerId: entry.providerId,
+        subjectId: entry.legacyModel.catalogId,
+        fieldPath: "api.offering-identity",
+      });
+    }
+    expect(API_CATALOG_REGISTRY_VERSION).toBe(API_CATALOG_REGISTRY_V3_VERSION);
+    expect(PLANNER_API_ROUTE_ADAPTER_VERSION).toBe(
+      "provider-endpoint-to-planner-surface-v1",
     );
   });
 

@@ -38,6 +38,9 @@ describe("Best-fit UI copy", () => {
       expect(sortedKeys(copy.resources.presets)).toEqual(
         [...SUBSCRIPTION_PRESET_IDS].sort(),
       );
+      expect(sortedKeys(copy.resources.quotaGuide.presets)).toEqual(
+        [...SUBSCRIPTION_PRESET_IDS].sort(),
+      );
       expect(sortedKeys(copy.enums.ownership)).toEqual(
         [...SUBSCRIPTION_OWNERSHIPS].sort(),
       );
@@ -64,6 +67,25 @@ describe("Best-fit UI copy", () => {
         [...BEST_FIT_EXCLUSION_REASON_CODES].sort(),
       );
     }
+  });
+
+  it("labels Premium as a neutral choice and explains both selected states", () => {
+    expect(BEST_FIT_UI_COPY.ko.results.premiumChoice).toBe("Premium 선택");
+    expect(BEST_FIT_UI_COPY.en.results.premiumChoice).toBe("Premium choice");
+    expect(BEST_FIT_UI_COPY.ja.results.premiumChoice).toBe("Premiumの選択");
+
+    expect(BEST_FIT_UI_COPY.ko.enums.whyNotPremium["premium-selected"]).toContain(
+      "선택함",
+    );
+    expect(BEST_FIT_UI_COPY.ko.enums.whyNotPremium["lower-tier-sufficient"]).toContain(
+      "선택하지 않음",
+    );
+    expect(BEST_FIT_UI_COPY.en.enums.whyNotPremium["premium-selected"]).toContain(
+      "Selected",
+    );
+    expect(BEST_FIT_UI_COPY.ja.enums.whyNotPremium["premium-selected"]).toContain(
+      "選択",
+    );
   });
 
   it("localizes the complete closed exclusion-reason set without exposing raw codes", () => {
@@ -109,17 +131,58 @@ describe("Best-fit UI copy", () => {
     );
   });
 
-  it("uses the approved Korean hero and preserves the responsibility boundary", () => {
+  it("localizes infeasible-route help and the zero-cost exclusion warning", () => {
+    const taskNames = {
+      ko: "고객 문서 작성",
+      en: "Write a customer document",
+      ja: "顧客向け文書の作成",
+    } as const;
+
+    for (const locale of UI_LOCALES) {
+      const results = BEST_FIT_UI_COPY[locale].results;
+      const help = results.infeasibleHelp;
+
+      expect(help.open.trim()).not.toBe("");
+      expect(help.title(taskNames[locale])).toContain(taskNames[locale]);
+      expect(help.intro.length).toBeGreaterThan(15);
+      expect(help.inputProblemTitle.trim()).not.toBe("");
+      expect(help.systemProblemTitle.trim()).not.toBe("");
+      expect(help.systemProblemDescription.length).toBeGreaterThan(40);
+      expect(help.taskProblemTitle.trim()).not.toBe("");
+      expect(help.goToResourceInput.trim()).not.toBe("");
+      expect(help.viewReferencePlan.trim()).not.toBe("");
+      expect(help.showRouteDetails.trim()).not.toBe("");
+      expect(help.close.trim()).not.toBe("");
+      for (const guidance of Object.values(help.guidance)) {
+        expect(guidance.length).toBeGreaterThan(25);
+      }
+      expect(results.budgetNotAssessed).not.toBe(results.withinBudget);
+      expect(results.excludedCostNotice(3, true)).toContain("US$0.00");
+      expect(results.referencePlanDescription.length).toBeGreaterThan(20);
+      expect(results.referenceSummaryDescription.length).toBeGreaterThan(50);
+    }
+
+    expect(BEST_FIT_UI_COPY.ko.results.infeasibleHelp.open).not.toBe(
+      BEST_FIT_UI_COPY.en.results.infeasibleHelp.open,
+    );
+    expect(BEST_FIT_UI_COPY.ja.results.infeasibleHelp.open).not.toBe(
+      BEST_FIT_UI_COPY.en.results.infeasibleHelp.open,
+    );
+  });
+
+  it("keeps the approved hero while making the primary flow personal-user friendly", () => {
     expect(BEST_FIT_UI_COPY.ko.hero).toMatchObject({
-      titleLine1: "가장 비싼 모델보다,",
-      titleLine2: "작업에 맞는 선택을.",
+      titleLine1: "가장 비싼 모델보다",
+      titleLine2: "작업에 맞는 선택을",
     });
     for (const locale of UI_LOCALES) {
       const copy = BEST_FIT_UI_COPY[locale];
-      expect(copy.hero.description).toContain("GPT-5.6");
+      expect(copy.hero.eyebrow.length).toBeGreaterThan(20);
       expect(copy.overrides.accessBoundary.length).toBeGreaterThan(20);
       expect(copy.results.authorityNotice.length).toBeGreaterThan(20);
-      expect(copy.results.compatibilityDescription).toMatch(/Best-fit/i);
+      expect(copy.results.compatibilityDescription).not.toMatch(/Best-fit/i);
+      expect(UI_COPY[locale].page.submitMock).not.toMatch(/Mock/i);
+      expect(UI_COPY[locale].page.submitLive).not.toMatch(/Live/i);
       const productClaims = JSON.stringify({
         hero: copy.hero,
         resources: copy.resources.description,
@@ -129,6 +192,47 @@ describe("Best-fit UI copy", () => {
       expect(productClaims).not.toContain("local execution");
       expect(productClaims).not.toContain("best model");
     }
+  });
+
+  it("explains time-based quota recovery without rolling-window jargon", () => {
+    expect(
+      JSON.stringify({
+        preset: BEST_FIT_UI_COPY.ko.resources.presets["glm-like-rolling"],
+        option: BEST_FIT_UI_COPY.ko.enums.resetKind.rolling,
+        label: BEST_FIT_UI_COPY.ko.resources.rollingHoursLabel,
+      }),
+    ).not.toMatch(/롤링|윈도우/);
+    expect(
+      JSON.stringify({
+        preset: BEST_FIT_UI_COPY.en.resources.presets["glm-like-rolling"],
+        option: BEST_FIT_UI_COPY.en.enums.resetKind.rolling,
+        label: BEST_FIT_UI_COPY.en.resources.rollingHoursLabel,
+      }),
+    ).not.toMatch(/rolling window/i);
+    expect(
+      JSON.stringify({
+        preset: BEST_FIT_UI_COPY.ja.resources.presets["glm-like-rolling"],
+        option: BEST_FIT_UI_COPY.ja.enums.resetKind.rolling,
+        label: BEST_FIT_UI_COPY.ja.resources.rollingHoursLabel,
+      }),
+    ).not.toMatch(/ローリング/);
+    for (const locale of UI_LOCALES) {
+      expect(BEST_FIT_UI_COPY[locale].resources.rollingHoursHelp.length).toBeGreaterThanOrEqual(25);
+    }
+  });
+
+  it("explains how to copy official quota values without inventing numbers", () => {
+    for (const locale of UI_LOCALES) {
+      const guide = BEST_FIT_UI_COPY[locale].resources.quotaGuide;
+      expect(guide.open.trim()).not.toBe("");
+      expect(guide.unknown.trim()).not.toBe("");
+      for (const presetId of SUBSCRIPTION_PRESET_IDS) {
+        expect(guide.presets[presetId].steps.length).toBeGreaterThanOrEqual(2);
+      }
+    }
+    expect(BEST_FIT_UI_COPY.ko.resources.quotaGuide.unknown).toContain(
+      "추정하지 말고",
+    );
   });
 
   it("provides a localized initial display name for every resource preset", () => {

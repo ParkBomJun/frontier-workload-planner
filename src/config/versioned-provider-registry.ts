@@ -7,6 +7,7 @@ import {
   PROVIDER_CATALOG_SNAPSHOTS,
   type ApiCatalogRegistryVersion,
 } from "./provider-catalog-snapshots";
+import type { ProviderApiEndpointId } from "./planner-api-route-adapter";
 import {
   MODEL_TIERS,
   PROVIDER_IDS,
@@ -24,7 +25,9 @@ import type {
 
 export const API_CATALOG_REGISTRY_ID = "frontier-provider-api-catalog" as const;
 export const API_CATALOG_REGISTRY_V1_VERSION = API_CATALOG_REGISTRY_VERSIONS[0];
-export const API_CATALOG_REGISTRY_VERSION = API_CATALOG_REGISTRY_VERSIONS[1];
+export const API_CATALOG_REGISTRY_V2_VERSION = API_CATALOG_REGISTRY_VERSIONS[1];
+export const API_CATALOG_REGISTRY_V3_VERSION = API_CATALOG_REGISTRY_VERSIONS[2];
+export const API_CATALOG_REGISTRY_VERSION = API_CATALOG_REGISTRY_V3_VERSION;
 export const PLANNER_TIER_ADAPTER_VERSION = "legacy-tier-adapter-v1" as const;
 export type { ApiCatalogRegistryVersion } from "./provider-catalog-snapshots";
 
@@ -57,12 +60,22 @@ export interface CapabilityClaimValue {
   capabilityIds: readonly CapabilityId[];
 }
 
-export interface OfferingIdentityClaimValue {
+export interface ApiOfferingIdentityClaimValue {
+  modelId: string;
+  mode: "api";
+  endpointIds: readonly ProviderApiEndpointId[];
+}
+
+export interface SubscriptionOfferingIdentityClaimValue {
   offeringId: string;
   modelId: string;
-  mode: "api" | "subscription";
+  mode: "subscription";
   supportedSurfaces: readonly WorkSurface[];
 }
+
+export type OfferingIdentityClaimValue =
+  | ApiOfferingIdentityClaimValue
+  | SubscriptionOfferingIdentityClaimValue;
 
 export type AccessLimitPolicyClaimValue =
   | { kind: "same-as-model" }
@@ -126,11 +139,11 @@ export interface RegistryClaimValueById {
   "model-identity": ModelIdentityClaimValue;
   "invocation-limits": InvocationLimits;
   "model-capabilities": CapabilityClaimValue;
-  "api-offering-identity": OfferingIdentityClaimValue;
+  "api-offering-identity": ApiOfferingIdentityClaimValue;
   "api-access-limits": AccessLimitPolicyClaimValue;
   "api-access-capabilities": AccessCapabilityPolicyClaimValue;
   "standard-text-pricing": StandardTextPriceClaimValue;
-  "subscription-offering-identity": OfferingIdentityClaimValue;
+  "subscription-offering-identity": SubscriptionOfferingIdentityClaimValue;
   "subscription-access-limits": AccessLimitPolicyClaimValue;
   "subscription-access-capabilities": AccessCapabilityPolicyClaimValue;
   "subscription-eligibility-profile": SubscriptionEligibilityProfileClaimValue;
@@ -254,6 +267,28 @@ function cloneModel(model: ProviderModelPrice): ProviderModelPrice {
     ...(model.excludedLongContextPrice === undefined
       ? {}
       : { excludedLongContextPrice: { ...model.excludedLongContextPrice } }),
+    ...(model.verifiedApiClaims === undefined
+      ? {}
+      : {
+          verifiedApiClaims: {
+            modelCapabilities: {
+              capabilityIds: [
+                ...model.verifiedApiClaims.modelCapabilities.capabilityIds,
+              ],
+              sourceUrl: model.verifiedApiClaims.modelCapabilities.sourceUrl,
+            },
+            offeringIdentity: {
+              endpointIds: [
+                ...model.verifiedApiClaims.offeringIdentity.endpointIds,
+              ],
+              sourceUrl: model.verifiedApiClaims.offeringIdentity.sourceUrl,
+            },
+            accessLimits: { ...model.verifiedApiClaims.accessLimits },
+            accessCapabilities: {
+              ...model.verifiedApiClaims.accessCapabilities,
+            },
+          },
+        }),
     limits: { ...model.limits },
   };
 }
@@ -366,6 +401,61 @@ function createEntry(
     standardPrice(model),
     provider.pricingSource,
   );
+  const v3Claims =
+    catalogVersion === API_CATALOG_REGISTRY_V3_VERSION
+      ? (() => {
+          const apiProfile = model.verifiedApiClaims;
+          if (!apiProfile) {
+            throw new Error("The v3 provider snapshot is missing verified API claims.");
+          }
+          return {
+          "model-capabilities": claim(
+            provider,
+            model,
+            catalogVersion,
+            "model-capabilities",
+            "model.capabilities",
+            {
+              capabilityIds: [
+                ...apiProfile.modelCapabilities.capabilityIds,
+              ],
+            },
+            apiProfile.modelCapabilities.sourceUrl,
+          ),
+          "api-offering-identity": claim(
+            provider,
+            model,
+            catalogVersion,
+            "api-offering-identity",
+            "api.offering-identity",
+            {
+              modelId: model.catalogId,
+              mode: "api",
+              endpointIds: [...apiProfile.offeringIdentity.endpointIds],
+            },
+            apiProfile.offeringIdentity.sourceUrl,
+          ),
+          "api-access-limits": claim(
+            provider,
+            model,
+            catalogVersion,
+            "api-access-limits",
+            "api.access-limits",
+            { kind: apiProfile.accessLimits.kind },
+            apiProfile.accessLimits.sourceUrl,
+          ),
+          "api-access-capabilities": claim(
+            provider,
+            model,
+            catalogVersion,
+            "api-access-capabilities",
+            "api.access-capabilities",
+            { kind: apiProfile.accessCapabilities.kind },
+            apiProfile.accessCapabilities.sourceUrl,
+          ),
+          };
+        })()
+      : {};
 
   return deepFreeze({
     providerId: provider.id,
@@ -380,6 +470,7 @@ function createEntry(
       "model-identity": identity,
       "invocation-limits": limits,
       "standard-text-pricing": pricing,
+      ...v3Claims,
     },
   });
 }

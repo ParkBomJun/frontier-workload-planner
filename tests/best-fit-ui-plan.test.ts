@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
 import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { catalogOverrideTargetFor } from "@/lib/offerings/catalog-overrides";
 import {
@@ -40,6 +41,38 @@ function planInput(): BuildBestFitUiPlanInput {
 }
 
 describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
+  it("produces usable confirmed routes for all three built-in sample tasks", () => {
+    const tasks = structuredClone(SAMPLE_TASKS_BY_LOCALE.ko);
+    const result = buildBestFitUiPlan({
+      tasks,
+      analyses: createMockAnalysis(tasks).tasks,
+      strategy: "balanced",
+      incrementalCashBudgetUsd: 5,
+      planningAsOf: PLANNING_AS_OF,
+      pricingAsOf: "2026-07-18",
+      resourceEvidenceObservedAtById: {},
+      resourceDrafts: [],
+      apiOverrides: [],
+    });
+
+    expect(result.plan).toMatchObject({
+      activeTaskCount: 3,
+      heldTaskCount: 0,
+      infeasibleTaskCount: 0,
+    });
+    expect(
+      result.candidateSets.every(({ confirmedRoutes }) => confirmedRoutes.length > 0),
+    ).toBe(true);
+    expect(result.candidateSets[2]?.analysis.workMode).toBe("batch");
+    expect(result.candidateSets[2]?.confirmedRoutes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          routeIdentity: expect.objectContaining({ resourceId: null }),
+        }),
+      ]),
+    );
+  });
+
   it("keeps the global reference deadline out of the Best-fit calculation clock", () => {
     const previous = {
       budgetUsd: 5,
@@ -100,18 +133,18 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     ).toBe(false);
   });
 
-  it("keeps the current unconfirmed API catalog infeasible instead of promoting it", () => {
+  it("uses confirmed public API facts while excluding incompatible routes", () => {
     const result = buildBestFitUiPlan(planInput());
 
-    expect(result.plan.activeTaskCount).toBe(0);
+    expect(result.plan.activeTaskCount).toBe(1);
     expect(result.plan.heldTaskCount).toBe(0);
-    expect(result.plan.infeasibleTaskCount).toBe(1);
+    expect(result.plan.infeasibleTaskCount).toBe(0);
     expect(result.plan.tasks[0]).toMatchObject({
-      status: "infeasible",
-      infeasibleReason: "no-compatible-confirmed-route",
+      status: "active",
+      routeKind: "api",
     });
-    expect(result.candidateSets[0]?.confirmedRoutes).toEqual([]);
-    expect(result.candidateSets[0]?.excludedRoutes).toHaveLength(9);
+    expect(result.candidateSets[0]?.confirmedRoutes).toHaveLength(2);
+    expect(result.candidateSets[0]?.excludedRoutes).toHaveLength(7);
   });
 
   it("preserves an opaque user resource as a conditional diagnostic", () => {
@@ -123,6 +156,7 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     input.resourceDrafts = [
       {
         ...draft,
+        surface: "chat",
         feeUsd: "20",
         quota: {
           kind: "opaque",
@@ -148,7 +182,7 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         ({ routeIdentity }) => routeIdentity.resourceId !== null,
       ),
     ).toBe(true);
-    expect(result.plan.activeTaskCount).toBe(0);
+    expect(result.plan.activeTaskCount).toBe(1);
   });
 
   it("reports invalid resource drafts without dropping the rest of the plan", () => {
@@ -169,7 +203,8 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
       status: "invalid",
       fieldErrors: expect.objectContaining({ feeUsd: "required" }),
     });
-    expect(result.plan.infeasibleTaskCount).toBe(1);
+    expect(result.plan.activeTaskCount).toBe(1);
+    expect(result.plan.infeasibleTaskCount).toBe(0);
   });
 
   it.each([
@@ -215,8 +250,9 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         fieldErrors: { [errorField]: expect.any(String) },
         reasonCodes: [reason],
       });
-      expect(result.candidateSets[0]?.confirmedRoutes).toEqual([]);
-      expect(result.plan.infeasibleTaskCount).toBe(1);
+      expect(result.candidateSets[0]?.confirmedRoutes).toHaveLength(2);
+      expect(result.plan.activeTaskCount).toBe(1);
+      expect(result.plan.infeasibleTaskCount).toBe(0);
     },
   );
 
@@ -227,7 +263,7 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     expect(second).toEqual(first);
   });
 
-  it("applies a bounded catalog override without promoting route authority", () => {
+  it("applies a bounded catalog override without replacing provider evidence", () => {
     const input = planInput();
     input.apiOverrides = [
       {
@@ -241,14 +277,16 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     ];
 
     const result = buildBestFitUiPlan(input);
-    const luna = result.candidateSets[0]?.excludedRoutes.find(
+    const luna = result.candidateSets[0]?.confirmedRoutes.find(
       ({ routeIdentity }) =>
         routeIdentity.offeringId === "api.openai.gpt-5.6-luna.standard-text",
     );
 
-    expect(luna?.status).toBe("conditional");
-    expect(luna?.reasonCodes).toContain("model-capabilities-incomplete");
-    expect(result.plan.activeTaskCount).toBe(0);
+    expect(luna).toMatchObject({
+      modelId: "gpt-5.6-luna",
+      qualityTier: "premium",
+    });
+    expect(result.plan.activeTaskCount).toBe(1);
   });
 
   it("ignores an unresolved historical override target without promoting it", () => {

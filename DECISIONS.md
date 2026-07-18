@@ -867,3 +867,65 @@ Publish the reviewed merge as `ver3-checkpoint-8-stable` and use that immutable 
 architecture learning. Learning sessions do not modify the repository. If a genuine defect is
 found, pause learning, fix it on a separate branch, repeat the full review and release gates, and
 publish a new explicit baseline before resuming.
+
+## 2026-07-18 — Personal-user resource input pass
+
+### Treat unknown quota as a valid starting point
+
+Default every newly added or relinked subscription draft to an opaque quota and unknown reset
+policy. Require an explicit work surface and plan-period fee, but do not require a personal user to
+know included credits, remaining credits, per-task observations, or the reset window before the
+draft can be adapted. If the optional opaque note is empty, project only the neutral statement that
+the user did not provide an exact quota. This state remains conditional and cannot become numeric
+capacity, provider-published evidence, or a confirmed route.
+
+Keep exact and calibrated inputs available as quota-knowledge dropdown choices. Show their numeric
+fields inline only after the matching choice is selected; do not add a second details panel below
+the same card. Their existing complete-field and fixed-decimal validation remains unchanged. A credit-shaped
+preset still fixes the exact unit when exact values are supplied, and a rolling-shaped preset still
+accepts only unknown or rolling reset input. Continue requiring users to select a work surface;
+never turn the preset's suggested surface into a user confirmation.
+
+### Make the first screen follow the user's action order
+
+Keep tasks and compact budget preferences in the first two-column row. Put the optional subscription
+selector below that row, followed by one full-width analysis action. This removes the desktop gap
+caused by a tall analysis sidebar and ensures the action comes after every input it uses. Present
+example and real analysis in user language rather than `Mock` and `Live` labels. Collapse API price
+editing and the legacy provider comparison by default because they are optional expert tools, not
+requirements for creating a personal plan.
+
+### Keep plan submission explicit and preserve the first user action
+
+Treat the final full-width action as the only intentional analysis submission control. Enter in a
+single-line task, budget, or resource field must not implicitly submit the surrounding form;
+textarea newlines and keyboard activation of the final button remain available. This prevents an
+unfinished optional-resource edit from starting Mock analysis or a paid Live request.
+
+Keep the automatic source-only restore asynchronous, but make it yield if the user interacts with
+the planning form before its zero-delay callback runs. The first explicit user edit or sample-load
+action wins over a pending automatic restore. Once storage has been checked, retain a compact
+visible idle result panel so changing inputs does not make the result area appear broken or lost.
+
+### Resolve app-owned API uncertainty before asking the user
+
+Preserve the historical v1/v2 provider snapshots and publish API eligibility facts only in a new
+v3 snapshot. Store the provider-native capability, endpoint, access-limit, and access-capability
+claims in that immutable snapshot. Map provider endpoint IDs to the planner's chat, IDE/CLI, and
+batch surfaces through a separately versioned planner adapter so the app never presents its own
+surface vocabulary as a provider statement.
+
+Treat a resolved API route as catalog-compatible without claiming that an anonymous user's API key,
+billing account, region, or entitlement was checked. Do not block a planning result on information
+the browser-only planner cannot inspect. When a selected plan uses an API, show a neutral execution
+preparation panel with the relevant provider's official setup guide and state that the app never
+requests or stores API keys.
+
+### Make every remaining blocker actionable
+
+Use prevention and inline validation first. If submission still fails, list the plain-language field
+labels, make the primary action return to the first problem, scroll it into view, and move keyboard
+focus there. Keep provider/evidence diagnostics behind progressive disclosure. A modal may summarize
+a blocking state, but it must not end with a generic `OK`, expose internal reason codes, or ask the
+user to repair catalog data owned by the app. Non-blocking account preparation belongs in the result
+content rather than an error dialog.

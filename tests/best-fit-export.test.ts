@@ -154,6 +154,7 @@ function buildFixtureContext(): BestFitPlanExportContext {
     }),
     displayName: "Chat 구독 | 개인",
     ownership: "candidate-new" as const,
+    surface: "chat" as const,
     feeUsd: "0",
     quota: {
       kind: "opaque" as const,
@@ -883,6 +884,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
         subscriptionLabel: "구독 한계 현금 귀속액",
         marginalNotice: "독립적인 작업 가격이 아니며 계획 총계가 권위값입니다.",
         upgradeLabel: "상향 조건",
+        premiumChoiceLabel: "Premium 선택",
       },
       {
         locale: "en" as const,
@@ -890,6 +892,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
         subscriptionLabel: "Subscription marginal cash attribution",
         marginalNotice: "It is not a standalone task price; plan totals are authoritative.",
         upgradeLabel: "Upgrade triggers",
+        premiumChoiceLabel: "Premium choice",
       },
       {
         locale: "ja" as const,
@@ -897,11 +900,19 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
         subscriptionLabel: "サブスクリプション限界支出の帰属額",
         marginalNotice: "独立した作業価格ではなく、計画全体の合計が正式な値です。",
         upgradeLabel: "アップグレード条件",
+        premiumChoiceLabel: "Premiumの選択",
       },
     ];
 
     cases.forEach(
-      ({ locale, apiLabel, subscriptionLabel, marginalNotice, upgradeLabel }) => {
+      ({
+        locale,
+        apiLabel,
+        subscriptionLabel,
+        marginalNotice,
+        upgradeLabel,
+        premiumChoiceLabel,
+      }) => {
         const markdown = createBestFitPlanMarkdownFromDocument(document, locale);
         const firstStart = markdown.indexOf("### 1.");
         const secondStart = markdown.indexOf("### 2.", firstStart);
@@ -917,6 +928,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
         expect(apiSection).toContain(
           uiCopy.enums.whyNotPremium[apiTask.whyNotPremium],
         );
+        expect(apiSection).toContain(`- ${premiumChoiceLabel}:`);
         expect(apiSection).not.toContain(`\`${apiTask.whyEnough}\``);
         expect(apiSection).not.toContain(`\`${apiTask.whyNotPremium}\``);
         expect(apiSection).toContain(`- ${upgradeLabel}:`);

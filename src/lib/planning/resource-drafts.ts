@@ -54,6 +54,9 @@ const MAX_SAFE_MICRO_SCALED_VALUE = Number.MAX_SAFE_INTEGER / 1_000_000;
 const PRESET_INCLUDED_CLAIM_ID = "included-capacity";
 const utcDateTimeSchema = z.iso.datetime();
 
+export const UNKNOWN_QUOTA_DESCRIPTION =
+  "The user did not provide an exact subscription quota.";
+
 interface DecimalOptions {
   allowZero: boolean;
   max: number;
@@ -209,33 +212,12 @@ function presetEvidence(preset: SubscriptionPreset): StoredPresetEvidenceInput {
   };
 }
 
-function emptyObservedConsumption(): AvailableAiResourceObservedConsumptionDraft {
-  return {
-    basis: "task",
-    low: "",
-    expected: "",
-    high: "",
-    sampleSize: "",
-  };
-}
-
-function defaultQuota(preset: SubscriptionPreset): AvailableAiResourceQuotaDraft {
-  if (preset.quotaInput.kind === "user-supplied-metered") {
-    return {
-      kind: "metered",
-      unit: preset.quotaInput.unit,
-      included: "",
-      remaining: "",
-      consumption: emptyObservedConsumption(),
-    };
-  }
+function defaultQuota(): AvailableAiResourceQuotaDraft {
   return { kind: "opaque", description: "" };
 }
 
-function defaultReset(preset: SubscriptionPreset): AvailableAiResourceResetDraft {
-  return preset.quotaInput.kind === "user-supplied-rolling"
-    ? { kind: "rolling", windowHours: "" }
-    : { kind: "unknown" };
+function defaultReset(): AvailableAiResourceResetDraft {
+  return { kind: "unknown" };
 }
 
 export function createDefaultAvailableAiResourceDraft({
@@ -257,10 +239,10 @@ export function createDefaultAvailableAiResourceDraft({
     displayName: preset.displayName,
     ownership: "owned",
     availability: "uncertain",
-    surface: preset.suggestedSurfaces[0] ?? "",
+    surface: "",
     feeUsd: "",
-    quota: defaultQuota(preset),
-    reset: defaultReset(preset),
+    quota: defaultQuota(),
+    reset: defaultReset(),
   };
 }
 
@@ -293,8 +275,8 @@ export function relinkAvailableAiResourceDraftPreset(
     quota:
       draft.ownership === "candidate-new"
         ? { kind: "opaque", description: "" }
-        : defaultQuota(preset),
-    reset: defaultReset(preset),
+        : defaultQuota(),
+    reset: defaultReset(),
   };
 }
 
@@ -313,13 +295,6 @@ function validatePresetShape(
   if (
     draft.ownership === "owned" &&
     preset.quotaInput.kind === "user-supplied-metered" &&
-    draft.quota.kind !== "metered"
-  ) {
-    addError(errors, "quota.kind", "preset-quota-mismatch");
-  }
-  if (
-    draft.ownership === "owned" &&
-    preset.quotaInput.kind === "user-supplied-metered" &&
     draft.quota.kind === "metered" &&
     draft.quota.unit !== preset.quotaInput.unit
   ) {
@@ -327,6 +302,7 @@ function validatePresetShape(
   }
   if (
     preset.quotaInput.kind === "user-supplied-rolling" &&
+    draft.reset.kind !== "unknown" &&
     draft.reset.kind !== "rolling"
   ) {
     addError(errors, "reset.kind", "preset-reset-mismatch");
@@ -420,11 +396,8 @@ function adaptQuota(
   }
 
   if (draft.quota.kind === "opaque") {
-    const description = draft.quota.description.trim();
-    if (description.length === 0) {
-      addError(errors, "quota.description", "required");
-      return null;
-    }
+    const suppliedDescription = draft.quota.description.trim();
+    const description = suppliedDescription || UNKNOWN_QUOTA_DESCRIPTION;
     if (description.length > 500) {
       addError(errors, "quota.description", "out-of-range");
       return null;

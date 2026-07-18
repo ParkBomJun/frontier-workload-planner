@@ -44,19 +44,19 @@ describe("provider catalog", () => {
     }
   });
 
-  it("records official sources and the 2026-07-17 verification date", () => {
+  it("records official sources and the 2026-07-18 verification date", () => {
     expect(PROVIDER_CATALOG.openai).toMatchObject({
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
       pricingSource: "https://developers.openai.com/api/docs/pricing",
       modelsSource: "https://developers.openai.com/api/docs/guides/latest-model",
     });
     expect(PROVIDER_CATALOG.anthropic).toMatchObject({
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
       pricingSource: "https://platform.claude.com/docs/en/about-claude/pricing",
       modelsSource: "https://platform.claude.com/docs/en/about-claude/models/overview",
     });
     expect(PROVIDER_CATALOG.google).toMatchObject({
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
       pricingSource: "https://ai.google.dev/gemini-api/docs/pricing",
       modelsSource: "https://ai.google.dev/gemini-api/docs/models",
     });
@@ -81,6 +81,13 @@ describe("provider catalog", () => {
         outputUsdPerMillion: 18,
       },
     });
+    expect(PROVIDER_CATALOG.openai.models.economy).toMatchObject({
+      standardPriceInputLimitTokens: 272_000,
+      excludedLongContextPrice: {
+        inputUsdPerMillion: 2,
+        outputUsdPerMillion: 9,
+      },
+    });
     expect(
       Object.values(PROVIDER_CATALOG.google.models).filter((model) => model.preview),
     ).toHaveLength(2);
@@ -88,16 +95,17 @@ describe("provider catalog", () => {
 
   it("records provider-native invocation limits and their official sources", () => {
     expect(PROVIDER_CATALOG.openai.models.economy.limits).toEqual({
+      maxInputTokens: 922_000,
       maxOutputTokens: 128_000,
       maxCombinedTokens: 1_050_000,
       sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
     });
     expect(PROVIDER_CATALOG.anthropic.models.economy.limits).toEqual({
       maxOutputTokens: 64_000,
       maxCombinedTokens: 200_000,
       sourceUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
     });
     expect(PROVIDER_CATALOG.anthropic.models.balanced.limits).toMatchObject({
       maxOutputTokens: 128_000,
@@ -107,7 +115,7 @@ describe("provider catalog", () => {
       maxInputTokens: 1_048_576,
       maxOutputTokens: 65_536,
       sourceUrl: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
     });
   });
 

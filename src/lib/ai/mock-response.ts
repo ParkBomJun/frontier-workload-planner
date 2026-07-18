@@ -54,12 +54,12 @@ const MOCK_ANALYSIS_VARIANTS: Array<Omit<TaskAnalysis, "taskId">> = [
     recommendedModelTier: "frontier",
     workMode: "interactive",
     requiredQualityTier: "premium",
-    requiredCapabilities: ["file-input"],
+    requiredCapabilities: ["tool-use"],
     upgradeConditions: ["deep-reasoning"],
     failureRisk: "high",
     riskFactors: ["Source availability and recency can change the final comparison."],
     rationale:
-      "A frontier tier fits research that requires synthesis across uncertain evidence. This is a mock fixture, not a live model judgment.",
+      "A frontier tier fits research that synthesizes evidence retrieved from public sources. External source retrieval requires tool use, not file input; this is a mock fixture, not a live model judgment.",
   },
   MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
 ];

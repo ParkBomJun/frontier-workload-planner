@@ -5,7 +5,7 @@ import {
   MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
 } from "@/lib/ai/mock-response";
 import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
-import { buildAnalysisInput } from "@/lib/ai/prompt";
+import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisInput } from "@/lib/ai/prompt";
 import {
   analysisDocumentSchema,
   analyzeRequestSchema,
@@ -143,6 +143,32 @@ describe("structured analysis schema", () => {
       "unattended batch",
     );
     expect(SAMPLE_TASKS_BY_LOCALE.ja[2]?.description).toContain("無人バッチ");
+  });
+
+  it("classifies public-source research as tool use instead of invented file input", () => {
+    for (const tasks of Object.values(SAMPLE_TASKS_BY_LOCALE)) {
+      const analysis = createMockAnalysis(tasks);
+
+      expect(analysis.tasks[1]).toMatchObject({
+        taskId: "task-2",
+        taskType: "research",
+        workMode: "interactive",
+        requiredCapabilities: ["tool-use"],
+      });
+      expect(analysis.tasks[1]?.requiredCapabilities).not.toContain("file-input");
+    }
+  });
+
+  it("limits capability requirements to needs explicitly stated by the task", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain(
+      "Include a requiredCapabilities ID only when the task name or description explicitly requires that capability",
+    );
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain(
+      "Do not infer file-input from research, source comparison, long context, or data analysis alone",
+    );
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain(
+      "source retrieval such as public-source or web research",
+    );
   });
 
   it("rejects invented numeric estimates and more than three risks", () => {

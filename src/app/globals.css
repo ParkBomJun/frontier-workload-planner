@@ -33,6 +33,31 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html:lang(ko) body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+html:lang(ja) body {
+  line-break: strict;
+  word-break: auto-phrase;
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3,
+h4,
+legend,
+summary,
+button {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
 button,
 input,
 select,

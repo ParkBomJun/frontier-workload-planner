@@ -927,9 +927,9 @@ LocalStorage v1/v2/v3 responses, legacy JSON v3, Mock v2 fixtures, and current U
 the heuristic recommendation field. The deterministic compatibility mapping uses
 `premium` → legacy catalog position `frontier` only where a floor must be enforced.
 
-The checkpoint-2 Offering adapter remains passive. It preserves immutable, reference-independent v1 and v2
-snapshots behind exact `(catalogId, catalogVersion)` lookup. The v1 canonical manifest has a fixed
-SHA-256 golden; changing catalog facts requires a new snapshot version rather than editing a
+The Offering adapter preserves immutable, reference-independent v1, v2, and v3 snapshots behind
+exact `(catalogId, catalogVersion)` lookup. Historical canonical manifests have fixed SHA-256
+goldens; changing catalog facts requires a new snapshot version rather than editing a
 published version. Evidence authority includes its exact catalog ID, version, entry, claim, subject,
 field, and value, so equal values in two versions are not interchangeable. Legacy projection accepts
 only a canonical provider/tier lookup and never caller-supplied resolved values. Checkpoint 3 adds
@@ -937,10 +937,12 @@ the workload contract and floor to the reviewed API-only allocator without promo
 Offerings into Best-fit routes. The provider-published
 model identity claim does not contain the planner-authored
 quality tier; a separately named resolver verifies the versioned `frontier` → `premium` heuristic
-adapter. Because the current catalog contains no versioned capability claims, adapted
-capability profiles remain `unknown`; model names are not evidence. Official model invocation
-limits remain available, but the access policy stays `unknown` until a dedicated access-path claim
-exists. Preset and connector references remain conditional until their allowlisted resolvers exist.
+adapter. Historical v1/v2 entries intentionally retain unknown capability and access knowledge.
+The v3 snapshot adds exact model-capability, provider-native API endpoint, API access-limit, and API
+access-capability claims from allowlisted provider documentation. A second versioned planner adapter
+maps provider endpoint IDs to the planner's `chat`, `ide-cli`, and `batch` surfaces; those surface
+names are never represented as provider-published vocabulary. Model names alone remain insufficient
+evidence. Preset and connector references remain conditional until their allowlisted resolvers exist.
 
 Ver3 may let the user override the planning tier and standard text price only for a model already
 present in the verified catalog. An override is source state, is visibly labeled user-supplied,
@@ -1145,12 +1147,13 @@ For each `best-fit-analysis-v2` snapshot, the deterministic route engine now:
 
 The public authority boundary accepts only exact resolver-issued task candidate sets and rejects
 structural clones or a mismatched `planningAsOf` or `pricingAsOf`; the plan preserves both dates.
-A separate normalized pure core exists for closed
-calculation tests; it performs no storage, UI, network, or registry mutation. Current catalog
-access and capability profiles remain incomplete, so the production resolver currently yields no
-confirmed Best-fit API route instead of manufacturing compatibility. The reviewed API-only
-`allocateBudget` and `compareProviderPlans` paths remain unchanged and continue to power the
-existing interface until checkpoint 7 connects confirmed resource inputs.
+A separate normalized pure core exists for closed calculation tests; it performs no storage, UI,
+network, or registry mutation. V3 API entries can become confirmed catalog-compatible routes only
+when the exact model, endpoint, capability, access policy, limits, price conditions, quality floor,
+and workload requirements all resolve. This confirmation describes the public API route, not the
+state of a user's API key, billing account, region, or entitlement. The reviewed API-only
+`allocateBudget` and `compareProviderPlans` paths remain unchanged as a separately labeled
+compatibility/reference calculation.
 
 Every confirmed subscription candidate preserves its native demand unit and exact decimal
 overage-rate coefficient. Low, Expected, and High start from three independent copies of source
@@ -1202,7 +1205,7 @@ Quality First headroom, and it permits Premium without another risk trigger. Pre
 eligible when the minimum itself is Premium or a closed trigger represents High failure exposure,
 deep reasoning, a large code change, or deadline retry risk. Results lead with the access route and
 include deterministic
-`Best-fit route`, `Why this is enough`, `Why not premium`, `Upgrade trigger`, an alternative route,
+`Best-fit route`, `Why this is enough`, `Premium choice`, `Upgrade trigger`, an alternative route,
 and any hold reason. GPT does not generate cost or route-selection explanations.
 
 For a fixed activated-subscription set, confirmed task routes use a complete lexicographic
@@ -1412,9 +1415,9 @@ be exact resolver/evaluator-issued values; structurally similar clones are rejec
 is also bound to the task ID and demand-driving iteration count, while fallback eligibility and
 pricing are bound to one canonical workload requirement and pricing date. A conditional
 subscription suggestion accepts only a resolver-issued eligible API Offering paired with the exact
-evaluated priced API route. Price alone is not compatibility. Current API adapters still have
-unknown access/capability knowledge, so they do not become guaranteed fallbacks merely to exercise
-a success test. Pure cash-boundary arithmetic is tested separately.
+evaluated priced API route. Price alone is not compatibility. Historical API entries with unknown
+access/capability knowledge remain conditional, while v3 entries can act as fallbacks only after all
+versioned claims and price conditions resolve. Pure cash-boundary arithmetic is tested separately.
 
 ChatGPT-like, Copilot-like, GLM-like, and Custom presets are non-authoritative input hints. They
 contain no invented fee, quota, reset interval, or evidence. Connector code currently produces an
@@ -1446,6 +1449,31 @@ quota, reset information, supported surfaces, and a `Custom subscription` entry.
 presets may illustrate variable/opaque chat access, credit-based coding access, and rolling quota,
 but presets must not invent unpublished capacity.
 
+The resource editor uses progressive disclosure for personal users. A new resource starts with an
+opaque quota and unknown reset policy, even when its preset can accept exact credits or a rolling
+window. The quick path requires only the prefilled display name, explicit work-surface selection,
+and plan-period fee. Quota knowledge and reset policy are compact dropdowns in the same card; exact
+quota or observed-consumption fields appear inline only after the user selects that input shape.
+An empty opaque description adapts to the neutral statement that the user did not
+provide an exact quota. It never becomes zero capacity, provider evidence, or a confirmed route.
+Credit and rolling preset hints still constrain units and reset shapes when the user chooses those
+exact inputs. Selecting an exact or calibrated quota continues to require the complete bounded
+numeric observation set.
+
+The personal-user landing flow presents task input and compact budget preferences first, then one
+optional subscription selector and one full-width plan action. The action follows the inputs it
+uses; it is not stranded in a taller right sidebar. Internal names such as `Best-fit`, `Mock`, and
+catalog `override` are not primary navigation labels. API price editing and the legacy provider
+comparison remain available but are collapsed as optional advanced details by default.
+
+The final full-width action is the only intentional analysis submit control. Pressing Enter in a
+single-line task, budget, or resource input does not submit the form; textarea newline entry and
+keyboard activation while the final action itself is focused continue to work. If a user interacts
+with the planning form before the scheduled automatic restore callback runs, that explicit input
+cancels the automatic restore so stored source cannot overwrite the first action. After the storage
+check completes, an idle result panel remains visible until analysis starts or a completed result
+is available.
+
 Checkpoint 7 requires an explicit confirmation before the legacy `budgetUsd` amount becomes the
 total incremental-cash budget. Editing that amount revokes confirmation unless the numeric amount
 is unchanged. Confirmation, strategy, task priority/deadline/failure impact, resource drafts, and
@@ -1475,9 +1503,11 @@ date backward, even when React state updates are batched.
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with
 invalid fields stays visible with field diagnostics; a resolved-but-unverified resource remains a
-conditional/excluded route. Current generalized API Offerings likewise retain unknown access and
-capability profiles, so the production Best-fit view may honestly show no confirmed executable
-route while the reviewed API price/limit comparison remains available below it.
+conditional/excluded route. Current v3 API Offerings use complete allowlisted catalog profiles and
+may become confirmed catalog-compatible routes. The UI separately states that it does not inspect or
+store API keys and has not verified the user's account readiness. If no confirmed route survives the
+workload, evidence, limit, or price conditions, the reviewed API price/limit comparison may still be
+shown below as explicitly non-authoritative reference information.
 
 Availability, commitment, quota, reset, and Offering surface retain separate user-observation
 timestamps. A display-name edit changes none of them; a source-field edit updates only its own fact

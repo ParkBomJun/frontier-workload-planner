@@ -99,7 +99,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("실패 영향: 높음 (`high`)");
     expect(markdown).toContain("작업 모드: `coding-agent`");
     expect(markdown).toContain("최소 품질: `balanced`");
-    expect(markdown).toContain("작업 모드와 필수 기능 지원은 검증하지 않았으며");
+    expect(markdown).toContain("작업 모드와 필수 기능은 판정하지 않습니다");
+    expect(markdown).toContain("별도 카탈로그 판정을 따릅니다");
     expect(markdown).toContain("확인 범위 내 적합");
     expect(markdown).toContain("## 공급자별 비교");
     expect(markdown).toContain("OpenAI · GPT-5.6");
@@ -144,7 +145,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## Pricing and calculation assumptions");
     expect(markdown).toContain("| Low (`low`) | On hold |");
     expect(markdown).toContain("Reason for hold: The lowest Expected total under the currently checked constraints exceeded the budget");
-    expect(markdown).toContain("Active does not mean confirmed Offering eligibility");
+    expect(markdown).toContain("does not assess work mode or required capabilities");
+    expect(markdown).toContain("separate catalog check in the plan above");
     expect(markdown).toContain("A stored Mock fixture provides the structured analysis");
     expect(markdown).toContain(
       "GPT-5.6 is the only Live analysis engine; Claude and Gemini APIs are not called.",
@@ -179,7 +181,8 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## 料金と計算の前提");
     expect(markdown).toContain("| 低 (`low`) | 保留 |");
     expect(markdown).toContain("保留理由: 現在確認した条件で全タスクのExpected最小コストが予算を超えたため");
-    expect(markdown).toContain("Activeは確認済みOffering適格性を意味しません");
+    expect(markdown).toContain("作業モードと必須機能は判定しません");
+    expect(markdown).toContain("別のカタログ判定に従います");
     expect(markdown).toContain("GPT-5.6がタスクを1回だけ分析し");
     expect(markdown).toContain("Live分析はGPT-5.6のみが行い、ClaudeとGemini APIは呼び出しません。");
     expect(markdown).not.toContain("Mockモードは保存済みfixtureを使用します。");
@@ -278,7 +281,7 @@ describe("plan JSON export", () => {
     expect(parsed.allocationEligibilityBasis.requiredCapabilitiesApplied).toBe(false);
     expect(parsed.pricing.catalog).toMatchObject({
       openai: {
-        verifiedAt: "2026-07-17",
+        verifiedAt: "2026-07-18",
         pricingSource: "https://developers.openai.com/api/docs/pricing",
         models: {
           economy: {
@@ -286,17 +289,17 @@ describe("plan JSON export", () => {
             inputUsdPerMillion: 1,
             outputUsdPerMillion: 6,
             limits: {
-              maxInputTokens: null,
+              maxInputTokens: 922_000,
               maxOutputTokens: 128_000,
               maxCombinedTokens: 1_050_000,
               sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
-              verifiedAt: "2026-07-17",
+              verifiedAt: "2026-07-18",
             },
           },
         },
       },
       anthropic: {
-        verifiedAt: "2026-07-17",
+        verifiedAt: "2026-07-18",
         models: {
           balanced: {
             catalogId: "claude-sonnet-5",
@@ -305,7 +308,7 @@ describe("plan JSON export", () => {
         },
       },
       google: {
-        verifiedAt: "2026-07-17",
+        verifiedAt: "2026-07-18",
         models: {
           economy: {
             catalogId: "gemini-3.1-flash-lite",
@@ -570,7 +573,7 @@ describe("plan JSON export", () => {
     expect(markdown).toContain("| Infeasible |");
     expect(markdown).toContain("output limit exceeded (96,000 > 65,536)");
     expect(markdown).toContain("No tier at or above the minimum quality");
-    expect(markdown).toContain("Active does not mean confirmed Offering eligibility");
+    expect(markdown).toContain("does not assess work mode or required capabilities");
     expect(parsed.allocationEligibilityBasis).toEqual(
       expect.objectContaining({
         statusMeaning: "cost-projection-not-confirmed-offering-eligibility",

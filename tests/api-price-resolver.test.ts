@@ -54,7 +54,7 @@ describe("resolveApiStandardTextPrice", () => {
       status: "resolved",
       officialDefault: {
         standardTextPrice: { inputUsdPerMillion: 2, outputUsdPerMillion: 10 },
-        effectiveFrom: "2026-07-17",
+        effectiveFrom: "2026-07-18",
         effectiveThrough: "2026-08-31",
       },
     });
@@ -135,13 +135,13 @@ describe("resolveApiStandardTextPrice", () => {
     const boundary = resolveApiStandardTextPrice({
       providerId: "google",
       tier: "frontier",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(200_000),
     });
     const exceeded = resolveApiStandardTextPrice({
       providerId: "google",
       tier: "frontier",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(128_000, 192_000, 200_001),
     });
 
@@ -171,6 +171,51 @@ describe("resolveApiStandardTextPrice", () => {
     expect(exceeded).not.toHaveProperty("effectiveValue");
   });
 
+  it("does not report incomplete OpenAI costs above the documented long-context boundary", () => {
+    const boundary = resolveApiStandardTextPrice({
+      providerId: "openai",
+      tier: "balanced",
+      pricingAsOf: "2026-07-18",
+      perInvocationInputTokens: inputScenarios(272_000),
+    });
+    const exceeded = resolveApiStandardTextPrice({
+      providerId: "openai",
+      tier: "balanced",
+      pricingAsOf: "2026-07-18",
+      perInvocationInputTokens: inputScenarios(200_000, 272_001, 300_000),
+    });
+
+    expect(boundary).toMatchObject({
+      status: "resolved",
+      effectiveValue: {
+        standardTextPrice: { inputUsdPerMillion: 2.5, outputUsdPerMillion: 15 },
+      },
+    });
+    expect(exceeded).toMatchObject({
+      status: "conditional",
+      reasonCode: "standard-price-input-limit-exceeded",
+      conditionFailures: [
+        {
+          scenario: "expected",
+          actualInputTokens: 272_001,
+          limitInputTokens: 272_000,
+        },
+        {
+          scenario: "high",
+          actualInputTokens: 300_000,
+          limitInputTokens: 272_000,
+        },
+      ],
+      officialDefault: {
+        excludedLongContextPrice: {
+          inputUsdPerMillion: 5,
+          outputUsdPerMillion: 22.5,
+        },
+      },
+    });
+    expect(exceeded).not.toHaveProperty("effectiveValue");
+  });
+
   it("applies only an exact user-supplied override and preserves official evidence", () => {
     const target = catalogOverrideTargetFor("openai", "economy");
     const source = overrideFor(target, {
@@ -187,7 +232,7 @@ describe("resolveApiStandardTextPrice", () => {
     const resolved = resolveApiStandardTextPrice({
       providerId: "openai",
       tier: "economy",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(1_000),
       override: mutation.overrides[0],
     });
@@ -241,13 +286,13 @@ describe("resolveApiStandardTextPrice", () => {
     const canonical = resolveApiStandardTextPrice({
       providerId: "openai",
       tier: "balanced",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(1_000),
     });
     const afterRestore = resolveApiStandardTextPrice({
       providerId: "openai",
       tier: "balanced",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(1_000),
       ...(restored.overrides[0] ? { override: restored.overrides[0] } : {}),
     });
@@ -358,7 +403,7 @@ describe("resolveApiStandardTextPrice", () => {
     resolveApiStandardTextPrice({
       providerId: "openai",
       tier: "economy",
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       perInvocationInputTokens: inputScenarios(1_000),
       override: overrideFor(catalogOverrideTargetFor("openai", "economy"), {
         planningTier: "premium",

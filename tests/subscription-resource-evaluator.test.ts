@@ -26,7 +26,7 @@ import type {
 } from "@/types/subscriptions";
 
 const PLANNING_AS_OF = "2026-07-17T12:00:00.000Z";
-const PRICING_AS_OF = "2026-07-17";
+const PRICING_AS_OF = "2026-07-18";
 
 const analysis: TaskAnalysis = {
   taskId: "task-1",
@@ -201,7 +201,7 @@ function evaluate(
 }
 
 describe("subscription resource evaluation boundary", () => {
-  it("keeps observed quota conditional and refuses an unconfirmed API fallback", () => {
+  it("keeps observed quota conditional and exposes the confirmed API fallback", () => {
     const api = fallback();
     const result = evaluate(api.pricing.scenarioCostMicroUsd.expected);
     expect(result).toMatchObject({
@@ -213,8 +213,7 @@ describe("subscription resource evaluation boundary", () => {
       ],
       fallbackRequired: true,
       fallback: {
-        status: "infeasible",
-        reasonCode: "no-compatible-api-fallback",
+        status: "ready",
       },
       reservation: {
         status: "conditional",

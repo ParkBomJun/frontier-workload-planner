@@ -47,7 +47,7 @@ interface BestFitMarkdownCopy {
   subscriptionMarginalCash: string;
   subscriptionMarginalCashNotice: string;
   whyEnough: string;
-  whyNotPremium: string;
+  premiumChoice: string;
   upgradeTriggers: string;
   alternative: string;
   conditionalAlternatives: string;
@@ -124,7 +124,7 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     subscriptionMarginalCash: "구독 한계 현금 귀속액",
     subscriptionMarginalCashNotice: "> 이 값은 결정론적 예약 순서에서 이 작업에 귀속된 한계 금액입니다. 독립적인 작업 가격이 아니며 계획 총계가 권위값입니다.",
     whyEnough: "충분한 이유",
-    whyNotPremium: "Premium 미선택 이유",
+    premiumChoice: "Premium 선택",
     upgradeTriggers: "상향 조건",
     alternative: "대안 경로",
     conditionalAlternatives: "조건부 대안",
@@ -199,7 +199,7 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     subscriptionMarginalCash: "Subscription marginal cash attribution",
     subscriptionMarginalCashNotice: "> This is the marginal amount attributed at the task's deterministic reservation position. It is not a standalone task price; plan totals are authoritative.",
     whyEnough: "Why enough",
-    whyNotPremium: "Why not Premium",
+    premiumChoice: "Premium choice",
     upgradeTriggers: "Upgrade triggers",
     alternative: "Alternative route",
     conditionalAlternatives: "Conditional alternatives",
@@ -274,7 +274,7 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     subscriptionMarginalCash: "サブスクリプション限界支出の帰属額",
     subscriptionMarginalCashNotice: "> これは決定論的な予約順序上の位置で、この作業に帰属する限界額です。独立した作業価格ではなく、計画全体の合計が正式な値です。",
     whyEnough: "十分な理由",
-    whyNotPremium: "Premiumを選ばない理由",
+    premiumChoice: "Premiumの選択",
     upgradeTriggers: "アップグレード条件",
     alternative: "代替ルート",
     conditionalAlternatives: "条件付き代替",
@@ -467,7 +467,7 @@ export function createBestFitPlanMarkdownFromDocument(
             ? copy.none
             : escapeMarkdown(uiCopy.enums.whyEnough[task.whyEnough])
         }`,
-        `- ${copy.whyNotPremium}: ${
+        `- ${copy.premiumChoice}: ${
           task.whyNotPremium === null
             ? copy.none
             : escapeMarkdown(uiCopy.enums.whyNotPremium[task.whyNotPremium])

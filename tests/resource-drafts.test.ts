@@ -8,6 +8,7 @@ import {
   createDefaultAvailableAiResourceDraft,
   recoverableAvailableAiResourcePresetReason,
   relinkAvailableAiResourceDraftPreset,
+  UNKNOWN_QUOTA_DESCRIPTION,
   updateAvailableAiResourceEvidenceObservedAt,
 } from "@/lib/planning/resource-drafts";
 import { parseStoredSubscriptionResourceInput } from "@/lib/subscriptions/resource-schema";
@@ -25,6 +26,7 @@ function ownedMeteredDraft(): AvailableAiResourceDraft {
       uiId: "account-0001",
       presetId: "github-copilot-like-credits",
     }),
+    surface: "ide-cli",
     feeUsd: "10.123456",
     quota: {
       kind: "metered",
@@ -110,24 +112,20 @@ describe("Available AI resource draft factory", () => {
     expect(chat).toMatchObject({
       uiId: "account-0001",
       availability: "uncertain",
-      surface: "chat",
+      surface: "",
       feeUsd: "",
       quota: { kind: "opaque", description: "" },
       reset: { kind: "unknown" },
     });
     expect(copilot).toMatchObject({
-      surface: "ide-cli",
+      surface: "",
       feeUsd: "",
-      quota: {
-        kind: "metered",
-        unit: "credit",
-        included: "",
-        remaining: "",
-      },
+      quota: { kind: "opaque", description: "" },
+      reset: { kind: "unknown" },
     });
     expect(rolling).toMatchObject({
-      quota: { kind: "opaque" },
-      reset: { kind: "rolling", windowHours: "" },
+      quota: { kind: "opaque", description: "" },
+      reset: { kind: "unknown" },
     });
     expect(() =>
       createDefaultAvailableAiResourceDraft({
@@ -168,11 +166,27 @@ describe("Available AI resource draft adapter", () => {
   });
 
   it("reports empty numeric strings instead of coercing them to zero", () => {
+    const draft = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0001",
+      presetId: "github-copilot-like-credits",
+    });
     const result = adaptAvailableAiResourceDraft(
-      createDefaultAvailableAiResourceDraft({
-        uiId: "account-0001",
-        presetId: "github-copilot-like-credits",
-      }),
+      {
+        ...draft,
+        quota: {
+          kind: "metered",
+          unit: "credit",
+          included: "",
+          remaining: "",
+          consumption: {
+            basis: "task",
+            low: "",
+            expected: "",
+            high: "",
+            sampleSize: "",
+          },
+        },
+      },
       CONTEXT,
     );
 
@@ -189,14 +203,44 @@ describe("Available AI resource draft adapter", () => {
       }),
     });
 
-    const draft = ownedMeteredDraft();
-    if (draft.quota.kind !== "metered") throw new Error("Fixture must be metered.");
+    const meteredDraft = ownedMeteredDraft();
+    if (meteredDraft.quota.kind !== "metered") {
+      throw new Error("Fixture must be metered.");
+    }
     expect(
       adaptAvailableAiResourceDraft(
-        { ...draft, quota: { ...draft.quota, remaining: "0" } },
+        { ...meteredDraft, quota: { ...meteredDraft.quota, remaining: "0" } },
         CONTEXT,
       ).success,
     ).toBe(true);
+  });
+
+  it("accepts an unknown quota as a safe personal-user default", () => {
+    const draft = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0005",
+      presetId: "github-copilot-like-credits",
+    });
+    const result = adaptAvailableAiResourceDraft(
+      { ...draft, surface: "ide-cli", feeUsd: "10" },
+      CONTEXT,
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.resourceInput).toMatchObject({
+      quota: {
+        kind: "opaque",
+        description: UNKNOWN_QUOTA_DESCRIPTION,
+      },
+      reset: { kind: "unknown" },
+    });
+    expect(
+      resolveStoredSubscriptionResource(result.resourceInput, OBSERVED_AT),
+    ).toMatchObject({
+      status: "conditional",
+      resource: { quota: { kind: "opaque" } },
+      reasonCodes: expect.arrayContaining(["quota-opaque"]),
+    });
   });
 
   it("preserves exact six-decimal fee and quota source values", () => {
@@ -302,14 +346,15 @@ describe("Available AI resource draft adapter", () => {
       uiId: "account-0004",
       presetId: "glm-like-rolling",
     });
+    const unknownRolling = adaptAvailableAiResourceDraft(
+      { ...rolling, surface: "chat", feeUsd: "0" },
+      CONTEXT,
+    );
+    expect(unknownRolling.success).toBe(true);
+
     expect(
       adaptAvailableAiResourceDraft(
-        {
-          ...rolling,
-          feeUsd: "0",
-          quota: { kind: "opaque", description: "Quota is not published." },
-          reset: { kind: "unknown" },
-        },
+        { ...rolling, surface: "chat", feeUsd: "0", reset: { kind: "none" } },
         CONTEXT,
       ),
     ).toEqual({
@@ -462,7 +507,7 @@ describe("Available AI resource draft adapter", () => {
       surface: "",
       feeUsd: "14.5",
       quota: { kind: "opaque", description: "" },
-      reset: { kind: "rolling", windowHours: "" },
+      reset: { kind: "unknown" },
     });
     expect(recoverableAvailableAiResourcePresetReason(relinked)).toBeNull();
 

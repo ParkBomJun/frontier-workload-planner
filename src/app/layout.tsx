@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
 import { LanguageProvider } from "@/components/language-provider";
-import { LanguageSelector } from "@/components/language-selector";
 
 import "./globals.css";
 
@@ -22,7 +21,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <LanguageProvider>
           {children}
-          <LanguageSelector />
         </LanguageProvider>
       </body>
     </html>

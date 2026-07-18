@@ -308,6 +308,24 @@ storage and route/resource export contract below.
 - [x] Demonstrate chat subscription, coding route, actual Mock Batch analysis plus focused Batch API execution fixture, selective premium, held work, and avoided spend
 - [x] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
 
+### Post-checkpoint-8 personal-user usability pass
+
+- [x] Make unknown quota and reset information safe defaults instead of requiring exact credits
+- [x] Keep work-surface selection explicit and preserve conditional evidence boundaries
+- [x] Show exact quota and observed-consumption fields inline only when their dropdown option is selected
+- [x] Replace raw field identifiers with a plain-language prompt and optional technical details
+- [x] Keep the simplified resource flow consistent in Korean, English, and Japanese
+- [x] Move the plan action after task, budget, and optional subscription inputs to remove the empty desktop column
+- [x] Collapse expert API price editing and provider comparison by default
+- [x] Remove `Best-fit`, `Mock`, `Live`, and `override` jargon from the primary personal-user flow
+- [x] Prevent single-line Enter from bypassing the explicit final plan action
+- [x] Let first user input win over pending automatic restore and retain a compact idle result state
+- [x] Publish immutable v3 API capability, endpoint, and access-policy claims without rewriting v1/v2
+- [x] Separate provider endpoint evidence from planner-authored chat/IDE/Batch surface mapping
+- [x] Stop blocking plans on app-owned catalog gaps and keep personal account readiness separate
+- [x] Link active API recommendations to provider setup guides without requesting or storing keys
+- [x] Send blocking form recovery to the first exact field and keep technical route reasons secondary
+
 ## Provider-comparison P2 backlog — compatibility-view follow-up
 
 - [ ] Apply date-aware Sonnet 5 pricing to the legacy provider-comparison UI; checkpoint 4 resolves it only in the generalized API seam

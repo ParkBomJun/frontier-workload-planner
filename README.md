@@ -23,9 +23,11 @@ production은 아직 이 빌드로 재배포되지 않았으며, 현재 공개 U
 - OpenAI Responses API와 Zod Structured Outputs
 - `best-fit-analysis-v2` 계약의 work mode, 최소 품질, 필수 기능, 상향 조건, 실패 가능성
 - 기존 API 전용 예산을 자동 재해석하지 않는 명시적 총 증분 현금 예산 확인
-- LocalStorage v6 raw source로 저장·복원하는 Available AI resources: ChatGPT-like, Copilot-like, GLM-like, Custom subscription
+- 정확한 크레딧을 몰라도 간편 설정으로 추가하고, 상세 한도·초기화 값은 선택적으로 입력하는 Available AI resources: ChatGPT-like, Copilot-like, GLM-like, Custom subscription
+- 위 자원 입력과 항목별 관측 시각을 LocalStorage v6 raw source로 저장·복원
 - 검증된 3×3 API 카탈로그 항목의 planning tier·표준 텍스트 가격만 수정하고, source를 저장하며, 삭제로 즉시 기본값 복원
 - API 사용료, 구독 사용량, 신규 구독 약정액, 유료 초과 사용료를 분리한 Best-fit route 결과
+- 공식 모델 기능·API endpoint·한도 정책을 연결한 v3 카탈로그 적합성 판정과 공급자별 API 준비 안내
 - 예산·전략·우선순위·작업 기한·실패 영향·자원·override 변경 시 GPT 재호출 없는 즉시 재계산
 - `gpt-5.6` 기본 모델, `low` reasoning, 출력 최대 3,000토큰
 - 네트워크·SDK·스키마 실패를 합쳐 자동 재시도 최대 1회
@@ -48,11 +50,13 @@ GPT-5.6은 계속 유일한 작업 분석 엔진입니다. Claude나 Gemini API�
 모델·가격에 결정론적으로 투영합니다. 따라서 tier 대응은 예산 계획용 휴리스틱일 뿐 모델의
 실제 품질, 성능, 지연시간 또는 적합성에 대한 객관적 순위가 아닙니다.
 
-현재 main 소스의 `Active`·적합 상태는 표준 API 가격, v2 최소 품질 tier,
-Low / Expected / High 단일 호출 한도와 입력 예산만 적용한 비용 계획입니다. 카탈로그의
-공급자 capability 정보는 아직 `unknown`이므로 `workMode`와 `requiredCapabilities` 지원은
-검증하지 않으며, `Active`는 확인된 Offering 적격성을 뜻하지 않습니다. 기존
-`api-analysis-v1` 계획에는 최소 품질 floor도 적용하지 않고 호출 한도만 검사합니다.
+현재 v3 카탈로그의 API 경로는 버전된 모델 기능, 공급자 endpoint, 모델·접근 한도와
+접근 기능 claim을 해석해 `workMode`와 `requiredCapabilities` 적격성을 판정합니다. 공급자
+endpoint를 플래너의 채팅·IDE/CLI·배치 사용 환경으로 바꾸는 규칙은 별도 버전 어댑터에
+두며, 개인 계정·결제·API 키의 실제 사용 가능 상태는 카탈로그 적격성으로 주장하지
+않습니다. 접힌 공급자별 참고 비용 화면은 이전 의미를 보존해 가격, v2 최소 품질 tier,
+Low / Expected / High 단일 호출 한도와 입력 예산만 비교합니다. 기존 `api-analysis-v1`
+계획에는 최소 품질 floor도 적용하지 않고 호출 한도만 검사합니다.
 
 | 공급자 | Economy | Balanced | Frontier |
 | --- | --- | --- | --- |
@@ -125,6 +129,14 @@ API 지출, 신규 구독 약정, 유료 초과 사용, 구독 native-unit 사�
 이 호환성 보기는 검증된 기본 가격만 사용하며, 저장된 사용자 수정값은 Best-fit 계산에만
 적용된다는 범위를 화면에 명시합니다. 자원 표시 이름을 바꿔도 quota/reset 관측 시각은
 갱신하지 않고, 가용성·요금·quota·reset·사용 환경의 근거 시각을 각각 유지합니다.
+개인 사용자용 간편 설정에서는 표시 이름을 미리 채우고 사용 환경과 결제 기간 요금만
+요구합니다. 한도와 초기화 방식은 같은 카드의 드롭다운에서 고르고, 정확한 크레딧이나
+관측 사용량을 선택한 경우에만 필요한 숫자 입력이 바로 나타납니다. 모르는 한도는 불투명
+상태로 유효하게 저장되지만 계속 조건부로만 해석되며,
+확정 자원이나 0 사용량으로 바뀌지 않습니다.
+API 추천은 공개된 모델·endpoint·기능·호출 한도와 가격 조건이 작업에 맞는지를 판정합니다.
+개인 계정의 결제·지역·API 키 권한까지 확인했다는 뜻은 아니며, 결과 화면에서 선택된
+공급자의 공식 시작 안내를 제공합니다. 이 앱은 API 키를 요청하거나 저장하지 않습니다.
 미래 발효 override는 적용 중으로 저장하지 않고 거부하며, 전역 참고 기한만 바꿔서는
 Best-fit 계산 시각이 이동하지 않습니다. 구독 작업 카드의 현금 범위는 예약 순서에 따른
 한계 귀속값이고 계획 전체 현금 ledger가 최종 권위값임을 별도로 표시합니다.

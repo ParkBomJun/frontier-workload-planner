@@ -20,6 +20,24 @@ describe("UI locale contract", () => {
     });
   });
 
+  it("translates required, optional, and default-value field badges", () => {
+    expect(getUiCopy("ko").common).toMatchObject({
+      required: "필수",
+      optional: "선택",
+      defaultValue: "기본값 있음",
+    });
+    expect(getUiCopy("en").common).toMatchObject({
+      required: "Required",
+      optional: "Optional",
+      defaultValue: "Default set",
+    });
+    expect(getUiCopy("ja").common).toMatchObject({
+      required: "必須",
+      optional: "任意",
+      defaultValue: "初期値あり",
+    });
+  });
+
   it("accepts only supported persisted locale values", () => {
     expect(isUiLocale("ko")).toBe(true);
     expect(isUiLocale("en")).toBe(true);
@@ -45,10 +63,10 @@ describe("UI locale contract", () => {
       copy.enums.invocationFailure["output-limit-exceeded"],
     )).toContain(copy.enums.invocationFailure["output-limit-exceeded"]);
     expect(copy.analysisResults.eligibilityVerificationPending).toMatch(
-      /unknown|미검증|未検証/,
+      /separate catalog check|별도 카탈로그 판정|別のカタログ判定/,
     );
     expect(copy.providerComparison.eligibilityScopeNotice).toMatch(
-      /unknown|검증하지 않았|検証していません/,
+      /assessed separately|별도로 판정|別に判定/,
     );
     expect(copy.providerComparison.previewModels(3)).toContain("3");
     expect(copy.providerComparison.analysisExplanation.mock).toContain("Mock");
@@ -80,16 +98,41 @@ describe("UI locale contract", () => {
     );
   });
 
-  it("labels quality-first as a tier heuristic rather than a quality claim", () => {
+  it("labels quality-first as an upper-grade preference rather than a quality claim", () => {
     expect(getUiCopy("ko").budgetSettings.strategies["quality-first"].label).toBe(
-      "상위 tier 우선",
+      "상위 등급도 검토",
     );
     expect(getUiCopy("en").budgetSettings.strategies["quality-first"].label).toBe(
-      "Upper-tier preference",
+      "Consider higher tiers",
     );
     expect(getUiCopy("ja").budgetSettings.strategies["quality-first"].label).toBe(
-      "上位tier優先",
+      "上位グレードも検討",
     );
     expect(getEnumLabel("en", "priority", "high")).toBe("High");
+  });
+
+  it.each(UI_LOCALES)("keeps strategy labels consistent in %s", (locale) => {
+    const copy = getUiCopy(locale);
+    expect(copy.enums.strategy["cost-saver"]).toBe(
+      copy.budgetSettings.strategies["cost-saver"].label,
+    );
+    expect(copy.enums.strategy.balanced).toBe(
+      copy.budgetSettings.strategies.balanced.label,
+    );
+    expect(copy.enums.strategy["quality-first"]).toBe(
+      copy.budgetSettings.strategies["quality-first"].label,
+    );
+  });
+
+  it("discloses automatic plaintext task storage before submission in every locale", () => {
+    expect(getUiCopy("ko").page.storageDisclosure).toContain("작업명·설명");
+    expect(getUiCopy("ko").page.storageDisclosure).toContain("평문");
+    expect(getUiCopy("ko").page.storageDisclosure).toContain("자동 저장");
+    expect(getUiCopy("en").page.storageDisclosure).toContain("task names, descriptions");
+    expect(getUiCopy("en").page.storageDisclosure).toContain("unencrypted plaintext");
+    expect(getUiCopy("en").page.storageDisclosure).toContain("automatically saved");
+    expect(getUiCopy("ja").page.storageDisclosure).toContain("タスク名・説明");
+    expect(getUiCopy("ja").page.storageDisclosure).toContain("平文");
+    expect(getUiCopy("ja").page.storageDisclosure).toContain("自動保存");
   });
 });

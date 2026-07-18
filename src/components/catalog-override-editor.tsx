@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 
+import { BlockingIssuesDialog } from "@/components/blocking-issues-dialog";
 import { useLanguage } from "@/components/language-provider";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
+import { normalizeStandardTextRate } from "@/lib/calculation/micro-usd";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import {
   catalogOverrideTargetFor,
@@ -39,6 +41,44 @@ export interface CatalogOverrideEditorValues {
   inputPrice: string;
   outputPrice: string;
   effectiveFrom: string;
+}
+
+export type CatalogOverrideValidationIssue =
+  | "input-price-required"
+  | "output-price-required"
+  | "price-invalid"
+  | "effective-date-invalid"
+  | "no-changes"
+  | "maximum-sources";
+
+export function catalogOverrideValidationIssues(
+  values: CatalogOverrideEditorValues,
+  pricingAsOf: string,
+  sourceLimitReached = false,
+): CatalogOverrideValidationIssue[] {
+  const hasInput = values.inputPrice.trim() !== "";
+  const hasOutput = values.outputPrice.trim() !== "";
+  const issues: CatalogOverrideValidationIssue[] = [];
+  if (!hasInput && hasOutput) issues.push("input-price-required");
+  if (hasInput && !hasOutput) issues.push("output-price-required");
+  if (
+    hasInput &&
+    hasOutput &&
+    normalizeStandardTextRate({
+      inputUsdPerMillion: Number(values.inputPrice),
+      outputUsdPerMillion: Number(values.outputPrice),
+    }) === null
+  ) {
+    issues.push("price-invalid");
+  }
+  if (!isImmediateOverrideDateAllowed(values.effectiveFrom, pricingAsOf)) {
+    issues.push("effective-date-invalid");
+  }
+  if (values.planningTier === "" && !hasInput && !hasOutput) {
+    issues.push("no-changes");
+  }
+  if (sourceLimitReached) issues.push("maximum-sources");
+  return issues;
 }
 
 interface CatalogOverrideEditorDraftState {
@@ -123,6 +163,8 @@ export function CatalogOverrideEditor({
       values: initialEditorValues,
     });
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [validationIssues, setValidationIssues] =
+    useState<readonly string[] | null>(null);
 
   const official = useMemo(
     () =>
@@ -140,6 +182,13 @@ export function CatalogOverrideEditor({
       matchesTarget(override, providerId, tier) &&
       isApiCatalogOverrideEffectiveAt(override, pricingAsOf),
   );
+  const activeOverrideCount = overrides.filter(
+    (override) =>
+      isApiCatalogOverrideEffectiveAt(override, pricingAsOf) &&
+      PROVIDER_IDS.some((id) =>
+        MODEL_TIERS.some((modelTier) => matchesTarget(override, id, modelTier)),
+      ),
+  ).length;
   const resolvedEditorValues = resolveCatalogOverrideEditorValues(
     overrides,
     providerId,
@@ -168,11 +217,25 @@ export function CatalogOverrideEditor({
   function applyOverride() {
     const hasInput = inputPrice.trim() !== "";
     const hasOutput = outputPrice.trim() !== "";
-    if (
-      hasInput !== hasOutput ||
-      !isImmediateOverrideDateAllowed(effectiveFrom, pricingAsOf)
-    ) {
+    const replacesExistingSource = overrides.some((override) =>
+      matchesTarget(override, providerId, tier),
+    );
+    const issueCodes = catalogOverrideValidationIssues(
+      editorValues,
+      pricingAsOf,
+      !replacesExistingSource && overrides.length >= 9,
+    );
+    if (issueCodes.length > 0) {
+      const issueCopy = {
+        "input-price-required": copy.overrides.inputPriceRequired,
+        "output-price-required": copy.overrides.outputPriceRequired,
+        "price-invalid": copy.overrides.priceInvalid,
+        "effective-date-invalid": copy.overrides.effectiveDateInvalid,
+        "no-changes": copy.overrides.noChanges,
+        "maximum-sources": copy.overrides.maximumSources,
+      } satisfies Record<CatalogOverrideValidationIssue, string>;
       setFeedback("invalid");
+      setValidationIssues(issueCodes.map((code) => issueCopy[code]));
       return;
     }
     const standardTextPrice =
@@ -194,6 +257,7 @@ export function CatalogOverrideEditor({
     });
     if (!result.ok) {
       setFeedback("invalid");
+      setValidationIssues([copy.overrides.invalid]);
       return;
     }
     onChange(result.overrides, recordedAt);
@@ -226,20 +290,37 @@ export function CatalogOverrideEditor({
   }
 
   return (
-    <section className="mt-6 rounded-[1.75rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-7">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b85331]">
-        {copy.overrides.eyebrow}
-      </p>
-      <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-[-0.025em] text-[#17352a]">
-            {copy.overrides.title}
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#607067]">
-            {copy.overrides.description}
-          </p>
-        </div>
-        <div className="space-y-2 text-xs leading-5">
+    <>
+    <details className="group mt-6 rounded-[1.5rem] border border-[#173f31]/12 bg-white/80 shadow-[0_14px_40px_rgba(28,47,37,0.06)]">
+      <summary className="min-h-11 cursor-pointer list-none rounded-[1.5rem] p-5 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 [&::-webkit-details-marker]:hidden sm:px-6">
+        <span className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block text-xs font-bold uppercase tracking-[0.14em] text-[#b85331]">
+              {copy.overrides.eyebrow}
+            </span>
+            <span className="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-[#17352a]">
+              <span>{copy.overrides.title}</span>
+              {activeOverrideCount > 0 ? (
+                <span className="rounded-full bg-[#edf4ee] px-2.5 py-1 text-[11px] font-bold text-[#365649]">
+                  {copy.overrides.active}: {activeOverrideCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-1 block text-sm leading-5 text-[#607067]">
+              {copy.overrides.description}
+            </span>
+          </span>
+          <span
+            aria-hidden="true"
+            className="shrink-0 text-xl text-[#456455] transition group-open:rotate-45"
+          >
+            +
+          </span>
+        </span>
+      </summary>
+
+      <div className="border-t border-[#173f31]/10 p-5 sm:p-7">
+        <div className="grid gap-2 text-xs leading-5 lg:grid-cols-2">
           <p className="rounded-xl border border-[#c88743]/20 bg-[#fff8ec] px-4 py-3 text-[#71491f]">
             {copy.overrides.sessionOnly}
           </p>
@@ -247,198 +328,228 @@ export function CatalogOverrideEditor({
             {copy.overrides.accessBoundary}
           </p>
         </div>
-      </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.providerLabel}</span>
-          <select
-            value={providerId}
-            disabled={disabled}
-            onChange={(event) => {
-              const next = event.target.value as ProviderId;
-              setProviderId(next);
-              setFeedback(null);
-            }}
-            className={inputClass}
-          >
-            {PROVIDER_IDS.map((id) => (
-              <option key={id} value={id}>{PROVIDER_CATALOG[id].displayName}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.catalogTierLabel}</span>
-          <select
-            value={tier}
-            disabled={disabled}
-            onChange={(event) => {
-              const next = event.target.value as ModelTier;
-              setTier(next);
-              setFeedback(null);
-            }}
-            className={inputClass}
-          >
-            {MODEL_TIERS.map((value) => (
-              <option key={value} value={value}>
-                {PROVIDER_CATALOG[providerId].models[value].displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.planningTierLabel}</span>
-          <select
-            value={planningTier}
-            disabled={disabled}
-            onChange={(event) =>
-              updateEditorValues({
-                planningTier: event.target.value as PlanningQualityTier | "",
-              })
-            }
-            className={inputClass}
-          >
-            <option value="">{copy.overrides.keepDefaultTier}</option>
-            {(["economy", "balanced", "premium"] as const).map((value) => (
-              <option key={value} value={value}>{copy.enums.planningTier[value]}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.inputPriceLabel}</span>
-          <input
-            type="number"
-            min="0"
-            step="0.000001"
-            inputMode="decimal"
-            value={inputPrice}
-            placeholder={officialValue?.standardTextPrice.inputUsdPerMillion.toString()}
-            disabled={disabled}
-            onChange={(event) =>
-              updateEditorValues({ inputPrice: event.target.value })
-            }
-            className={inputClass}
-          />
-        </label>
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.outputPriceLabel}</span>
-          <input
-            type="number"
-            min="0"
-            step="0.000001"
-            inputMode="decimal"
-            value={outputPrice}
-            placeholder={officialValue?.standardTextPrice.outputUsdPerMillion.toString()}
-            disabled={disabled}
-            onChange={(event) =>
-              updateEditorValues({ outputPrice: event.target.value })
-            }
-            className={inputClass}
-          />
-        </label>
-        <label>
-          <span className="mb-1.5 block text-xs font-bold text-[#46564d]">{copy.overrides.effectiveFromLabel}</span>
-          <input
-            type="date"
-            value={effectiveFrom}
-            max={pricingAsOf}
-            disabled={disabled}
-            onChange={(event) =>
-              updateEditorValues({ effectiveFrom: event.target.value })
-            }
-            className={inputClass}
-          />
-        </label>
-      </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.providerLabel}
+            </span>
+            <select
+              value={providerId}
+              disabled={disabled}
+              onChange={(event) => {
+                const next = event.target.value as ProviderId;
+                setProviderId(next);
+                setFeedback(null);
+              }}
+              className={inputClass}
+            >
+              {PROVIDER_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {PROVIDER_CATALOG[id].displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.catalogTierLabel}
+            </span>
+            <select
+              value={tier}
+              disabled={disabled}
+              onChange={(event) => {
+                const next = event.target.value as ModelTier;
+                setTier(next);
+                setFeedback(null);
+              }}
+              className={inputClass}
+            >
+              {MODEL_TIERS.map((value) => (
+                <option key={value} value={value}>
+                  {PROVIDER_CATALOG[providerId].models[value].displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.planningTierLabel}
+            </span>
+            <select
+              value={planningTier}
+              disabled={disabled}
+              onChange={(event) =>
+                updateEditorValues({
+                  planningTier: event.target.value as PlanningQualityTier | "",
+                })
+              }
+              className={inputClass}
+            >
+              <option value="">{copy.overrides.keepDefaultTier}</option>
+              {(["economy", "balanced", "premium"] as const).map((value) => (
+                <option key={value} value={value}>
+                  {copy.enums.planningTier[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.inputPriceLabel}
+            </span>
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              inputMode="decimal"
+              value={inputPrice}
+              placeholder={officialValue?.standardTextPrice.inputUsdPerMillion.toString()}
+              disabled={disabled}
+              onChange={(event) =>
+                updateEditorValues({ inputPrice: event.target.value })
+              }
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.outputPriceLabel}
+            </span>
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              inputMode="decimal"
+              value={outputPrice}
+              placeholder={officialValue?.standardTextPrice.outputUsdPerMillion.toString()}
+              disabled={disabled}
+              onChange={(event) =>
+                updateEditorValues({ outputPrice: event.target.value })
+              }
+              className={inputClass}
+            />
+          </label>
+          <label>
+            <span className="mb-1.5 block text-xs font-bold text-[#46564d]">
+              {copy.overrides.effectiveFromLabel}
+            </span>
+            <input
+              type="date"
+              value={effectiveFrom}
+              max={pricingAsOf}
+              disabled={disabled}
+              onChange={(event) =>
+                updateEditorValues({ effectiveFrom: event.target.value })
+              }
+              className={inputClass}
+            />
+          </label>
+        </div>
 
-      <p className="mt-4 rounded-xl border border-[#173f31]/10 bg-[#f5f7f3] px-4 py-3 text-xs leading-5 text-[#536159]">
-        {copy.overrides.officialDefault}: {PROVIDER_CATALOG[providerId].models[tier].displayName} · {copy.enums.planningTier[officialValue?.planningTier ?? "economy"]} · ${officialValue?.standardTextPrice.inputUsdPerMillion ?? "—"} / ${officialValue?.standardTextPrice.outputUsdPerMillion ?? "—"}
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={applyOverride}
-          className="min-h-11 rounded-xl bg-[#173f31] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#205541] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:opacity-50"
-        >
-          {copy.overrides.apply}
-        </button>
-        <button
-          type="button"
-          disabled={disabled || selectedOverride === undefined}
-          onClick={restoreDefault}
-          className="min-h-11 rounded-xl border border-[#173f31]/15 px-4 py-2.5 text-sm font-bold text-[#365649] transition hover:bg-[#edf4ee] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
-        >
-          {copy.overrides.restore}
-        </button>
-      </div>
-      {feedback ? (
-        <p
-          role="status"
-          className={`mt-3 text-sm ${feedback === "invalid" ? "text-[#9a4228]" : "text-[#2f6c55]"}`}
-        >
-          {copy.overrides[feedback]}
+        <p className="mt-4 rounded-xl border border-[#173f31]/10 bg-[#f5f7f3] px-4 py-3 text-xs leading-5 text-[#536159]">
+          {copy.overrides.officialDefault}: {PROVIDER_CATALOG[providerId].models[tier].displayName} · {copy.enums.planningTier[officialValue?.planningTier ?? "economy"]} · ${officialValue?.standardTextPrice.inputUsdPerMillion ?? "—"} / ${officialValue?.standardTextPrice.outputUsdPerMillion ?? "—"}
         </p>
-      ) : null}
 
-      <div className="mt-5 border-t border-[#173f31]/10 pt-4">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#68766e]">
-          {copy.overrides.active}
-        </p>
-        {overrides.length === 0 ? (
-          <p className="mt-2 text-sm text-[#68766e]">{copy.overrides.none}</p>
-        ) : (
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {overrides.map((override) => {
-              const entry = PROVIDER_IDS.flatMap((id) =>
-                MODEL_TIERS.map((modelTier) => ({ id, modelTier })),
-              ).find(({ id, modelTier }) => matchesTarget(override, id, modelTier));
-              const futureDated = !isApiCatalogOverrideEffectiveAt(
-                override,
-                pricingAsOf,
-              );
-              return (
-                <li key={JSON.stringify(override.target)} className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl bg-[#edf4ee] px-3.5 py-3 text-xs leading-5 text-[#365649]">
-                  <div className="min-w-0">
-                    <span className="break-words font-bold">
-                      {entry
-                        ? `${PROVIDER_CATALOG[entry.id].displayName} · ${PROVIDER_CATALOG[entry.id].models[entry.modelTier].displayName}`
-                        : override.target.entryId}
-                    </span>
-                    <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 font-bold">
-                      {futureDated
-                        ? copy.overrides.futureSource
-                        : entry
-                          ? copy.overrides.userSupplied
-                          : copy.overrides.unresolvedSource}
-                    </span>
-                    <span className="mt-1 block break-words">
-                      {override.planningTier
-                        ? copy.enums.planningTier[override.planningTier]
-                        : copy.overrides.keepDefaultTier}
-                      {override.standardTextPrice
-                        ? ` · $${override.standardTextPrice.inputUsdPerMillion} / $${override.standardTextPrice.outputUsdPerMillion}`
-                        : ""}
-                      {` · ${override.effectiveFrom}`}
-                    </span>
-                  </div>
-                  {entry === undefined || futureDated ? (
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => removeUnresolvedSource(override)}
-                      className="min-h-11 shrink-0 rounded-xl border border-[#9b4c34]/20 bg-white/70 px-3 py-2 text-xs font-bold text-[#8a3b25] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#9b4c34]/12 disabled:opacity-45"
-                    >
-                      {copy.overrides.removeUnresolved}
-                    </button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={applyOverride}
+            className="min-h-11 rounded-xl bg-[#173f31] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#205541] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:opacity-50"
+          >
+            {copy.overrides.apply}
+          </button>
+          <button
+            type="button"
+            disabled={disabled || selectedOverride === undefined}
+            onClick={restoreDefault}
+            className="min-h-11 rounded-xl border border-[#173f31]/15 px-4 py-2.5 text-sm font-bold text-[#365649] transition hover:bg-[#edf4ee] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+          >
+            {copy.overrides.restore}
+          </button>
+        </div>
+        {feedback ? (
+          <p
+            role="status"
+            className={`mt-3 text-sm ${feedback === "invalid" ? "text-[#9a4228]" : "text-[#2f6c55]"}`}
+          >
+            {copy.overrides[feedback]}
+          </p>
+        ) : null}
+
+        <div className="mt-5 border-t border-[#173f31]/10 pt-4">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#68766e]">
+            {copy.overrides.savedSources}
+          </p>
+          {overrides.length === 0 ? (
+            <p className="mt-2 text-sm text-[#68766e]">{copy.overrides.none}</p>
+          ) : (
+            <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {overrides.map((override) => {
+                const entry = PROVIDER_IDS.flatMap((id) =>
+                  MODEL_TIERS.map((modelTier) => ({ id, modelTier })),
+                ).find(({ id, modelTier }) =>
+                  matchesTarget(override, id, modelTier),
+                );
+                const futureDated = !isApiCatalogOverrideEffectiveAt(
+                  override,
+                  pricingAsOf,
+                );
+                return (
+                  <li
+                    key={JSON.stringify(override.target)}
+                    className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl bg-[#edf4ee] px-3.5 py-3 text-xs leading-5 text-[#365649]"
+                  >
+                    <div className="min-w-0">
+                      <span className="break-words font-bold">
+                        {entry
+                          ? `${PROVIDER_CATALOG[entry.id].displayName} · ${PROVIDER_CATALOG[entry.id].models[entry.modelTier].displayName}`
+                          : override.target.entryId}
+                      </span>
+                      <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 font-bold">
+                        {futureDated
+                          ? copy.overrides.futureSource
+                          : entry
+                            ? copy.overrides.userSupplied
+                            : copy.overrides.unresolvedSource}
+                      </span>
+                      <span className="mt-1 block break-words">
+                        {override.planningTier
+                          ? copy.enums.planningTier[override.planningTier]
+                          : copy.overrides.keepDefaultTier}
+                        {override.standardTextPrice
+                          ? ` · $${override.standardTextPrice.inputUsdPerMillion} / $${override.standardTextPrice.outputUsdPerMillion}`
+                          : ""}
+                        {` · ${override.effectiveFrom}`}
+                      </span>
+                    </div>
+                    {entry === undefined || futureDated ? (
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => removeUnresolvedSource(override)}
+                        className="min-h-11 shrink-0 rounded-xl border border-[#9b4c34]/20 bg-white/70 px-3 py-2 text-xs font-bold text-[#8a3b25] transition hover:bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#9b4c34]/12 disabled:opacity-45"
+                      >
+                        {copy.overrides.removeUnresolved}
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
-    </section>
+    </details>
+    <BlockingIssuesDialog
+      open={validationIssues !== null}
+      title={copy.overrides.validationTitle}
+      description={copy.overrides.validationDescription}
+      issues={validationIssues ?? []}
+      closeLabel={copy.overrides.validationClose}
+      onClose={() => setValidationIssues(null)}
+    />
+    </>
   );
 }
