@@ -252,7 +252,7 @@ describe("evaluateApiOfferingCost", () => {
     );
   });
 
-  it("does not apply a future-dated override early", () => {
+  it("rejects a future-scheduled override instead of silently showing defaults", () => {
     const evaluated = evaluateApiOfferingCost({
       providerId: "openai",
       tier: "economy",
@@ -270,15 +270,11 @@ describe("evaluateApiOfferingCost", () => {
     });
 
     expect(evaluated).toMatchObject({
-      status: "priced",
+      status: "invalid",
+      reasonCode: "invalid-user-override",
       pricing: {
-        overrideApplied: false,
-        effectiveValue: {
-          planningTier: "economy",
-          standardTextPrice: { inputUsdPerMillion: 1, outputUsdPerMillion: 6 },
-          planningTierSource: "verified-default",
-          standardTextPriceSource: "verified-default",
-        },
+        status: "invalid",
+        reasonCode: "invalid-user-override",
       },
     });
   });

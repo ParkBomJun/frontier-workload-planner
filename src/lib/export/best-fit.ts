@@ -14,6 +14,7 @@ import {
 } from "@/lib/planning/best-fit-candidates";
 import {
   adaptAvailableAiResourceDraft,
+  recoverableAvailableAiResourcePresetReason,
 } from "@/lib/planning/resource-drafts";
 import type {
   BestFitResourceDiagnostic,
@@ -912,10 +913,11 @@ function projectResourceAudits(
       evidenceObservedAt: observedAt,
     });
     if (!adapted.success) {
+      const presetReason = recoverableAvailableAiResourcePresetReason(draft);
       const actual = {
-        status: "invalid" as const,
+        status: presetReason === null ? ("invalid" as const) : ("conditional" as const),
         routeIdentity: null,
-        reasonCodes: [] as const,
+        reasonCodes: presetReason === null ? [] : [presetReason],
         fieldErrors: sortedFieldErrors(adapted.fieldErrors),
       };
       assertDiagnosticParity(diagnostic, actual);

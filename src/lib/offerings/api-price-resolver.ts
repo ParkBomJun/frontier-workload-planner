@@ -18,7 +18,11 @@ import type {
   StandardTextRate,
 } from "@/types/pricing";
 
-import { isIsoDate, validateApiCatalogOverride } from "./catalog-overrides";
+import {
+  isApiCatalogOverrideEffectiveAt,
+  isIsoDate,
+  validateApiCatalogOverride,
+} from "./catalog-overrides";
 import { resolveApiCatalogEntry } from "./provider-catalog-adapter";
 
 export interface StandardTextPriceSchedule {
@@ -213,6 +217,9 @@ export function resolveApiStandardTextPrice(
     ) {
       return invalidResult(input, "override-target-mismatch", identity);
     }
+    if (!isApiCatalogOverrideEffectiveAt(normalizedOverride, input.pricingAsOf)) {
+      return invalidResult(input, "invalid-user-override", identity);
+    }
   }
 
   const schedule = resolveStandardTextPriceSchedule(
@@ -305,10 +312,7 @@ export function resolveApiStandardTextPrice(
     });
   }
 
-  const appliedOverride =
-    normalizedOverride !== null && input.pricingAsOf >= normalizedOverride.effectiveFrom
-      ? normalizedOverride
-      : null;
+  const appliedOverride = normalizedOverride;
   const overrideApplied = appliedOverride !== null;
   const overrideRate =
     appliedOverride?.standardTextPrice

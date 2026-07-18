@@ -833,6 +833,7 @@ type ConditionalReasonCode =
   | "catalog-reference-unresolved"
   | "catalog-version-mismatch"
   | "catalog-claim-mismatch"
+  | "preset-reference-unresolved"
   | "preset-version-mismatch"
   | "connector-unverified"
   | "connector-binding-mismatch"
@@ -1490,7 +1491,9 @@ The legacy API price/limit compatibility view uses verified defaults only. Sessi
 applied solely by the Best-fit candidate resolver, and this scope is disclosed in every locale.
 This checkpoint accepts only immediately effective or historical dates (`effectiveFrom <=
 pricingAsOf`); future scheduling is rejected. Every plan allocation receives one explicit canonical
-override array, and a missing or mixed source snapshot is a runtime error.
+override array, and a missing or mixed source snapshot is a runtime error. Mutation and persistence
+reject scheduled overrides, restore discards an injected scheduled source, and the resolver
+independently rejects it rather than silently displaying an unapplied value as user-supplied.
 
 The result keeps four quantities visibly separate:
 
@@ -1507,6 +1510,8 @@ conditional result also carries its ordered reason codes and structured API fall
 Every closed excluded-route reason is localized before display. An API task's range is its direct
 standard-text price; a subscription task's displayed range is its marginal cash attribution at the
 deterministic reservation position. The plan cash ledger—not task attribution—is authoritative.
+Localized Markdown uses the same distinction, includes the non-standalone attribution warning,
+renders decision reasons as localized explanations, and lists every applied upgrade trigger.
 
 The checkpoint-7 Korean hero is:
 
@@ -1547,6 +1552,10 @@ all-Premium baseline. A failed resource resolution preserves the source and yiel
 conditional/excluded output; it never copies a prior resolved snapshot into authority. An unresolved
 override source is preserved but not applied, is labeled as unresolved in the editor, and can be
 removed with a source-delete action distinct from restoring a current catalog default.
+An unknown preset ID or obsolete preset version is likewise preserved as a conditional exclusion,
+but the resource editor offers an explicit relink to a current allowlisted preset. Relinking keeps
+the user-owned display name, ownership, availability, and fee; it resets preset-bound surface,
+quota, and reset fields to safe blank defaults and refreshes all affected observation instants.
 `scenario.savedAt` remains storage metadata because provider selection and the legacy global
 reference deadline can update it without changing a Best-fit input.
 
@@ -1570,14 +1579,14 @@ The release demo matrix fixes six distinct outcomes and their truthfulness bound
 | --- | --- | --- |
 | Chat subscription | A subscription branch consumes native quota before avoidable API cash | Show a separately labeled test-only normalized allocator fixture; do not imply it was loaded into the UI, and keep real ChatGPT-like presets conditional/excluded. |
 | Coding route | A coding-agent task selects a compatible coding surface and shows fallback identity | A preset name or model family never proves tool/access capability; production input remains conditional until exact claims resolve. |
-| Batch API | A `batch` work-mode task can route to a compatible standard API surface | “Batch” describes the work surface only. Pricing still excludes discounted provider Batch processing, caching, tools, and long-context surcharges. |
+| Batch API | The third product Mock sample emits `workMode: batch`; a focused deterministic test then prices and allocates it on a catalog Offering whose standard API surface includes `batch` | The confirmed execution is labeled test evidence. “Batch” describes the work surface only; pricing still excludes discounted provider Batch processing, caching, tools, and long-context surcharges. |
 | Selective Premium | Only tasks whose floor/trigger requires Premium are upgraded | This is a deterministic quality-floor/closed-trigger policy, not a model benchmark or universal “best model” recommendation. |
 | Held work | Feasible lower-priority work is visibly held when incremental cash exceeds budget | Held is budget deferral, not infeasibility; tasks with no compatible route are separately excluded/infeasible. |
 | Avoided spend | Savings compare the selected complete plan with the disclosed compatible all-Premium API baseline | Avoided spend is a counterfactual projection, not cash received; missing baseline compatibility stays unavailable rather than becoming `$0 saved`. |
 
 The six demonstrations may combine deterministic Mock UI analysis and separately shown test-only
-normalized allocator fixtures. Any fixture-only confirmed subscription branch is labeled as test
-evidence and is never presented as a UI-loaded scenario. No actual preset, connector, public
+normalized allocator fixtures. Any fixture-only confirmed subscription or Batch API branch is
+labeled as test evidence and is never presented as a UI-loaded confirmed scenario. No actual preset, connector, public
 deployment, or external provider account is presented as verified merely because the code path can
 be demonstrated.
 

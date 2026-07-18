@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { API_CATALOG_REGISTRY_VERSION } from "@/config/versioned-provider-registry";
-import { createMockAnalysis } from "@/lib/ai/mock-response";
+import {
+  createMockAnalysis,
+  MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
+} from "@/lib/ai/mock-response";
+import { evaluateApiOfferingCost } from "@/lib/calculation/evaluate-api-offering";
 import {
   BEST_FIT_PLAN_JSON_SCHEMA_VERSION,
   createBestFitPlanExportDocument,
@@ -14,6 +18,7 @@ import {
   createBestFitPlanMarkdown,
   createBestFitPlanMarkdownFromDocument,
 } from "@/lib/export/best-fit-markdown";
+import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import {
   LEGACY_PLAN_JSON_SCHEMA_VERSION,
   PLAN_JSON_SCHEMA_VERSION,
@@ -26,6 +31,7 @@ import {
   resolveStoredEvidence,
 } from "@/lib/offerings/evidence-resolver";
 import { registeredAccessProviderId } from "@/lib/offerings/route-identity";
+import { resolveAllApiCatalogEntries } from "@/lib/offerings/provider-catalog-adapter";
 import { allocateNormalizedBestFitPlan } from "@/lib/planning/best-fit-allocator";
 import {
   buildBestFitUiPlan,
@@ -36,6 +42,10 @@ import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
 } from "@/lib/planning/resource-drafts";
+import {
+  requiredSurfaceForWorkMode,
+  supportsRequiredWorkSurface,
+} from "@/lib/planning/workload-requirements";
 import {
   bestFitSourceStateSchema,
   createEmptyBestFitSourceState,
@@ -134,7 +144,7 @@ function buildFixtureContext(): BestFitPlanExportContext {
       deadlineDate: "2026-07-21",
       failureImpact: "high",
     }),
-    task("task-subscription", "Batch 작업"),
+    task("task-subscription", "구독 한도 작업"),
   ];
   const analyses = sourceTasks.map((source) => analysis(source));
   const draft = {
@@ -723,6 +733,46 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     expect(JSON.stringify(document.audit)).not.toContain("futureSecret");
   });
 
+  it("exports an unresolved preset as a recoverable conditional source without stale snapshots", () => {
+    const context = buildFixtureContext();
+    const sourceState = structuredClone(context.sourceState);
+    const draft = sourceState.availableAiResources.drafts[0];
+    if (!draft) throw new Error("Preset recovery export fixture is missing.");
+    draft.preset.id = "retired-preset";
+    draft.preset.version = "subscription-presets-v0";
+
+    const diagnostics = buildBestFitUiPlan({
+      tasks: context.sourceTasks,
+      analyses: context.uiPlan.candidateSets.map(({ analysis }) => analysis),
+      strategy: context.uiPlan.plan.strategy,
+      incrementalCashBudgetUsd:
+        context.uiPlan.plan.incrementalCashBudgetMicroUsd / 1_000_000,
+      planningAsOf: context.uiPlan.plan.planningAsOf,
+      pricingAsOf: context.uiPlan.plan.pricingAsOf,
+      resourceDrafts: sourceState.availableAiResources.drafts,
+      resourceEvidenceObservedAtById:
+        sourceState.availableAiResources.evidenceObservedAtById,
+      apiOverrides: sourceState.apiCatalogOverrides.overrides,
+    }).resourceDiagnostics;
+    const document = createBestFitPlanExportDocument(
+      {
+        ...context,
+        sourceState,
+        uiPlan: { ...context.uiPlan, resourceDiagnostics: diagnostics },
+      },
+      EXPORTED_AT,
+    );
+
+    expect(document.audit.resourceResolutions[0]).toMatchObject({
+      status: "conditional",
+      routeIdentity: null,
+      reasonCodes: ["preset-reference-unresolved"],
+      fieldErrors: { "preset.id": "unknown-preset" },
+      resolvedOffering: null,
+      resolvedResource: null,
+    });
+  });
+
   it("cannot restore authority from exported official evidence or the audit section", () => {
     const context = buildFixtureContext();
     const document = createBestFitPlanExportDocument(context, EXPORTED_AT);
@@ -808,6 +858,180 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
       expect(markdown).toContain(PRICING_AS_OF);
       expect(markdown).toContain("importAuthority: false");
     });
+  });
+
+  it("distinguishes API prices from subscription marginal attribution and localizes decision reasons", () => {
+    const document = createBestFitPlanExportDocument(
+      buildFixtureContext(),
+      EXPORTED_AT,
+    );
+    const apiTask = document.result.tasks[0];
+    const subscriptionTask = document.result.tasks[1];
+    if (
+      apiTask?.status !== "active" ||
+      apiTask.routeKind !== "api" ||
+      subscriptionTask?.status !== "active" ||
+      subscriptionTask.routeKind === "api"
+    ) {
+      throw new Error("Markdown semantics fixture requires API and subscription routes.");
+    }
+
+    const cases = [
+      {
+        locale: "ko" as const,
+        apiLabel: "API 작업 가격",
+        subscriptionLabel: "구독 한계 현금 귀속액",
+        marginalNotice: "독립적인 작업 가격이 아니며 계획 총계가 권위값입니다.",
+        upgradeLabel: "상향 조건",
+      },
+      {
+        locale: "en" as const,
+        apiLabel: "API task price",
+        subscriptionLabel: "Subscription marginal cash attribution",
+        marginalNotice: "It is not a standalone task price; plan totals are authoritative.",
+        upgradeLabel: "Upgrade triggers",
+      },
+      {
+        locale: "ja" as const,
+        apiLabel: "API作業価格",
+        subscriptionLabel: "サブスクリプション限界支出の帰属額",
+        marginalNotice: "独立した作業価格ではなく、計画全体の合計が正式な値です。",
+        upgradeLabel: "アップグレード条件",
+      },
+    ];
+
+    cases.forEach(
+      ({ locale, apiLabel, subscriptionLabel, marginalNotice, upgradeLabel }) => {
+        const markdown = createBestFitPlanMarkdownFromDocument(document, locale);
+        const firstStart = markdown.indexOf("### 1.");
+        const secondStart = markdown.indexOf("### 2.", firstStart);
+        const taskSectionEnd = markdown.indexOf("\n## ", secondStart);
+        const apiSection = markdown.slice(firstStart, secondStart);
+        const subscriptionSection = markdown.slice(secondStart, taskSectionEnd);
+        const uiCopy = BEST_FIT_UI_COPY[locale];
+
+        expect(apiSection).toContain(`- ${apiLabel}:`);
+        expect(apiSection).toContain(
+          uiCopy.enums.whyEnough[apiTask.whyEnough],
+        );
+        expect(apiSection).toContain(
+          uiCopy.enums.whyNotPremium[apiTask.whyNotPremium],
+        );
+        expect(apiSection).not.toContain(`\`${apiTask.whyEnough}\``);
+        expect(apiSection).not.toContain(`\`${apiTask.whyNotPremium}\``);
+        expect(apiSection).toContain(`- ${upgradeLabel}:`);
+        apiTask.appliedUpgradeTriggers.forEach((trigger) => {
+          expect(apiSection).toContain(uiCopy.enums.upgradeTrigger[trigger]);
+        });
+
+        expect(subscriptionSection).toContain(`- ${subscriptionLabel}:`);
+        expect(subscriptionSection).toContain(marginalNotice);
+        expect(subscriptionSection).not.toContain(`- ${apiLabel}:`);
+      },
+    );
+  });
+
+  it("executes a real Batch-work-mode fixture through a compatible standard API route", () => {
+    const sourceTask = task(
+      "task-batch-api",
+      "Batch customer inquiry classification",
+      {
+        description:
+          "Classify a CSV of customer inquiries as an unattended batch with structured output.",
+        priority: "low",
+        failureImpact: "low",
+      },
+    );
+    const batchAnalysis: TaskAnalysis = {
+      ...MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
+      taskId: sourceTask.id,
+    };
+    const entry = resolveAllApiCatalogEntries().find(
+      ({ legacyReference }) =>
+        legacyReference.providerId === "openai" &&
+        legacyReference.tier === "economy",
+    );
+    if (entry === undefined) throw new Error("Batch fixture API entry is missing.");
+
+    const evaluated = evaluateApiOfferingCost({
+      providerId: entry.legacyReference.providerId,
+      tier: entry.legacyReference.tier,
+      analysis: batchAnalysis,
+      pricingAsOf: PRICING_AS_OF,
+    });
+    expect(evaluated.status).toBe("priced");
+    if (evaluated.status !== "priced") return;
+
+    expect(requiredSurfaceForWorkMode(batchAnalysis.workMode)).toBe("batch");
+    expect(
+      supportsRequiredWorkSurface(
+        batchAnalysis.workMode,
+        entry.offering.supportedSurfaces,
+      ),
+    ).toBe(true);
+    expect(evaluated.pricing).toMatchObject({
+      status: "resolved",
+      effectiveValue: {
+        standardTextPriceSource: "verified-default",
+      },
+    });
+
+    const candidateSets: BestFitUiPlan["candidateSets"] = [
+      {
+        task: sourceTask,
+        analysis: batchAnalysis,
+        originalIndex: 0,
+        confirmedRoutes: [
+          {
+            mode: "api",
+            routeIdentity: entry.routeIdentity,
+            qualityTier: entry.planningTier,
+            modelId: entry.model.id,
+            variableCashMicroUsd: { ...evaluated.scenarioCostMicroUsd },
+          },
+        ],
+        conditionalAlternatives: [],
+        excludedRoutes: [],
+      },
+    ];
+    const plan = allocateNormalizedBestFitPlan({
+      tasks: candidateSets,
+      strategy: "cost-saver",
+      planningAsOf: PLANNING_AS_OF,
+      pricingAsOf: PRICING_AS_OF,
+      incrementalCashBudgetMicroUsd: 100_000_000,
+    });
+    const context: BestFitPlanExportContext = {
+      sourceTasks: [sourceTask],
+      uiPlan: { plan, candidateSets, resourceDiagnostics: [] },
+      sourceState: createEmptyBestFitSourceState(),
+      analysisMode: "mock",
+      analysisModel: "mock-batch-fixture-v1",
+      generatedAt: PLANNING_AS_OF,
+    };
+
+    expect(plan.tasks[0]).toMatchObject({
+      status: "active",
+      routeKind: "api",
+      routeIdentity: entry.routeIdentity,
+      variableCashMicroUsd: evaluated.scenarioCostMicroUsd,
+    });
+
+    const document = createBestFitPlanExportDocument(context, EXPORTED_AT);
+    expect(document.audit.taskCandidateResolutions[0]?.analysis).toMatchObject({
+      taskId: sourceTask.id,
+      workMode: "batch",
+      requiredCapabilities: ["structured-output"],
+    });
+    expect(document.result.tasks[0]).toMatchObject({
+      status: "active",
+      routeKind: "api",
+      routeKey: projectBestFitExportRoute(entry.routeIdentity).routeKey,
+    });
+    const markdown = createBestFitPlanMarkdownFromDocument(document, "en");
+    expect(markdown).toContain("- API task price:");
+    expect(markdown).toContain("unattended batch");
+    expect(markdown).not.toContain("discounted Batch");
   });
 
   it("rejects stale or arithmetically inconsistent result metadata", () => {

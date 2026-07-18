@@ -13,7 +13,9 @@ still serves stable `main`, and unauthenticated Live analysis remains disabled.
   **“Deterministic test fixture — not a verified real account or production input.”**
 - Real ChatGPT-like, coding-plan, rolling-quota, and Custom presets must remain visibly
   conditional/excluded unless their exact evidence resolves. Do not edit footage to imply otherwise.
-- Say “Batch work mode on a compatible standard API route,” never “discounted Batch API.” The
+- Use the third Mock sample to show the actual `batch` classification, then show the focused
+  deterministic Batch API test as a separate evidence shot. Say “Batch work mode on a compatible
+  standard API route,” never “discounted Batch API.” The
   calculation excludes discounted provider Batch processing, caching, tool fees, and long-context
   surcharges.
 - Call Economy / Balanced / Premium a planning heuristic. Do not call it an objective ranking,
@@ -86,15 +88,18 @@ fallback identity. If using a real preset rather than the fixture, keep it condi
 
 ### 1:25–1:42 — Demo 3: Batch API
 
-**Shot:** Show a task whose work mode is `batch` routed to a compatible standard API surface. Pause
-on the pricing disclosure.
+**Shot:** Load the third sample and show its `workMode: batch` analysis. Then cut to the focused test
+that asserts the required `batch` surface, a compatible catalog Offering, verified-default standard
+price resolution, active API allocation, and matching JSON/Markdown export. Keep the test-evidence
+caption visible; do not present the confirmed fixture as a UI-loaded route.
 
 **Narration:**
 
-> Batch here is the task's work surface. This plan uses standard uncached text pricing; it does not
-> apply a provider's discounted Batch product, caching, tools, or long-context surcharges.
+> The product Mock emits a real Batch workload. This separate deterministic fixture proves the
+> standard API route and export path. Batch here is the task's work surface; it does not apply a
+> provider's discounted Batch product, caching, tools, or long-context surcharges.
 
-**Caption:** `3 · Batch work mode · standard API price`
+**Caption:** `3 · Batch work mode · deterministic test evidence · standard API price`
 
 ### 1:42–2:02 — Demo 4: Selective Premium
 

@@ -371,6 +371,48 @@ describe("recent scenario storage v6", () => {
     });
   });
 
+  it("rejects a future-scheduled override on save and discards an injected restore", () => {
+    const futureSources = structuredClone(populatedBestFitSources);
+    const futureOverride = futureSources.apiCatalogOverrides.overrides[0];
+    if (!futureOverride) {
+      throw new Error("The populated source fixture requires one API override.");
+    }
+    futureOverride.effectiveFrom = "2026-07-19";
+    futureOverride.recordedAt = "2026-07-18T01:05:00.000Z";
+
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: futureSources },
+        new MemoryStorage(),
+        savedAt,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+
+    const storage = new MemoryStorage();
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: populatedBestFitSources },
+        storage,
+        savedAt,
+      ),
+    ).toMatchObject({ ok: true });
+    const injected = JSON.parse(
+      storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}",
+    ) as {
+      bestFitSources: {
+        apiCatalogOverrides: { overrides: Array<{ effectiveFrom: string }> };
+      };
+    };
+    const injectedOverride =
+      injected.bestFitSources.apiCatalogOverrides.overrides[0];
+    if (!injectedOverride) throw new Error("Stored override is missing.");
+    injectedOverride.effectiveFrom = "2026-07-19";
+    storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(injected));
+
+    expect(loadRecentScenario(storage)).toEqual({ status: "discarded" });
+    expect(storage.getItem(RECENT_SCENARIO_STORAGE_KEY)).toBeNull();
+  });
+
   it("confirms total incremental cash only through the explicit pure helper", () => {
     const confirmedAt = "2026-07-17T01:03:00.000Z";
     const source = structuredClone(unconfirmedSettings);

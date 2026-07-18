@@ -4,7 +4,10 @@ import {
 } from "@/lib/calculation/invocation-feasibility";
 import { toMicroUsd } from "@/lib/calculation/micro-usd";
 import { resolveOfferingEligibility } from "@/lib/offerings/eligibility";
-import { validateApiCatalogOverride } from "@/lib/offerings/catalog-overrides";
+import {
+  isApiCatalogOverrideEffectiveAt,
+  validateApiCatalogOverride,
+} from "@/lib/offerings/catalog-overrides";
 import { allocateResolvedBestFitPlan } from "@/lib/planning/best-fit-allocator";
 import {
   resolveBestFitTaskCandidates,
@@ -13,6 +16,7 @@ import {
 } from "@/lib/planning/best-fit-candidates";
 import {
   adaptAvailableAiResourceDraft,
+  recoverableAvailableAiResourcePresetReason,
 } from "@/lib/planning/resource-drafts";
 import { toOfferingEligibilityRequirement } from "@/lib/planning/workload-requirements";
 import { resolveStoredSubscriptionResource } from "@/lib/subscriptions/resource-resolver";
@@ -44,7 +48,15 @@ export type BestFitResourceDiagnostic =
   | {
       uiId: string;
       displayName: string;
-      status: "conditional" | "resolved";
+      status: "conditional";
+      routeIdentity: RouteIdentity | null;
+      fieldErrors: AvailableAiResourceDraftFieldErrors;
+      reasonCodes: readonly ConditionalReasonCode[];
+    }
+  | {
+      uiId: string;
+      displayName: string;
+      status: "resolved";
       routeIdentity: RouteIdentity;
       fieldErrors: Readonly<Record<string, never>>;
       reasonCodes: readonly ConditionalReasonCode[];
@@ -164,14 +176,26 @@ function resolveResourceDrafts(
       evidenceObservedAt,
     });
     if (!adapted.success) {
-      diagnostics.push({
-        uiId: draft.uiId,
-        displayName: draft.displayName,
-        status: "invalid",
-        routeIdentity: null,
-        fieldErrors: adapted.fieldErrors,
-        reasonCodes: [],
-      });
+      const presetReason = recoverableAvailableAiResourcePresetReason(draft);
+      if (presetReason !== null) {
+        diagnostics.push({
+          uiId: draft.uiId,
+          displayName: draft.displayName,
+          status: "conditional",
+          routeIdentity: null,
+          fieldErrors: adapted.fieldErrors,
+          reasonCodes: [presetReason],
+        });
+      } else {
+        diagnostics.push({
+          uiId: draft.uiId,
+          displayName: draft.displayName,
+          status: "invalid",
+          routeIdentity: null,
+          fieldErrors: adapted.fieldErrors,
+          reasonCodes: [],
+        });
+      }
       continue;
     }
 
@@ -267,6 +291,9 @@ export function buildBestFitUiPlan(
       throw new Error(
         `Best-fit API catalog override is invalid: ${validated.reasonCode}.`,
       );
+    }
+    if (!isApiCatalogOverrideEffectiveAt(validated.override, input.pricingAsOf)) {
+      throw new Error("Best-fit API catalog override cannot be scheduled for the future.");
     }
     applicableApiOverrides.push(validated.override);
   }

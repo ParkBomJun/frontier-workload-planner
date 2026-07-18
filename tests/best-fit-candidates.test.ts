@@ -318,18 +318,19 @@ describe("Best-fit resolver-issued task candidates", () => {
     });
     expect(issued.confirmedRoutes).toEqual([]);
 
-    const future = resolveBestFitTaskCandidates({
-      ...candidateInput(),
-      apiOverrides: [
-        { ...luna, effectiveFrom: "2026-07-18" },
-      ],
-    });
     expect(
-      future.excludedRoutes.find(
-        ({ routeIdentity }) =>
-          routeIdentity.offeringId === "api.openai.gpt-5.6-luna.standard-text",
-      )?.status,
-    ).toBe("ineligible");
+      () =>
+        resolveBestFitTaskCandidates({
+          ...candidateInput(),
+          apiOverrides: [
+            {
+              ...luna,
+              effectiveFrom: "2026-07-18",
+              recordedAt: "2026-07-19T12:00:00.000Z",
+            },
+          ],
+        }),
+    ).toThrow(/invalid-user-override/);
   });
 
   it("rejects invalid and duplicate catalog override targets", () => {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createMockAnalysis } from "@/lib/ai/mock-response";
+import {
+  createMockAnalysis,
+  MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
+} from "@/lib/ai/mock-response";
+import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
 import { buildAnalysisInput } from "@/lib/ai/prompt";
 import {
   analysisDocumentSchema,
@@ -118,6 +122,27 @@ describe("structured analysis schema", () => {
     const analysis = createMockAnalysis([validTask]);
     expect(analysis.contractVersion).toBe("best-fit-analysis-v2");
     expect(analysisDocumentSchema.parse(analysis).tasks[0].taskId).toBe(validTask.id);
+  });
+
+  it("pairs the third product sample with an explicit Batch analysis fixture", () => {
+    const analysis = createMockAnalysis(SAMPLE_TASKS_BY_LOCALE.en);
+
+    expect(taskAnalysisSchema.parse(MOCK_BATCH_TASK_ANALYSIS_FIXTURE)).toMatchObject({
+      taskType: "data-analysis",
+      workMode: "batch",
+      requiredCapabilities: ["structured-output"],
+    });
+    expect(analysis.tasks[2]).toMatchObject({
+      taskId: "task-3",
+      taskType: "data-analysis",
+      workMode: "batch",
+      requiredCapabilities: ["structured-output"],
+    });
+    expect(SAMPLE_TASKS_BY_LOCALE.ko[2]?.description).toContain("무인 배치");
+    expect(SAMPLE_TASKS_BY_LOCALE.en[2]?.description).toContain(
+      "unattended batch",
+    );
+    expect(SAMPLE_TASKS_BY_LOCALE.ja[2]?.description).toContain("無人バッチ");
   });
 
   it("rejects invented numeric estimates and more than three risks", () => {

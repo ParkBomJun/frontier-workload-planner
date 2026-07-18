@@ -6,6 +6,8 @@ import {
   adaptAvailableAiResourceDraft,
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
+  recoverableAvailableAiResourcePresetReason,
+  relinkAvailableAiResourceDraftPreset,
   updateAvailableAiResourceEvidenceObservedAt,
 } from "@/lib/planning/resource-drafts";
 import { parseStoredSubscriptionResourceInput } from "@/lib/subscriptions/resource-schema";
@@ -429,5 +431,68 @@ describe("Available AI resource draft adapter", () => {
         feeUsd: "too-many-decimal-places",
       }),
     });
+  });
+
+  it("relinks an unknown preset with safe preset-bound defaults and fresh evidence", () => {
+    const retired: AvailableAiResourceDraft = {
+      ...ownedMeteredDraft(),
+      preset: { id: "retired-credit-plan", version: "retired-v3" },
+      displayName: "My preserved account name",
+      ownership: "owned",
+      availability: "available",
+      feeUsd: "14.5",
+    };
+    const relinked = relinkAvailableAiResourceDraftPreset(
+      retired,
+      "glm-like-rolling",
+    );
+
+    expect(recoverableAvailableAiResourcePresetReason(retired)).toBe(
+      "preset-reference-unresolved",
+    );
+    expect(relinked).toMatchObject({
+      uiId: retired.uiId,
+      preset: {
+        id: "glm-like-rolling",
+        version: "subscription-presets-v1",
+      },
+      displayName: "My preserved account name",
+      ownership: "owned",
+      availability: "available",
+      surface: "ide-cli",
+      feeUsd: "14.5",
+      quota: { kind: "opaque", description: "" },
+      reset: { kind: "rolling", windowHours: "" },
+    });
+    expect(recoverableAvailableAiResourcePresetReason(relinked)).toBeNull();
+
+    const priorObservedAt = createAvailableAiResourceEvidenceObservedAt(
+      "2026-07-17T03:00:00.000Z",
+    );
+    const changedAt = "2026-07-18T04:00:00.000Z";
+    expect(
+      updateAvailableAiResourceEvidenceObservedAt(
+        retired,
+        relinked,
+        priorObservedAt,
+        changedAt,
+      ),
+    ).toEqual({
+      evidenceChanged: true,
+      observedAt: createAvailableAiResourceEvidenceObservedAt(changedAt),
+    });
+  });
+
+  it("marks an obsolete version as a recoverable preset reference", () => {
+    const draft = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0004",
+      presetId: "chatgpt-like-variable",
+    });
+    expect(
+      recoverableAvailableAiResourcePresetReason({
+        ...draft,
+        preset: { ...draft.preset, version: "subscription-presets-v0" },
+      }),
+    ).toBe("preset-version-mismatch");
   });
 });

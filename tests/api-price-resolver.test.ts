@@ -264,6 +264,7 @@ describe("resolveApiStandardTextPrice", () => {
     { recordedAt: "2026-02-30T09:00:00.000Z" },
     { recordedAt: "2026-07-17Z" },
     { recordedAt: "2026-07-17 09:00:00.000Z" },
+    { effectiveFrom: "2026-07-18" },
   ])("rejects invalid or expanded override input %#", (patch) => {
     const source = {
       kind: "api-catalog-override",
@@ -275,6 +276,30 @@ describe("resolveApiStandardTextPrice", () => {
     };
     expect(upsertApiCatalogOverride([], source)).toEqual({
       ok: false,
+      reasonCode: "invalid-user-override",
+    });
+  });
+
+  it("rejects a structurally historical override that is future-dated for pricingAsOf", () => {
+    const override = {
+      ...overrideFor(catalogOverrideTargetFor("openai", "economy"), {
+        planningTier: "premium",
+        standardTextPrice: undefined,
+      }),
+      effectiveFrom: "2026-07-18",
+      recordedAt: "2026-07-19T09:00:00.000Z",
+    };
+
+    expect(
+      resolveApiStandardTextPrice({
+        providerId: "openai",
+        tier: "economy",
+        pricingAsOf: "2026-07-17",
+        perInvocationInputTokens: inputScenarios(1_000),
+        override,
+      }),
+    ).toMatchObject({
+      status: "invalid",
       reasonCode: "invalid-user-override",
     });
   });

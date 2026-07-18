@@ -48,6 +48,14 @@ function currentOverride(): ApiCatalogOverride {
   };
 }
 
+function futureOverride(): ApiCatalogOverride {
+  return {
+    ...currentOverride(),
+    effectiveFrom: "2026-07-19",
+    recordedAt: "2026-07-20T12:05:00.000Z",
+  };
+}
+
 describe("Checkpoint 8 catalog override editor policy", () => {
   it("accepts current or historical dates and rejects future activation", () => {
     expect(isImmediateOverrideDateAllowed("2026-07-17", "2026-07-18")).toBe(
@@ -132,6 +140,26 @@ describe("Checkpoint 8 catalog override editor policy", () => {
     });
   });
 
+  it("does not preload a restored future value as an applied editor value", () => {
+    expect(
+      resolveCatalogOverrideEditorValues(
+        [futureOverride()],
+        "openai",
+        "economy",
+        PRICING_AS_OF,
+      ),
+    ).toEqual({
+      planningTier: "",
+      inputPrice: "",
+      outputPrice: "",
+      effectiveFrom: PRICING_AS_OF,
+    });
+
+    expect(
+      removeApiCatalogOverrideSource([futureOverride()], futureOverride().target),
+    ).toEqual({ ok: true, overrides: [] });
+  });
+
   it("labels unresolved source as unapplied and provides a touch-sized removal action", () => {
     const markup = renderToStaticMarkup(
       createElement(
@@ -149,5 +177,25 @@ describe("Checkpoint 8 catalog override editor policy", () => {
     expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.unresolvedSource);
     expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.removeUnresolved);
     expect(markup).toContain("min-h-11");
+  });
+
+  it("labels an injected future source as rejected rather than user-applied", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(CatalogOverrideEditor, {
+          overrides: [futureOverride()],
+          pricingAsOf: PRICING_AS_OF,
+          disabled: false,
+          onChange: () => undefined,
+        }),
+      ),
+    );
+
+    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.futureSource);
+    expect(markup).not.toContain(
+      `>${BEST_FIT_UI_COPY.ko.overrides.userSupplied}<`,
+    );
   });
 });

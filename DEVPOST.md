@@ -49,6 +49,8 @@ Best-fit planning tier and standard uncached text price for an exact existing ca
 visibly user-supplied, affects only Best-fit candidates, cannot grant access or capability, and is
 removed by “restore default.” The historical API-family compatibility comparison always uses the
 official default.
+Future scheduling is not supported: mutation and persistence reject it, restore discards an
+injected scheduled source, and the price resolver rejects it independently.
 
 ## Reproducible without trusting a stale answer
 
@@ -60,6 +62,8 @@ current preset, resource, and exact-version catalog resolvers and recalculates r
 commitment, overage, and baseline. The restore instant, analysis time, confirmed-budget time,
 resource observation times, and override recording times keep the planning/pricing clock monotonic;
 the storage write time is not treated as calculation time.
+An unknown or retired resource preset remains a conditional exclusion with a visible relink to a
+current preset; relinking resets preset-bound fields instead of treating stale facts as current.
 
 Historical JSON v3/v4 comparison exports remain unchanged. Best-fit results use a separate
 allowlisted JSON v5 document and parallel Korean, English, or Japanese Markdown. They include
@@ -74,14 +78,16 @@ restore authority; source must be validated, re-resolved, and recalculated.
 | --- | --- | --- |
 | Chat subscription | A separately shown test-only allocator fixture consumes native quota before avoidable API cash | It is not loaded into the UI; real presets remain conditional/excluded. |
 | Coding route | A coding-agent task selects a compatible coding surface and shows a fallback | A product name never proves tool or access capability. |
-| Batch API | Batch work uses a compatible standard API route | No discounted provider Batch price is applied. |
+| Batch API | The third Mock sample produces an actual Batch analysis; a focused test-only fixture verifies catalog surface, standard pricing, allocation, and export | The confirmed branch is test evidence, and no discounted provider Batch price is applied. |
 | Selective Premium | Only the tasks whose floor/closed trigger requires it upgrade | This is policy, not a model leaderboard. |
 | Held work | Feasible lower-priority work is held at the cash boundary | Held and infeasible are different states. |
 | Avoided spend | The selected plan is compared with a compatible all-Premium API baseline | It is a disclosed counterfactual, not cash received. |
 
 The interface switches between Korean, English, and Japanese without another analysis request.
-Human-readable Markdown follows the selected language; model names, technical identifiers, user
-text, GPT rationale, and locale-neutral JSON values remain unchanged.
+Human-readable Markdown follows the selected language, distinguishes API task price from
+subscription marginal cash attribution, warns that the latter is not a standalone task price, and
+localizes decision reasons and upgrade triggers. Model names, technical identifiers, user text,
+GPT rationale, and locale-neutral JSON values remain unchanged.
 
 ## Project links
 

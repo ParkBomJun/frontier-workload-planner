@@ -254,6 +254,7 @@ export const CONDITIONAL_REASON_CODES = [
   "catalog-reference-unresolved",
   "catalog-version-mismatch",
   "catalog-claim-mismatch",
+  "preset-reference-unresolved",
   "preset-version-mismatch",
   "connector-unverified",
   "connector-binding-mismatch",

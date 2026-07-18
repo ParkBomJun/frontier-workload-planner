@@ -23,12 +23,12 @@ export const SAMPLE_TASKS_BY_LOCALE: Record<UiLocale, TaskInput[]> = {
     },
     {
       id: "task-3",
-      name: "출시 안내문 초안",
+      name: "고객 문의 일괄 분류",
       priority: "low",
       deadlineDate: null,
       failureImpact: "medium",
       description:
-        "새 예산 계획 기능을 처음 사용하는 팀을 위한 500자 내외의 출시 안내문과 핵심 사용 예시를 작성한다.",
+        "CSV로 받은 고객 문의를 무인 배치로 처리해 주제와 긴급도를 분류하고, 각 행에 구조화된 JSON 결과를 기록한다.",
     },
   ],
   en: [
@@ -52,12 +52,12 @@ export const SAMPLE_TASKS_BY_LOCALE: Record<UiLocale, TaskInput[]> = {
     },
     {
       id: "task-3",
-      name: "Draft a launch announcement",
+      name: "Classify customer inquiries in bulk",
       priority: "low",
       deadlineDate: null,
       failureImpact: "medium",
       description:
-        "Write a short launch announcement and a practical usage example for a team using the new budget-planning feature for the first time.",
+        "Process a CSV of customer inquiries as an unattended batch, classify topic and urgency, and write structured JSON output for every row.",
     },
   ],
   ja: [
@@ -81,12 +81,12 @@ export const SAMPLE_TASKS_BY_LOCALE: Record<UiLocale, TaskInput[]> = {
     },
     {
       id: "task-3",
-      name: "リリース案内の下書き",
+      name: "顧客問い合わせの一括分類",
       priority: "low",
       deadlineDate: null,
       failureImpact: "medium",
       description:
-        "新しい予算計画機能を初めて使うチーム向けに、短いリリース案内と主要な利用例を作成する。",
+        "CSVの顧客問い合わせを無人バッチで処理し、トピックと緊急度を分類して、各行に構造化JSON結果を記録する。",
     },
   ],
 };

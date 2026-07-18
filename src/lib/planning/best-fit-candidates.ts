@@ -19,6 +19,7 @@ import {
 import { toSourceSubscriptionMicrounits } from "@/lib/subscriptions/fixed-decimal";
 import { resolvePaidOverage } from "@/lib/subscriptions/overage-resolver";
 import {
+  isApiCatalogOverrideEffectiveAt,
   upsertApiCatalogOverride,
   validateApiCatalogOverride,
 } from "@/lib/offerings/catalog-overrides";
@@ -115,6 +116,7 @@ function overrideTargetKey(target: ApiCatalogOverride["target"]): string {
 
 function normalizeApiOverrides(
   values: readonly ApiCatalogOverride[] | undefined,
+  pricingAsOf: string,
 ): NormalizedApiOverrides {
   let normalized: readonly ApiCatalogOverride[] = [];
   const targets = new Set<string>();
@@ -124,6 +126,11 @@ function normalizeApiOverrides(
     if (!validated.ok) {
       throw new Error(
         `Best-fit API catalog override is invalid: ${validated.reasonCode}.`,
+      );
+    }
+    if (!isApiCatalogOverrideEffectiveAt(validated.override, pricingAsOf)) {
+      throw new Error(
+        "Best-fit API catalog override is invalid: invalid-user-override.",
       );
     }
     const targetKey = overrideTargetKey(validated.override.target);
@@ -198,7 +205,10 @@ export function isResolvedBestFitTaskCandidateSetFor(
 ): value is ResolvedBestFitTaskCandidateSet {
   if (!isResolvedBestFitTaskCandidateSet(value)) return false;
   try {
-    const overrideKey = normalizeApiOverrides(input.apiOverrides).key;
+    const overrideKey = normalizeApiOverrides(
+      input.apiOverrides,
+      input.pricingAsOf,
+    ).key;
     return candidateSetKeys.get(value) === inputKey(input, overrideKey);
   } catch {
     return false;
@@ -555,7 +565,10 @@ export function resolveBestFitTaskCandidates(
   ) {
     throw new Error("Best-fit candidate resolution requires matching task identity and index.");
   }
-  const apiOverrides = normalizeApiOverrides(input.apiOverrides);
+  const apiOverrides = normalizeApiOverrides(
+    input.apiOverrides,
+    input.pricingAsOf,
+  );
   const api = apiCandidates(
     input.analysis,
     input.pricingAsOf,

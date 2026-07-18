@@ -148,7 +148,10 @@ quota·reset·Offering surface별 관측 시각, 사용자 catalog override sour
 사용합니다. 알 수 없는 과거 reference는 source를 보존하되 dependent fact와 경로를
 unknown/conditional로 만듭니다. 미해결 override는 계산에 적용하지 않고 UI에서
 `미해결 · 적용되지 않음`으로 표시하며, 현재 기본값 복원과 구분된 source 삭제로 제거할 수
-있습니다. 복원은 `/api/analyze`를 호출하지 않습니다.
+있습니다. 알 수 없거나 폐기된 resource preset은 conditional/excluded로 보존되고, 현재
+allowlist preset으로 재연결할 수 있습니다. 재연결 시 표시 이름·보유 상태·가용성·요금은
+유지하지만 preset 종속 surface·quota·reset은 안전한 빈 기본값으로 되돌립니다. 미래 예약
+override는 저장·복원·계산에서 거부됩니다. 복원은 `/api/analyze`를 호출하지 않습니다.
 
 Best-fit JSON v5와 병렬 Markdown은 task route와 fallback, 활성화 resource, API cash, native-unit
 subscription usage, commitment, paid overage, 두 as-of, Premium baseline, 부호 있는 현금 차이,
@@ -163,7 +166,7 @@ override는 별도 source로 표시합니다.
 | --- | --- | --- |
 | Chat subscription | test-only normalized allocator fixture가 native quota를 먼저 사용하는 분기 | UI에 불러온 계정처럼 보이지 않게 분리하며 실제 preset은 conditional 상태를 유지 |
 | Coding route | coding-agent surface와 canonical fallback route | preset 이름만으로 tool/access 기능을 확정하지 않음 |
-| Batch API | `batch` work surface의 API 경로 | 할인된 provider Batch 가격을 사용한다는 뜻이 아님 |
+| Batch API | 세 번째 Mock sample의 실제 `batch` 분석과 catalog surface·표준 가격·allocator를 잇는 focused test fixture | confirmed 분기는 test evidence이며 할인된 provider Batch 가격을 사용한다는 뜻이 아님 |
 | Selective Premium | 닫힌 trigger가 있는 작업만 Premium 검토 | 전 작업 최고 tier 또는 품질 순위가 아님 |
 | Held work | Expected 증분 현금 예산에 따른 보류 | infeasible과 구분 |
 | Avoided spend | 호환 가능한 Premium API counterfactual과 부호 있는 차이 | 실현 절감액이나 성능 우위 주장이 아님 |

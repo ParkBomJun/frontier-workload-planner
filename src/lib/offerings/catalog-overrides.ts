@@ -131,6 +131,7 @@ export function validateApiCatalogOverride(value: unknown): OverrideValidationRe
     candidate.provenance !== "user-supplied" ||
     !isIsoDate(candidate.effectiveFrom) ||
     !isIsoDateTime(candidate.recordedAt) ||
+    candidate.effectiveFrom > candidate.recordedAt.slice(0, 10) ||
     typeof candidate.target !== "object" ||
     candidate.target === null ||
     !hasOnlyKeys(candidate.target, TARGET_KEYS) ||
@@ -197,6 +198,13 @@ export function validateApiCatalogOverride(value: unknown): OverrideValidationRe
   };
 }
 
+export function isApiCatalogOverrideEffectiveAt(
+  override: Pick<ApiCatalogOverride, "effectiveFrom">,
+  pricingAsOf: string,
+): boolean {
+  return isIsoDate(pricingAsOf) && override.effectiveFrom <= pricingAsOf;
+}
+
 export function catalogOverrideTargetFor(
   providerId: ProviderId,
   tier: ModelTier,
@@ -257,8 +265,6 @@ export function removeApiCatalogOverrideSource(
   current: readonly ApiCatalogOverride[],
   target: ApiCatalogOverride["target"],
 ): OverrideSourceRemovalResult {
-  const normalizedCurrent = normalizeExistingOverrideSources(current);
-  if (!normalizedCurrent.ok) return normalizedCurrent;
   const targetKeys = Object.keys(target);
   if (
     targetKeys.length !== TARGET_KEYS.length ||
@@ -277,9 +283,7 @@ export function removeApiCatalogOverrideSource(
   ) {
     return { ok: false, reasonCode: "invalid-user-override" };
   }
-  return finalizeOverrideSources(
-    normalizedCurrent.overrides.filter(
-      (override) => !sameTarget(override.target, target),
-    ),
+  return normalizeExistingOverrideSources(
+    current.filter((override) => !sameTarget(override.target, target)),
   );
 }

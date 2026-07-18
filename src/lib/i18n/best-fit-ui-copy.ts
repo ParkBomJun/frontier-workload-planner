@@ -95,6 +95,10 @@ export interface BestFitUiCopy {
     conditionalStatus: string;
     invalidStatus: string;
     fieldError: string;
+    relinkTitle: string;
+    relinkDescription: string;
+    relinkLabel: string;
+    relinkPlaceholder: string;
     presets: Record<SubscriptionPresetId, { name: string; description: string }>;
   };
   overrides: {
@@ -116,6 +120,7 @@ export interface BestFitUiCopy {
     active: string;
     userSupplied: string;
     unresolvedSource: string;
+    futureSource: string;
     removeUnresolved: string;
     none: string;
     applied: string;
@@ -256,6 +261,10 @@ const ko: BestFitUiCopy = {
     conditionalStatus: "조건부 자원",
     invalidStatus: "입력 확인 필요",
     fieldError: "필수 값과 숫자 범위를 확인하세요.",
+    relinkTitle: "저장된 프리셋을 다시 연결해야 합니다.",
+    relinkDescription: "현재 프리셋을 선택하면 이전 참조를 교체하고 프리셋에 종속된 사용 환경·한도·초기화 입력을 안전한 빈 기본값으로 바꿉니다. 표시 이름과 보유·가용성·요금 입력은 유지됩니다.",
+    relinkLabel: "대체 프리셋",
+    relinkPlaceholder: "현재 프리셋 선택",
     presets: {
       "chatgpt-like-variable": {
         name: "ChatGPT 유형 가변 한도",
@@ -294,6 +303,7 @@ const ko: BestFitUiCopy = {
     active: "저장된 override source",
     userSupplied: "사용자 입력",
     unresolvedSource: "미해결 · 적용되지 않음",
+    futureSource: "미래 예약 거부 · 적용되지 않음",
     removeUnresolved: "미해결 source 삭제",
     none: "저장된 override source 없음",
     applied: "수정값을 적용했습니다.",
@@ -368,7 +378,7 @@ const ko: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "Premium 경로를 선택했습니다.", "premium-not-triggered": "Premium 상향 조건이 없습니다.", "lower-tier-sufficient": "더 낮은 등급이 요구사항을 충족합니다.", "no-compatible-premium-api": "호환 가능한 Premium API 기준이 없습니다." },
     upgradeTrigger: { "minimum-quality-requires-premium": "하위 호환 경로 없음", "high-failure-exposure": "높은 실패 노출", "deadline-retry-risk": "마감 전 재시도 위험", "deep-reasoning": "깊은 추론", "large-code-change": "대규모 코드 변경" },
     exclusionReason: {
-      "catalog-reference-unresolved": "카탈로그 참조를 확인할 수 없음", "catalog-version-mismatch": "카탈로그 버전 불일치", "catalog-claim-mismatch": "카탈로그 주장 불일치", "preset-version-mismatch": "프리셋 버전 불일치", "connector-unverified": "커넥터 미검증", "connector-binding-mismatch": "계정 연결 불일치", "connector-snapshot-stale": "사용량 스냅샷 만료", "connector-snapshot-replayed": "스냅샷 재사용 감지", "connector-receipt-invalid": "커넥터 영수증 무효", "evidence-authority-invalid": "근거 권한 미확인", "profile-unverified": "적격성 프로필 미검증", "model-limits-incomplete": "모델 한도 정보 불완전", "access-limits-incomplete": "이용 경로 한도 정보 불완전", "model-capabilities-incomplete": "모델 기능 정보 불완전", "access-capabilities-incomplete": "이용 경로 기능 정보 불완전", "availability-uncertain": "현재 가용성 불확실", "consumption-user-observed": "사용량이 사용자 관측값임", "quota-calibrated": "한도가 관측값으로 보정됨", "quota-opaque": "정확한 한도가 비공개임", "quota-insufficient-observed": "관측된 잔여 한도 부족", "initial-capacity-unpublished": "신규 초기 한도 미공개",
+      "catalog-reference-unresolved": "카탈로그 참조를 확인할 수 없음", "catalog-version-mismatch": "카탈로그 버전 불일치", "catalog-claim-mismatch": "카탈로그 주장 불일치", "preset-reference-unresolved": "프리셋 참조를 확인할 수 없음", "preset-version-mismatch": "프리셋 버전 불일치", "connector-unverified": "커넥터 미검증", "connector-binding-mismatch": "계정 연결 불일치", "connector-snapshot-stale": "사용량 스냅샷 만료", "connector-snapshot-replayed": "스냅샷 재사용 감지", "connector-receipt-invalid": "커넥터 영수증 무효", "evidence-authority-invalid": "근거 권한 미확인", "profile-unverified": "적격성 프로필 미검증", "model-limits-incomplete": "모델 한도 정보 불완전", "access-limits-incomplete": "이용 경로 한도 정보 불완전", "model-capabilities-incomplete": "모델 기능 정보 불완전", "access-capabilities-incomplete": "이용 경로 기능 정보 불완전", "availability-uncertain": "현재 가용성 불확실", "consumption-user-observed": "사용량이 사용자 관측값임", "quota-calibrated": "한도가 관측값으로 보정됨", "quota-opaque": "정확한 한도가 비공개임", "quota-insufficient-observed": "관측된 잔여 한도 부족", "initial-capacity-unpublished": "신규 초기 한도 미공개",
       "model-reference-missing": "연결 모델 참조 없음",
       "surface-incompatible": "필요한 사용 환경과 호환되지 않음",
       "below-minimum-quality": "최소 품질 등급 미달",
@@ -452,6 +462,10 @@ const en: BestFitUiCopy = {
     conditionalStatus: "Conditional resource",
     invalidStatus: "Input needs review",
     fieldError: "Check required fields and numeric ranges.",
+    relinkTitle: "Reconnect the stored preset.",
+    relinkDescription: "Choose a current preset to replace the old reference and reset preset-bound surface, quota, and reset fields to safe blank defaults. Display name, ownership, availability, and fee are preserved.",
+    relinkLabel: "Replacement preset",
+    relinkPlaceholder: "Choose a current preset",
     presets: {
       "chatgpt-like-variable": { name: "ChatGPT-like variable plan", description: "Record a descriptive limit without inventing an exact task count." },
       "github-copilot-like-credits": { name: "GitHub Copilot-like credits", description: "Enter remaining IDE/CLI credits and observed consumption." },
@@ -478,6 +492,7 @@ const en: BestFitUiCopy = {
     active: "Stored override source",
     userSupplied: "User-supplied",
     unresolvedSource: "Unresolved · not applied",
+    futureSource: "Future schedule rejected · not applied",
     removeUnresolved: "Remove unresolved source",
     none: "No stored override source",
     applied: "Override applied.",
@@ -553,7 +568,7 @@ const en: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "Premium was selected.", "premium-not-triggered": "No Premium upgrade trigger applies.", "lower-tier-sufficient": "A lower tier satisfies the requirements.", "no-compatible-premium-api": "No compatible Premium API baseline is available." },
     upgradeTrigger: { "minimum-quality-requires-premium": "No compatible lower route", "high-failure-exposure": "High failure exposure", "deadline-retry-risk": "Deadline retry risk", "deep-reasoning": "Deep reasoning", "large-code-change": "Large code change" },
     exclusionReason: {
-      "catalog-reference-unresolved": "Catalog reference unresolved", "catalog-version-mismatch": "Catalog version mismatch", "catalog-claim-mismatch": "Catalog claim mismatch", "preset-version-mismatch": "Preset version mismatch", "connector-unverified": "Connector unverified", "connector-binding-mismatch": "Account binding mismatch", "connector-snapshot-stale": "Usage snapshot stale", "connector-snapshot-replayed": "Snapshot replay detected", "connector-receipt-invalid": "Connector receipt invalid", "evidence-authority-invalid": "Evidence authority unverified", "profile-unverified": "Eligibility profile unverified", "model-limits-incomplete": "Model limits incomplete", "access-limits-incomplete": "Access-route limits incomplete", "model-capabilities-incomplete": "Model capabilities incomplete", "access-capabilities-incomplete": "Access-route capabilities incomplete", "availability-uncertain": "Current availability uncertain", "consumption-user-observed": "Consumption is user-observed", "quota-calibrated": "Quota is observation-calibrated", "quota-opaque": "Exact quota is private", "quota-insufficient-observed": "Observed remaining quota is insufficient", "initial-capacity-unpublished": "New-plan initial capacity unpublished",
+      "catalog-reference-unresolved": "Catalog reference unresolved", "catalog-version-mismatch": "Catalog version mismatch", "catalog-claim-mismatch": "Catalog claim mismatch", "preset-reference-unresolved": "Preset reference unresolved", "preset-version-mismatch": "Preset version mismatch", "connector-unverified": "Connector unverified", "connector-binding-mismatch": "Account binding mismatch", "connector-snapshot-stale": "Usage snapshot stale", "connector-snapshot-replayed": "Snapshot replay detected", "connector-receipt-invalid": "Connector receipt invalid", "evidence-authority-invalid": "Evidence authority unverified", "profile-unverified": "Eligibility profile unverified", "model-limits-incomplete": "Model limits incomplete", "access-limits-incomplete": "Access-route limits incomplete", "model-capabilities-incomplete": "Model capabilities incomplete", "access-capabilities-incomplete": "Access-route capabilities incomplete", "availability-uncertain": "Current availability uncertain", "consumption-user-observed": "Consumption is user-observed", "quota-calibrated": "Quota is observation-calibrated", "quota-opaque": "Exact quota is private", "quota-insufficient-observed": "Observed remaining quota is insufficient", "initial-capacity-unpublished": "New-plan initial capacity unpublished",
       "model-reference-missing": "Connected model reference missing",
       "surface-incompatible": "Incompatible with the required work surface",
       "below-minimum-quality": "Below the minimum quality tier",
@@ -637,6 +652,10 @@ const ja: BestFitUiCopy = {
     conditionalStatus: "条件付きリソース",
     invalidStatus: "入力の確認が必要",
     fieldError: "必須項目と数値範囲を確認してください。",
+    relinkTitle: "保存されたプリセットを再接続してください。",
+    relinkDescription: "現在のプリセットを選ぶと古い参照を置き換え、プリセット依存の利用環境・利用枠・リセット項目を安全な空の既定値へ戻します。表示名、保有状態、可用性、料金は保持します。",
+    relinkLabel: "代替プリセット",
+    relinkPlaceholder: "現在のプリセットを選択",
     presets: {
       "chatgpt-like-variable": { name: "ChatGPT型の可変プラン", description: "正確な作業数を作らず、説明形式の上限として記録します。" },
       "github-copilot-like-credits": { name: "GitHub Copilot型クレジット", description: "IDE/CLI用の残りクレジットと観測消費量を入力します。" },
@@ -663,6 +682,7 @@ const ja: BestFitUiCopy = {
     active: "保存済みoverride source",
     userSupplied: "ユーザー入力",
     unresolvedSource: "未解決 · 未適用",
+    futureSource: "将来予約を拒否・未適用",
     removeUnresolved: "未解決sourceを削除",
     none: "保存済みoverride sourceなし",
     applied: "修正値を適用しました。",
@@ -738,7 +758,7 @@ const ja: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "Premium経路を選択しました。", "premium-not-triggered": "Premiumへのアップグレード条件がありません。", "lower-tier-sufficient": "下位ティアで要件を満たします。", "no-compatible-premium-api": "互換性のあるPremium API基準がありません。" },
     upgradeTrigger: { "minimum-quality-requires-premium": "互換性のある下位経路なし", "high-failure-exposure": "高い失敗影響", "deadline-retry-risk": "期限前の再試行リスク", "deep-reasoning": "深い推論", "large-code-change": "大規模コード変更" },
     exclusionReason: {
-      "catalog-reference-unresolved": "カタログ参照を解決できない", "catalog-version-mismatch": "カタログバージョン不一致", "catalog-claim-mismatch": "カタログ主張の不一致", "preset-version-mismatch": "プリセットバージョン不一致", "connector-unverified": "コネクタ未検証", "connector-binding-mismatch": "アカウント接続の不一致", "connector-snapshot-stale": "使用量スナップショットの期限切れ", "connector-snapshot-replayed": "スナップショット再利用を検出", "connector-receipt-invalid": "コネクタ受領情報が無効", "evidence-authority-invalid": "根拠権限が未確認", "profile-unverified": "適格性プロファイル未検証", "model-limits-incomplete": "モデル上限情報が不完全", "access-limits-incomplete": "利用経路の上限情報が不完全", "model-capabilities-incomplete": "モデル機能情報が不完全", "access-capabilities-incomplete": "利用経路の機能情報が不完全", "availability-uncertain": "現在の可用性が不確実", "consumption-user-observed": "使用量がユーザー観測値", "quota-calibrated": "利用枠が観測値で補正済み", "quota-opaque": "正確な利用枠が非公開", "quota-insufficient-observed": "観測された残量が不足", "initial-capacity-unpublished": "新規プランの初期枠が未公開",
+      "catalog-reference-unresolved": "カタログ参照を解決できない", "catalog-version-mismatch": "カタログバージョン不一致", "catalog-claim-mismatch": "カタログ主張の不一致", "preset-reference-unresolved": "プリセット参照を解決できない", "preset-version-mismatch": "プリセットバージョン不一致", "connector-unverified": "コネクタ未検証", "connector-binding-mismatch": "アカウント接続の不一致", "connector-snapshot-stale": "使用量スナップショットの期限切れ", "connector-snapshot-replayed": "スナップショット再利用を検出", "connector-receipt-invalid": "コネクタ受領情報が無効", "evidence-authority-invalid": "根拠権限が未確認", "profile-unverified": "適格性プロファイル未検証", "model-limits-incomplete": "モデル上限情報が不完全", "access-limits-incomplete": "利用経路の上限情報が不完全", "model-capabilities-incomplete": "モデル機能情報が不完全", "access-capabilities-incomplete": "利用経路の機能情報が不完全", "availability-uncertain": "現在の可用性が不確実", "consumption-user-observed": "使用量がユーザー観測値", "quota-calibrated": "利用枠が観測値で補正済み", "quota-opaque": "正確な利用枠が非公開", "quota-insufficient-observed": "観測された残量が不足", "initial-capacity-unpublished": "新規プランの初期枠が未公開",
       "model-reference-missing": "接続モデルの参照なし",
       "surface-incompatible": "必要な利用環境と互換性なし",
       "below-minimum-quality": "最低品質ティア未満",

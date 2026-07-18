@@ -7,6 +7,7 @@ import { PROVIDER_CATALOG } from "@/config/provider-catalog";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import {
   catalogOverrideTargetFor,
+  isApiCatalogOverrideEffectiveAt,
   removeApiCatalogOverrideSource,
   restoreApiCatalogDefaults,
   upsertApiCatalogOverride,
@@ -64,8 +65,10 @@ export function resolveCatalogOverrideEditorValues(
   tier: ModelTier,
   pricingAsOf: string,
 ): CatalogOverrideEditorValues {
-  const existing = overrides.find((override) =>
-    matchesTarget(override, providerId, tier),
+  const existing = overrides.find(
+    (override) =>
+      matchesTarget(override, providerId, tier) &&
+      isApiCatalogOverrideEffectiveAt(override, pricingAsOf),
   );
   return {
     planningTier: existing?.planningTier ?? "",
@@ -132,8 +135,10 @@ export function CatalogOverrideEditor({
     [pricingAsOf, providerId, tier],
   );
   const officialValue = official.status === "resolved" ? official.officialDefault : null;
-  const selectedOverride = overrides.find((override) =>
-    matchesTarget(override, providerId, tier),
+  const selectedOverride = overrides.find(
+    (override) =>
+      matchesTarget(override, providerId, tier) &&
+      isApiCatalogOverrideEffectiveAt(override, pricingAsOf),
   );
   const resolvedEditorValues = resolveCatalogOverrideEditorValues(
     overrides,
@@ -389,6 +394,10 @@ export function CatalogOverrideEditor({
               const entry = PROVIDER_IDS.flatMap((id) =>
                 MODEL_TIERS.map((modelTier) => ({ id, modelTier })),
               ).find(({ id, modelTier }) => matchesTarget(override, id, modelTier));
+              const futureDated = !isApiCatalogOverrideEffectiveAt(
+                override,
+                pricingAsOf,
+              );
               return (
                 <li key={JSON.stringify(override.target)} className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl bg-[#edf4ee] px-3.5 py-3 text-xs leading-5 text-[#365649]">
                   <div className="min-w-0">
@@ -398,9 +407,11 @@ export function CatalogOverrideEditor({
                         : override.target.entryId}
                     </span>
                     <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 font-bold">
-                      {entry
-                        ? copy.overrides.userSupplied
-                        : copy.overrides.unresolvedSource}
+                      {futureDated
+                        ? copy.overrides.futureSource
+                        : entry
+                          ? copy.overrides.userSupplied
+                          : copy.overrides.unresolvedSource}
                     </span>
                     <span className="mt-1 block break-words">
                       {override.planningTier
@@ -412,7 +423,7 @@ export function CatalogOverrideEditor({
                       {` · ${override.effectiveFrom}`}
                     </span>
                   </div>
-                  {entry === undefined ? (
+                  {entry === undefined || futureDated ? (
                     <button
                       type="button"
                       disabled={disabled}

@@ -21,6 +21,26 @@ export const MOCK_TASK_ANALYSIS_FIXTURE: TaskAnalysis = {
     "A balanced tier fits a scoped implementation task that needs some reasoning and iteration. This is a mock fixture, not a live model judgment.",
 };
 
+export const MOCK_BATCH_TASK_ANALYSIS_FIXTURE: TaskAnalysis = {
+  taskId: "task-3",
+  taskType: "data-analysis",
+  complexity: "low",
+  reasoningDepth: "light",
+  expectedIterations: 1,
+  estimatedInputSize: "m",
+  estimatedOutputSize: "s",
+  uncertainty: "low",
+  recommendedModelTier: "economy",
+  workMode: "batch",
+  requiredQualityTier: "economy",
+  requiredCapabilities: ["structured-output"],
+  upgradeConditions: [],
+  failureRisk: "low",
+  riskFactors: [],
+  rationale:
+    "An economy tier fits a bounded unattended classification batch with structured output. This is a mock fixture, not a live model judgment.",
+};
+
 const MOCK_ANALYSIS_VARIANTS: Array<Omit<TaskAnalysis, "taskId">> = [
   MOCK_TASK_ANALYSIS_FIXTURE,
   {
@@ -41,24 +61,7 @@ const MOCK_ANALYSIS_VARIANTS: Array<Omit<TaskAnalysis, "taskId">> = [
     rationale:
       "A frontier tier fits research that requires synthesis across uncertain evidence. This is a mock fixture, not a live model judgment.",
   },
-  {
-    taskType: "writing",
-    complexity: "low",
-    reasoningDepth: "light",
-    expectedIterations: 1,
-    estimatedInputSize: "s",
-    estimatedOutputSize: "s",
-    uncertainty: "low",
-    recommendedModelTier: "economy",
-    workMode: "interactive",
-    requiredQualityTier: "economy",
-    requiredCapabilities: [],
-    upgradeConditions: [],
-    failureRisk: "low",
-    riskFactors: [],
-    rationale:
-      "An economy tier fits a short, well-scoped writing task. This is a mock fixture, not a live model judgment.",
-  },
+  MOCK_BATCH_TASK_ANALYSIS_FIXTURE,
 ];
 
 export function createMockAnalysis(tasks: TaskInput[]): AnalysisDocument {

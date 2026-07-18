@@ -172,6 +172,54 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     expect(result.plan.infeasibleTaskCount).toBe(1);
   });
 
+  it.each([
+    {
+      preset: { id: "retired-preset", version: "subscription-presets-v0" },
+      reason: "preset-reference-unresolved",
+      errorField: "preset.id",
+    },
+    {
+      preset: {
+        id: "chatgpt-like-variable",
+        version: "subscription-presets-v0",
+      },
+      reason: "preset-version-mismatch",
+      errorField: "preset.version",
+    },
+  ] as const)(
+    "keeps a stale preset as a recoverable conditional exclusion: $reason",
+    ({ preset, reason, errorField }) => {
+      const input = planInput();
+      input.resourceDrafts = [
+        {
+          ...createDefaultAvailableAiResourceDraft({
+            uiId: "resource-1",
+            presetId: "chatgpt-like-variable",
+          }),
+          preset,
+          feeUsd: "20",
+          quota: { kind: "opaque", description: "Private capacity" },
+        },
+      ];
+      input.resourceEvidenceObservedAtById = {
+        "resource-1": createAvailableAiResourceEvidenceObservedAt(
+          PLANNING_AS_OF,
+        ),
+      };
+
+      const result = buildBestFitUiPlan(input);
+
+      expect(result.resourceDiagnostics[0]).toMatchObject({
+        status: "conditional",
+        routeIdentity: null,
+        fieldErrors: { [errorField]: expect.any(String) },
+        reasonCodes: [reason],
+      });
+      expect(result.candidateSets[0]?.confirmedRoutes).toEqual([]);
+      expect(result.plan.infeasibleTaskCount).toBe(1);
+    },
+  );
+
   it("is deterministic for equivalent source inputs", () => {
     const first = buildBestFitUiPlan(planInput());
     const second = buildBestFitUiPlan(planInput());
@@ -221,6 +269,22 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     ];
 
     expect(buildBestFitUiPlan(input)).toEqual(baseline);
+  });
+
+  it("rejects an override that is future-dated for the restored pricing date", () => {
+    const input = planInput();
+    input.apiOverrides = [
+      {
+        kind: "api-catalog-override",
+        provenance: "user-supplied",
+        target: catalogOverrideTargetFor("openai", "economy"),
+        effectiveFrom: "2026-07-19",
+        recordedAt: "2026-07-20T12:00:00.000Z",
+        planningTier: "premium",
+      },
+    ];
+
+    expect(() => buildBestFitUiPlan(input)).toThrow(/scheduled for the future/);
   });
 
   it("rejects a mismatched analysis identity and invalid budget", () => {

@@ -167,16 +167,21 @@ export function updateAvailableAiResourceEvidenceObservedAt(
   evidenceChanged: boolean;
   observedAt: AvailableAiResourceEvidenceObservedAt;
 } {
+  const presetChanged = !sameDraftValue(previousDraft.preset, nextDraft.preset);
   const availabilityChanged =
-    previousDraft.availability !== nextDraft.availability;
+    presetChanged || previousDraft.availability !== nextDraft.availability;
   const commitmentChanged =
+    presetChanged ||
     previousDraft.ownership !== nextDraft.ownership ||
     previousDraft.feeUsd !== nextDraft.feeUsd;
   const quotaChanged =
+    presetChanged ||
     previousDraft.ownership !== nextDraft.ownership ||
     !sameDraftValue(previousDraft.quota, nextDraft.quota);
-  const resetChanged = !sameDraftValue(previousDraft.reset, nextDraft.reset);
-  const offeringChanged = previousDraft.surface !== nextDraft.surface;
+  const resetChanged =
+    presetChanged || !sameDraftValue(previousDraft.reset, nextDraft.reset);
+  const offeringChanged =
+    presetChanged || previousDraft.surface !== nextDraft.surface;
 
   return {
     evidenceChanged:
@@ -255,6 +260,40 @@ export function createDefaultAvailableAiResourceDraft({
     surface: preset.suggestedSurfaces[0] ?? "",
     feeUsd: "",
     quota: defaultQuota(preset),
+    reset: defaultReset(preset),
+  };
+}
+
+export type RecoverableAvailableAiResourcePresetReason =
+  | "preset-reference-unresolved"
+  | "preset-version-mismatch";
+
+export function recoverableAvailableAiResourcePresetReason(
+  draft: Pick<AvailableAiResourceDraft, "preset">,
+): RecoverableAvailableAiResourcePresetReason | null {
+  const preset = getSubscriptionPreset(draft.preset.id);
+  if (preset === undefined) return "preset-reference-unresolved";
+  return draft.preset.version === preset.version
+    ? null
+    : "preset-version-mismatch";
+}
+
+export function relinkAvailableAiResourceDraftPreset(
+  draft: AvailableAiResourceDraft,
+  presetId: CreateDefaultAvailableAiResourceDraftOptions["presetId"],
+): AvailableAiResourceDraft {
+  const preset = getSubscriptionPreset(presetId);
+  if (preset === undefined) {
+    throw new Error("Available AI resource preset is not allowlisted.");
+  }
+  return {
+    ...draft,
+    preset: { id: preset.id, version: preset.version },
+    surface: preset.suggestedSurfaces[0] ?? "",
+    quota:
+      draft.ownership === "candidate-new"
+        ? { kind: "opaque", description: "" }
+        : defaultQuota(preset),
     reset: defaultReset(preset),
   };
 }

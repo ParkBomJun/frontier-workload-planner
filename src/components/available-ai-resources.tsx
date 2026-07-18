@@ -7,7 +7,11 @@ import {
 } from "@/config/subscription-presets";
 import { useLanguage } from "@/components/language-provider";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
-import { adaptAvailableAiResourceDraft } from "@/lib/planning/resource-drafts";
+import {
+  adaptAvailableAiResourceDraft,
+  recoverableAvailableAiResourcePresetReason,
+  relinkAvailableAiResourceDraftPreset,
+} from "@/lib/planning/resource-drafts";
 import type {
   AvailableAiResourceDraft,
   AvailableAiResourceEvidenceObservedAt,
@@ -173,6 +177,8 @@ export function AvailableAiResources({
                   offering: "",
                 },
             });
+            const presetRecoveryReason =
+              recoverableAvailableAiResourcePresetReason(draft);
             const forceOpaque =
               draft.ownership === "candidate-new" || preset?.quotaInput.kind === "opaque";
             const forceMetered = preset?.quotaInput.kind === "user-supplied-metered";
@@ -212,12 +218,12 @@ export function AvailableAiResources({
                     </p>
                     <span
                       className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                        adapted.success
+                        adapted.success || presetRecoveryReason !== null
                           ? "bg-[#fff0d6] text-[#7a4b18]"
                           : "bg-[#fde9df] text-[#8a3b25]"
                       }`}
                     >
-                      {adapted.success
+                      {adapted.success || presetRecoveryReason !== null
                         ? copy.resources.conditionalStatus
                         : copy.resources.invalidStatus}
                     </span>
@@ -231,6 +237,53 @@ export function AvailableAiResources({
                     {copy.resources.remove}
                   </button>
                 </div>
+
+                {presetRecoveryReason !== null ? (
+                  <div className="mt-4 rounded-xl border border-[#c88743]/25 bg-[#fff7e8] p-4">
+                    <p className="text-sm font-bold text-[#71491f]">
+                      {copy.resources.relinkTitle}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#765b3a]">
+                      {copy.resources.relinkDescription}
+                    </p>
+                    <label className="mt-3 block max-w-xl">
+                      <span className="mb-1.5 block text-xs font-bold text-[#5f4b32]">
+                        {copy.resources.relinkLabel}
+                      </span>
+                      <select
+                        value=""
+                        disabled={disabled}
+                        onChange={(event) => {
+                          const presetId = event.target.value as SubscriptionPresetId;
+                          if (!presetId) return;
+                          onChange(
+                            draft.uiId,
+                            relinkAvailableAiResourceDraftPreset(draft, presetId),
+                          );
+                        }}
+                        className={inputClass}
+                      >
+                        <option value="">{copy.resources.relinkPlaceholder}</option>
+                        {SUBSCRIPTION_PRESETS.map((candidatePreset) => {
+                          const usedBySibling = drafts.some(
+                            (candidateDraft) =>
+                              candidateDraft.uiId !== draft.uiId &&
+                              candidateDraft.preset.id === candidatePreset.id,
+                          );
+                          return (
+                            <option
+                              key={candidatePreset.id}
+                              value={candidatePreset.id}
+                              disabled={usedBySibling}
+                            >
+                              {copy.resources.presets[candidatePreset.id].name}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
 
                 <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <label className="block sm:col-span-2">

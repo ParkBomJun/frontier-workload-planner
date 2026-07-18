@@ -834,8 +834,10 @@ secret exclusion, stable identity, escaping, and isolated export-error rules.
 
 Demonstrate six distinct outcomes: Chat subscription, coding route, Batch API work surface,
 selective Premium upgrade, budget-held work, and avoided spend. Label the fixture-only confirmed
-subscription branch as test evidence and keep it separate from the product UI. “Batch” means the
-workload/API surface; this planner still
+subscription branch as test evidence and keep it separate from the product UI. The third product
+Mock sample must produce an actual `batch` analysis, and a focused test-only fixture must prove the
+catalog surface, standard price resolver, allocator, and export path before the Batch demo is
+checked complete. “Batch” means the workload/API surface; this planner still
 excludes discounted provider Batch processing, caching, tool fees, and long-context surcharges.
 Selective Premium follows the minimum floor and closed upgrade triggers, not a provider benchmark.
 Held work remains feasible but deferred for budget, unlike excluded/infeasible work. Avoided spend

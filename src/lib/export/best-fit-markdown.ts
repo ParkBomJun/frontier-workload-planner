@@ -4,6 +4,7 @@ import {
   type BestFitPlanExportContext,
   type BestFitPlanExportDocument,
 } from "@/lib/export/best-fit";
+import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
 import type { UiLocale } from "@/lib/i18n/ui-copy";
 
 interface BestFitMarkdownCopy {
@@ -42,9 +43,12 @@ interface BestFitMarkdownCopy {
   confidence: string;
   quality: string;
   targetQuality: string;
-  variableCash: string;
+  apiTaskPrice: string;
+  subscriptionMarginalCash: string;
+  subscriptionMarginalCashNotice: string;
   whyEnough: string;
   whyNotPremium: string;
+  upgradeTriggers: string;
   alternative: string;
   conditionalAlternatives: string;
   fallback: string;
@@ -116,9 +120,12 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     confidence: "신뢰 상태",
     quality: "품질",
     targetQuality: "전략 목표 품질",
-    variableCash: "변동 현금",
+    apiTaskPrice: "API 작업 가격",
+    subscriptionMarginalCash: "구독 한계 현금 귀속액",
+    subscriptionMarginalCashNotice: "> 이 값은 결정론적 예약 순서에서 이 작업에 귀속된 한계 금액입니다. 독립적인 작업 가격이 아니며 계획 총계가 권위값입니다.",
     whyEnough: "충분한 이유",
     whyNotPremium: "Premium 미선택 이유",
+    upgradeTriggers: "상향 조건",
     alternative: "대안 경로",
     conditionalAlternatives: "조건부 대안",
     fallback: "Fallback",
@@ -188,9 +195,12 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     confidence: "Confidence",
     quality: "Quality",
     targetQuality: "Strategy target quality",
-    variableCash: "Variable cash",
+    apiTaskPrice: "API task price",
+    subscriptionMarginalCash: "Subscription marginal cash attribution",
+    subscriptionMarginalCashNotice: "> This is the marginal amount attributed at the task's deterministic reservation position. It is not a standalone task price; plan totals are authoritative.",
     whyEnough: "Why enough",
     whyNotPremium: "Why not Premium",
+    upgradeTriggers: "Upgrade triggers",
     alternative: "Alternative route",
     conditionalAlternatives: "Conditional alternatives",
     fallback: "Fallback",
@@ -260,9 +270,12 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     confidence: "信頼状態",
     quality: "品質",
     targetQuality: "戦略目標品質",
-    variableCash: "変動現金",
+    apiTaskPrice: "API作業価格",
+    subscriptionMarginalCash: "サブスクリプション限界支出の帰属額",
+    subscriptionMarginalCashNotice: "> これは決定論的な予約順序上の位置で、この作業に帰属する限界額です。独立した作業価格ではなく、計画全体の合計が正式な値です。",
     whyEnough: "十分な理由",
     whyNotPremium: "Premiumを選ばない理由",
+    upgradeTriggers: "アップグレード条件",
     alternative: "代替ルート",
     conditionalAlternatives: "条件付き代替",
     fallback: "Fallback",
@@ -362,6 +375,7 @@ export function createBestFitPlanMarkdownFromDocument(
   locale: UiLocale = "ko",
 ): string {
   const copy = COPY[locale];
+  const uiCopy = BEST_FIT_UI_COPY[locale];
   const lines: string[] = [
     `# ${copy.title}`,
     "",
@@ -435,11 +449,29 @@ export function createBestFitPlanMarkdownFromDocument(
         `- ${copy.quality}: ${code(task.qualityTier ?? "unknown")}`,
       );
       if (task.variableCashMicroUsd !== null) {
-        appendScenarioCash(lines, copy, copy.variableCash, task.variableCashMicroUsd);
+        appendScenarioCash(
+          lines,
+          copy,
+          task.routeKind === "api"
+            ? copy.apiTaskPrice
+            : copy.subscriptionMarginalCash,
+          task.variableCashMicroUsd,
+        );
+        if (task.routeKind !== "api") {
+          lines.push("", copy.subscriptionMarginalCashNotice, "");
+        }
       }
       lines.push(
-        `- ${copy.whyEnough}: ${code(task.whyEnough ?? "unknown")}`,
-        `- ${copy.whyNotPremium}: ${code(task.whyNotPremium ?? "unknown")}`,
+        `- ${copy.whyEnough}: ${
+          task.whyEnough === null
+            ? copy.none
+            : escapeMarkdown(uiCopy.enums.whyEnough[task.whyEnough])
+        }`,
+        `- ${copy.whyNotPremium}: ${
+          task.whyNotPremium === null
+            ? copy.none
+            : escapeMarkdown(uiCopy.enums.whyNotPremium[task.whyNotPremium])
+        }`,
       );
       if (
         task.alternativeRouteIdentity !== null &&
@@ -459,6 +491,18 @@ export function createBestFitPlanMarkdownFromDocument(
     } else if (task.infeasibleReason !== null) {
       lines.push(`- ${copy.infeasibleReason}: ${code(task.infeasibleReason)}`);
     }
+
+    lines.push(
+      `- ${copy.upgradeTriggers}: ${
+        task.appliedUpgradeTriggers.length === 0
+          ? copy.none
+          : task.appliedUpgradeTriggers
+              .map((trigger) =>
+                escapeMarkdown(uiCopy.enums.upgradeTrigger[trigger]),
+              )
+              .join(" · ")
+      }`,
+    );
 
     if (task.conditionalAlternatives.length > 0) {
       lines.push(`- ${copy.conditionalAlternatives}:`);

@@ -305,7 +305,7 @@ storage and route/resource export contract below.
 - [x] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
 - [x] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
 - [x] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
-- [x] Demonstrate chat subscription, coding route, batch API, selective premium, held work, and avoided spend
+- [x] Demonstrate chat subscription, coding route, actual Mock Batch analysis plus focused Batch API execution fixture, selective premium, held work, and avoided spend
 - [x] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
 
 ## Provider-comparison P2 backlog — compatibility-view follow-up

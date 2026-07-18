@@ -170,6 +170,14 @@ export const apiCatalogOverrideSourceSchema = z
     ({ planningTier, standardTextPrice }) =>
       planningTier !== undefined || standardTextPrice !== undefined,
     { message: "An API catalog override must change a planning tier or standard text price." },
+  )
+  .refine(
+    ({ effectiveFrom, recordedAt }) =>
+      effectiveFrom <= recordedAt.slice(0, 10),
+    {
+      path: ["effectiveFrom"],
+      message: "Future-scheduled API catalog overrides are not supported.",
+    },
   );
 
 export const apiCatalogOverrideSourcesSchema = z
