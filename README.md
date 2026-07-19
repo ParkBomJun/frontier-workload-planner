@@ -21,9 +21,9 @@ No sign-in or API key is needed for the sample path.
 
 The sample analysis is created entirely in the browser from a checked-in deterministic fixture. It
 does not send task text to the site server or an external AI. Input can still be saved as plaintext
-in browser LocalStorage, so use the supplied sample tasks rather than sensitive content. The public
-URL may still show the earlier stable release until the release candidate is committed and the same
-commit is deployed.
+in browser LocalStorage, so use the supplied sample tasks rather than sensitive content. The linked
+public demo has been checked against the current personal-user flow; unauthenticated Live analysis
+remains disabled there.
 
 ![Nothing More sample flow](./public/frontier-workload-planner-preview.png)
 
@@ -50,10 +50,11 @@ The repository slug, public URL, preview-image filename, and existing browser st
 
 ## Submission status
 
-The current working copy is a release candidate and has **not** yet passed the same-commit remote,
-deployment, protected Live-call, and production verification gates. The existing public URL may
-still show an earlier stable build. Do not describe this release candidate as publicly available
-until every hard gate in `SUBMISSION_CHECKLIST.md` is complete.
+The public sample release is deployed and has passed the same-commit GitHub/Vercel metadata check,
+production sample-flow verification, and public disabled-Live check. This does **not** mean the
+submission is complete: the protected local GPT-5.6 call, final video, Devpost form, identity, and
+other human-owned gates in `SUBMISSION_CHECKLIST.md` remain open. See the
+[production QA report](./docs/submission/PRODUCTION_QA_REPORT_KO.md) for the verified boundary.
 
 ## The problem
 
@@ -172,7 +173,7 @@ scope, evidence policy, UX direction, and final acceptance criteria.
 
 ## Run locally
 
-Requirements: Node.js 20.9 or later.
+Requirements: Node.js 22.x.
 
 ```bash
 npm ci
