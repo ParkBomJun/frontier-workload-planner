@@ -20,7 +20,7 @@ describe("security response headers", () => {
       "X-Frame-Options": "DENY",
       "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
       "Content-Security-Policy":
-        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'",
     });
   });
 });

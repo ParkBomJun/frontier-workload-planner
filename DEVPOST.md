@@ -2,7 +2,7 @@
 
 ## Title
 
-Frontier Workload Planner
+Nothing More
 
 ## Track
 
@@ -24,7 +24,7 @@ the result even harder to trust.
 
 ## What I built
 
-Frontier Workload Planner accepts up to eight tasks, their priority and risk, a total
+Nothing More accepts up to eight tasks, their priority and risk, a total
 incremental-cash budget, and optional observations about personal or organization-provided AI
 subscriptions. Exact subscription credits are not required. Separate accounts can be recorded
 independently, while concurrent limits on one account stay together so capacity is not double

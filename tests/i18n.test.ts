@@ -50,7 +50,7 @@ describe("UI locale contract", () => {
   it.each(UI_LOCALES)("provides complete dynamic copy for %s", (locale) => {
     const copy = getUiCopy(locale);
 
-    expect(copy.common.productName).toBe("Frontier Workload Planner");
+    expect(copy.common.productName).toBe("Nothing More");
     expect(copy.page.submitting(3)).toContain("3");
     expect(copy.taskEditor.maximumReached(8)).toContain("8");
     expect(copy.analysisResults.heldWarning(2)).toContain("2");
@@ -134,6 +134,7 @@ describe("UI locale contract", () => {
     expect(koDisclosure).toContain("평문");
     expect(koDisclosure).toContain("자동 저장");
     expect(koDisclosure).toContain("삭제할 때까지");
+    expect(koDisclosure).toContain("사용자 API 키를 입력받거나 이 브라우저에 저장하지 않습니다");
     expect(getUiCopy("ko").page.storagePlaintextReminder).toContain("삭제할 때까지");
     const enDisclosure = getUiCopy("en").page.storageDisclosure;
     expect(enDisclosure).toContain("task names and descriptions");
@@ -144,6 +145,7 @@ describe("UI locale contract", () => {
     expect(enDisclosure).toContain("unencrypted plaintext");
     expect(enDisclosure).toContain("automatically saved");
     expect(enDisclosure).toContain("until you delete");
+    expect(enDisclosure).toContain("does not ask for a user's API key or store one in this browser");
     expect(getUiCopy("en").page.storagePlaintextReminder).toContain("until you delete");
     const jaDisclosure = getUiCopy("ja").page.storageDisclosure;
     expect(jaDisclosure).toContain("タスク名・説明");
@@ -154,24 +156,25 @@ describe("UI locale contract", () => {
     expect(jaDisclosure).toContain("平文");
     expect(jaDisclosure).toContain("自動保存");
     expect(jaDisclosure).toContain("削除するまで");
+    expect(jaDisclosure).toContain("利用者のAPIキーの入力を求めず、このブラウザにも保存しません");
     expect(getUiCopy("ja").page.storagePlaintextReminder).toContain("削除するまで");
   });
 
   it("explains data transfer using the same sample and own-task labels shown in the UI", () => {
     expect(getUiCopy("ko").page.liveSafety).toMatch(
-      /작업명과 설명[\s\S]*OpenAI[\s\S]*store:false[\s\S]*없애지는 않습니다[\s\S]*최대 30일[\s\S]*더 길어질 수 있습니다[\s\S]*민감정보/,
+      /작업명과 설명[\s\S]*OpenAI[\s\S]*store:false[\s\S]*암호화된 프롬프트 캐시[\s\S]*모든 보관을 없애지는 않습니다[\s\S]*최대 30일[\s\S]*더 길어질 수 있습니다[\s\S]*민감정보/,
     );
     expect(getUiCopy("ko").page.mockSafety).toMatch(
       /브라우저 안에서만[\s\S]*사이트 서버나 외부 AI로 보내지 않/,
     );
     expect(getUiCopy("en").page.liveSafety).toMatch(
-      /task names and descriptions[\s\S]*OpenAI[\s\S]*store:false[\s\S]*does not disable[\s\S]*up to 30 days[\s\S]*kept longer[\s\S]*sensitive information/,
+      /task names and descriptions[\s\S]*OpenAI[\s\S]*store:false[\s\S]*does not eliminate all retention[\s\S]*encrypted prompt caching[\s\S]*up to 30 days[\s\S]*kept longer[\s\S]*sensitive information/,
     );
     expect(getUiCopy("en").page.mockSafety).toMatch(
       /only in this browser[\s\S]*does not send[\s\S]*site server or an external AI/,
     );
     expect(getUiCopy("ja").page.liveSafety).toMatch(
-      /タスク名と説明[\s\S]*OpenAI[\s\S]*store:false[\s\S]*無効になるわけではありません[\s\S]*最大30日間[\s\S]*さらに長く保持[\s\S]*機密情報/,
+      /タスク名と説明[\s\S]*OpenAI[\s\S]*store:false[\s\S]*暗号化されたプロンプトキャッシュ[\s\S]*すべての保持をなくすものではありません[\s\S]*最大30日間[\s\S]*さらに長く保持[\s\S]*機密情報/,
     );
     expect(getUiCopy("ja").page.mockSafety).toMatch(
       /ブラウザ内だけ[\s\S]*サイトのサーバーや外部AIへ送りません/,

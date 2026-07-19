@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nothing More — Human direction, AI implementation</title>
+  <style>
+    :root {
+      --ink: #102f25;
+      --muted: #5d6b64;
+      --paper: #f6f6f1;
+      --card: #ffffff;
+      --green: #174d3b;
+      --mint: #dcebe2;
+      --orange: #c6502d;
+      --cream: #fff3df;
+      --line: #d7ded8;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #dfe4df; color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { display: grid; justify-content: center; gap: 24px; padding: 24px; }
+
+    .slide {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      padding: 54px 64px 46px;
+      background:
+        radial-gradient(circle at 8% 76%, rgba(211, 234, 219, .85), transparent 29%),
+        radial-gradient(circle at 93% 8%, rgba(255, 224, 178, .72), transparent 27%),
+        var(--paper);
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .slide::after {
+      content: attr(data-slide);
+      position: absolute;
+      right: 32px;
+      bottom: 22px;
+      color: #6c786f;
+      font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    h1, h2, h3, p, blockquote { margin: 0; }
+    h1 { max-width: 930px; font-size: 72px; line-height: .98; letter-spacing: -.055em; }
+    h2 { max-width: 980px; font-size: 43px; line-height: 1.04; letter-spacing: -.035em; }
+    h3 { font-size: 21px; line-height: 1.2; letter-spacing: -.018em; }
+    p { font-size: 19px; line-height: 1.48; }
+    small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    strong { font-weight: 760; }
+
+    .eyebrow { color: var(--orange); font: 750 14px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+    .lede { color: var(--muted); font-size: 23px; line-height: 1.42; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 750; }
+    .mark { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 12px; background: var(--green); color: white; font: 750 13px/1 ui-monospace, monospace; }
+    .status { position: absolute; top: 54px; right: 64px; padding: 9px 14px; border: 1px solid #bfd0c5; border-radius: 999px; background: rgba(255,255,255,.74); color: #466055; font-size: 12px; font-weight: 700; }
+    .footer-note { position: absolute; left: 64px; bottom: 22px; color: #68766f; font-size: 11px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    .grid-7-5 { display: grid; grid-template-columns: 7fr 5fr; gap: 34px; }
+    .grid-5-7 { display: grid; grid-template-columns: 5fr 7fr; gap: 34px; }
+    .stack { display: grid; align-content: start; gap: 20px; }
+    .center { display: grid; place-items: center; }
+
+    .card { border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.87); padding: 24px; box-shadow: 0 18px 50px rgba(32, 57, 44, .08); }
+    .card.compact { padding: 18px 20px; border-radius: 17px; }
+    .quote { border-left: 5px solid var(--orange); padding: 12px 0 12px 21px; color: #244b3d; font-size: 24px; font-weight: 680; line-height: 1.35; letter-spacing: -.02em; }
+    .translation { margin-top: 10px; color: var(--muted); font-size: 15px; line-height: 1.38; }
+    .arrow { color: var(--orange); font-size: 30px; font-weight: 800; }
+    .before, .after { display: grid; gap: 9px; }
+    .tag { width: fit-content; padding: 7px 11px; border-radius: 999px; color: white; background: #7c4c3d; font-size: 12px; font-weight: 760; letter-spacing: .06em; text-transform: uppercase; }
+    .tag.after-tag { background: var(--green); }
+    .shot { width: 100%; height: 310px; object-fit: cover; object-position: top; border: 1px solid #ccd6cf; border-radius: 18px; background: white; box-shadow: 0 14px 38px rgba(25, 47, 37, .12); }
+    .shot.tall { height: 390px; }
+    .shot.contain { object-fit: contain; background: #edf0ec; }
+    .phone { width: 210px; height: 455px; object-fit: cover; object-position: top; border: 8px solid #163b2f; border-radius: 30px; box-shadow: 0 19px 45px rgba(18, 50, 39, .22); }
+
+    .role { min-height: 235px; }
+    .role.ai { background: #eef3ef; }
+    .role.human { background: #fff7ea; border-color: #efd8b5; }
+    ul { margin: 15px 0 0; padding-left: 20px; color: #40584e; font-size: 17px; line-height: 1.55; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 9px; }
+    .pill { padding: 8px 12px; border-radius: 999px; background: var(--mint); color: #2d5142; font-size: 13px; font-weight: 700; }
+
+    .flow { display: grid; grid-template-columns: repeat(4, 1fr); align-items: stretch; gap: 14px; }
+    .flow-step { position: relative; min-height: 143px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.88); }
+    .flow-step:not(:last-child)::after { content: "→"; position: absolute; z-index: 2; right: -23px; top: 49px; color: var(--orange); font-size: 28px; font-weight: 800; }
+    .flow-step span { display: block; margin-bottom: 10px; color: var(--orange); font: 750 12px/1 ui-monospace, monospace; }
+    .flow-step p { font-size: 16px; line-height: 1.38; }
+    .boundary { padding: 16px 18px; border-radius: 16px; background: var(--cream); color: #71411e; font-size: 15px; line-height: 1.42; }
+    .metric { padding: 16px 18px; border-left: 4px solid var(--green); border-radius: 12px; background: rgba(255,255,255,.82); }
+    .metric strong { display: block; margin-bottom: 4px; font-size: 21px; }
+    .metric span { color: var(--muted); font-size: 14px; }
+
+    @page { size: 13.333333in 7.5in; margin: 0; }
+    @media print {
+      html, body { background: white; }
+      body { display: block; padding: 0; }
+      .slide { width: 13.333333in; height: 7.5in; }
+    }
+  </style>
+</head>
+<body>
+  <section class="slide" data-slide="01 / 08">
+    <div class="brand"><span class="mark">NM</span>Nothing More</div>
+    <div class="status">AI-authored · human-reviewed</div>
+    <div style="margin-top: 66px" class="grid-7-5">
+      <div class="stack" style="gap: 28px">
+        <p class="eyebrow">Human direction · AI implementation</p>
+        <h1>Use what works.<br />Skip the rest.</h1>
+        <p class="lede">How three days of hands-on feedback reshaped a strict AI cost planner to be clearer and easier for an individual to use.</p>
+      </div>
+      <img class="shot tall" src="assets/after-home-desktop.png" alt="Nothing More after the usability redesign" />
+    </div>
+    <p class="footer-note">Official story: maker's human-written Korean retrospective · This deck: AI-authored, human-reviewed</p>
+  </section>
+
+  <section class="slide" data-slide="02 / 08">
+    <p class="eyebrow">Why this exists</p>
+    <h2 style="margin-top: 14px">Paying for more AI did not mean using more AI.</h2>
+    <div class="grid-5-7" style="margin-top: 34px">
+      <div class="stack">
+        <blockquote class="quote" style="font-size:21px">“돈은 쓰고, 기능은 제대로 사용해 보지도 못한 채 돈을 날리는 사람이 나 말고도 많을 것 같아서 만들어 본 프로젝트입니다.”</blockquote>
+        <p class="translation">“I thought I couldn't be the only person paying for features I never even got to use.”</p>
+        <div class="card compact" style="margin-top: 8px">
+          <h3>Nothing More means:</h3>
+          <p style="margin-top: 8px; color: var(--muted)">No extra subscription or API expense without a reason. Use only what helps the work.</p>
+        </div>
+      </div>
+      <div class="card" style="display:grid; align-content:center; gap:18px">
+        <div class="metric"><strong>Scattered subscriptions</strong><span>Different products, limits, and payment rules</span></div>
+        <div class="arrow">↓</div>
+        <div class="metric"><strong>One explainable plan</strong><span>Existing access, new cash, API use, uncertainty, and the next action stay separate</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="03 / 08">
+    <p class="eyebrow">The first version</p>
+    <h2 style="margin-top: 14px">Technically detailed. Practically hard to use.</h2>
+    <div class="grid-2" style="margin-top: 28px">
+      <div class="before">
+        <span class="tag">Before</span>
+        <img class="shot tall" src="assets/before-desktop-form.png" alt="Earlier desktop layout with a long form and empty area" />
+      </div>
+      <div class="stack" style="padding-top: 43px">
+        <blockquote class="quote">“처음 만들어진 버전은 사실 실사용이 어렵다고 생각했죠.”</blockquote>
+        <p class="translation">“I honestly thought the first version was hard to use in practice.”</p>
+        <div class="card compact">
+          <div class="pill-row">
+            <span class="pill">Unfamiliar terms</span>
+            <span class="pill">Long page</span>
+            <span class="pill">Uneven spacing</span>
+            <span class="pill">Hidden next steps</span>
+          </div>
+        </div>
+        <p>The maker did not review a mockup from a distance. The maker used the app as the target user, captured the exact screens that felt wrong, and kept asking for another pass.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="04 / 08">
+    <p class="eyebrow">Prompt → code → outcome</p>
+    <h2 style="margin-top: 14px"><span style="display:block; color:var(--orange); font:750 13px/1.3 ui-monospace,monospace; letter-spacing:.05em">PARAPHRASED MAKER FEEDBACK</span>We may understand Best-fit, but a user might not.</h2>
+    <div class="grid-2" style="margin-top: 15px">
+      <div class="before">
+        <span class="tag">Before</span>
+        <img class="shot contain" style="height:280px" src="assets/before-annotated-hero.png" alt="Annotated early hero with uneven text and spacing" />
+        <p style="color:var(--muted); font-size:16px">Internal vocabulary and a visually uneven first screen made the product feel more specialized than it needed to be.</p>
+      </div>
+      <div class="after">
+        <span class="tag after-tag">After</span>
+        <img class="shot" style="height:280px" src="assets/after-home-desktop.png" alt="Redesigned first screen" />
+        <p style="color:var(--muted); font-size:16px"><strong>Best-fit / Mock / Live / override</strong> became user-facing steps, sample-first language, optional advanced controls, and a clearer action order.</p>
+      </div>
+    </div>
+    <div class="boundary" style="margin-top: 12px"><strong>The strict rules stayed.</strong> The redesign changed how the planner explains them, not what counts as verified evidence.</div>
+  </section>
+
+  <section class="slide" data-slide="05 / 08">
+    <p class="eyebrow">A dead end became a next step</p>
+    <h2 style="margin-top: 14px">An error should help the user recover.</h2>
+    <div class="grid-2" style="margin-top: 25px">
+      <div class="before">
+        <span class="tag">Before</span>
+        <img class="shot tall contain" src="assets/before-complex-dialog.png" alt="Earlier diagnostic-heavy dialog" />
+      </div>
+      <div class="after">
+        <span class="tag after-tag">After</span>
+        <img class="shot tall" src="assets/after-actionable-error.png" alt="Actionable input error with return-to-input button" />
+      </div>
+    </div>
+    <blockquote class="quote" style="position:absolute; left:64px; right:64px; bottom:45px; padding-top:9px; padding-bottom:9px; font-size:19px"><small style="display:block; color:var(--orange); font-weight:750">PARAPHRASED MAKER FEEDBACK</small>“이거 때문에 안 됩니다”에서 끝내지 말고, 고칠 부분으로 이동시켜 주세요. <span style="font-weight:500; color:var(--muted)">→ The primary action now scrolls and focuses the first invalid field.</span></blockquote>
+  </section>
+
+  <section class="slide" data-slide="06 / 08">
+    <p class="eyebrow">Privacy as a product boundary</p>
+    <h2 style="margin-top: 14px">Do not hide a complicated data flow behind the word “safe.”</h2>
+    <div class="flow" style="margin-top: 31px">
+      <div class="flow-step"><span>PUBLIC SAMPLE</span><p>Task planning runs in the browser from a checked-in fixture.</p></div>
+      <div class="flow-step"><span>LOCAL SAVE</span><p>One successful source scenario is automatically saved as browser plaintext when storage is available.</p></div>
+      <div class="flow-step"><span>PRIVATE LIVE</span><p>If deliberately enabled, the backend forwards only task ID, name, and description to OpenAI.</p></div>
+      <div class="flow-step"><span>HONEST LIMIT</span><p><code>store:false</code> is used, but it is not described as zero retention.</p></div>
+    </div>
+    <div class="grid-2" style="margin-top: 28px">
+      <blockquote class="quote" style="font-size:20px">“사용자의 경험이 우선이잖아요? 저는 개인정보 안내도 사용자가 실제로 이해할 수 있어야 의미가 있다고 생각했어요.”</blockquote>
+      <div class="card compact">
+        <h3>Code-backed evidence</h3>
+        <ul style="font-size:15px; margin-top:8px">
+          <li>Server-environment API key</li>
+          <li>Exact outbound field allowlist</li>
+          <li>Fail-closed public feature gate</li>
+          <li>Raw upstream errors contained</li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-note">Release policy requires public Live to remain disabled; the final deployment must verify it on the exact release commit.</p>
+  </section>
+
+  <section class="slide" data-slide="07 / 08">
+    <p class="eyebrow">Designed for the screen people actually have</p>
+    <h2 style="margin-top: 14px">Mobile, short windows, and visible recalculation feedback.</h2>
+    <div class="grid-7-5" style="margin-top: 12px">
+      <div class="stack">
+        <img class="shot" style="height:300px" src="assets/after-results-desktop.png" alt="Desktop results and visible completion feedback" />
+        <div class="grid-2" style="gap:15px">
+          <div class="card compact"><h3>Same result is still feedback</h3><p style="margin-top:7px; font-size:15px; color:var(--muted)">The app distinguishes “recalculated, unchanged” from no response.</p></div>
+          <div class="card compact"><h3>One account, several limits</h3><p style="margin-top:7px; font-size:15px; color:var(--muted)">Five-hour and weekly observations stay together instead of becoming fake extra capacity.</p></div>
+        </div>
+      </div>
+      <div class="center">
+        <img class="phone" style="height:410px" src="assets/after-mobile.png" alt="Nothing More mobile layout" />
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-slide="08 / 08">
+    <p class="eyebrow">What collaboration actually meant</p>
+    <h2 style="margin-top: 14px">AI supplied speed. The human supplied the meaning of “usable.”</h2>
+    <div class="grid-2" style="margin-top: 28px">
+      <div class="card role ai">
+        <h3>Codex</h3>
+        <ul>
+          <li>Research and implementation alternatives</li>
+          <li>Versioned contracts and deterministic code</li>
+          <li>Regression tests, localization, and browser checks</li>
+          <li>Fast repetition after each concrete objection</li>
+        </ul>
+      </div>
+      <div class="card role human">
+        <h3>The maker</h3>
+        <ul>
+          <li>Problem, name, target user, and scope</li>
+          <li>Privacy threshold and evidence policy</li>
+          <li>Hands-on usability judgment</li>
+          <li>Final acceptance and the emotional meaning of the product</li>
+        </ul>
+      </div>
+    </div>
+    <blockquote class="quote" style="margin-top: 25px">“마치 감정 없는 천재와 감정 있는 일반인이 같이 일하는 것처럼 말이죠.”<div class="translation">“It felt like an emotionless genius and an ordinary person with feelings working together.”</div></blockquote>
+    <p style="margin-top: 15px; font-size:17px"><strong>“평소 ADHD가 있는 저에게 어떤 일에 대한 동기는 굉장히 중요했으니까요.”</strong> The hackathon gave the maker that motivation for three full days.</p>
+    <p class="footer-note">Official source: maker's human-written Korean retrospective · English translation and slide copy: AI-authored, human-reviewed</p>
+  </section>
+</body>
+</html>

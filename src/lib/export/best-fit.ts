@@ -1122,7 +1122,7 @@ export function createBestFitPlanExportDocument(
     schemaVersion: BEST_FIT_PLAN_JSON_SCHEMA_VERSION,
     resultKind: BEST_FIT_PLAN_RESULT_KIND,
     exportedAt,
-    product: "Frontier Workload Planner",
+    product: "Nothing More",
     claim:
       "Deterministic Best-fit route plan; derived results are not import authority.",
     analysis: {

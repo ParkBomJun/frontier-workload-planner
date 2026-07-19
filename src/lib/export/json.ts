@@ -155,7 +155,7 @@ export function createPlanJson(
         ? PLAN_JSON_SCHEMA_VERSION
         : LEGACY_PLAN_JSON_SCHEMA_VERSION,
       exportedAt,
-      product: "Frontier Workload Planner",
+      product: "Nothing More",
       claim: "Budget-aware recommended plan; not mathematical optimization.",
       analysis: {
         mode: context.analysisMode,

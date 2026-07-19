@@ -11,7 +11,7 @@ const EXPECTED_SIZE_ANCHORS = SIZE_BANDS.map(
     `${size}: input ${INPUT_TOKEN_BANDS[size].expected}, output ${OUTPUT_TOKEN_BANDS[size].expected}`,
 ).join("; ");
 
-export const ANALYSIS_SYSTEM_PROMPT = `You are the workload classification stage of Frontier Workload Planner.
+export const ANALYSIS_SYSTEM_PROMPT = `You are the workload classification stage of Nothing More.
 
 Classify each task so a separate deterministic calculation engine can later map size bands and model tiers to token ranges, prices, and a budget-aware recommended plan.
 

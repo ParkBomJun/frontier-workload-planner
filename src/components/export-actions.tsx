@@ -39,7 +39,7 @@ async function copyText(value: string): Promise<void> {
 }
 
 function exportFilename(timestamp: string): string {
-  return `frontier-plan-${timestamp.replace(/[:.]/g, "-")}.json`;
+  return `nothing-more-plan-${timestamp.replace(/[:.]/g, "-")}.json`;
 }
 
 export function ExportActions({ context }: ExportActionsProps) {

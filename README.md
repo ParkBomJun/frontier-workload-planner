@@ -1,6 +1,8 @@
-# Frontier Workload Planner
+# Nothing More
 
-Frontier Workload Planner helps an individual turn up to eight AI-assisted tasks into an
+**Use what works. Skip the rest.**
+
+Nothing More helps an individual turn up to eight AI-assisted tasks into an
 explainable access and incremental-cash plan. GPT-5.6 structures the workload once; versioned
 TypeScript rules—not the model—check limits, calculate estimates, and choose the displayed route.
 
@@ -23,7 +25,28 @@ in browser LocalStorage, so use the supplied sample tasks rather than sensitive 
 URL may still show the earlier stable release until the release candidate is committed and the same
 commit is deployed.
 
-![Frontier Workload Planner sample flow](./public/frontier-workload-planner-preview.png)
+![Nothing More sample flow](./public/frontier-workload-planner-preview.png)
+
+The repository slug, public URL, preview-image filename, and existing browser storage keys retain
+`frontier-workload-planner` for link and restore compatibility. The user-facing product name is
+**Nothing More**.
+
+## Submission story and evidence
+
+- [Human-written Korean retrospective](./docs/submission/HUMAN_RETROSPECTIVE_KO.md) — the maker's
+  official personal account; Codex assisted with proofreading, technical fact-checking, and English
+  translation.
+- [English translation](./docs/submission/HUMAN_RETROSPECTIVE_EN.md) — Codex-drafted,
+  maker-reviewed translation of the human-written Korean account.
+- [Unedited Korean draft](./docs/submission/HUMAN_RETROSPECTIVE_KO_ORIGINAL.md) — preserved authorship
+  record; its preliminary technical wording is superseded by the reviewed documents.
+- [AI collaboration record](./docs/submission/AI_COLLABORATION_STORY.md) — code-grounded,
+  AI-authored and human-reviewed summary.
+- [Editable 16:9 comparison deck](./docs/submission/AI_COLLABORATION_DECK.html) and
+  [8-page PDF](./docs/submission/AI_COLLABORATION_DECK.pdf) — human-reviewed before/after screenshots
+  and the prompt-to-change story.
+- [Privacy and data-flow evidence](./docs/submission/PRIVACY_DATA_FLOW.md) — implemented boundaries,
+  tests, and claims the project deliberately does not make.
 
 ## Submission status
 
@@ -191,8 +214,8 @@ the sample path remains available.
   logging path. OpenAI does not use API inputs for training by default. Separate abuse-monitoring
   logs normally retain customer content for up to 30 days and may be kept longer when legally
   required or reasonably necessary to prevent harm. See [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data).
-- API keys, server environment variables, hidden prompts, raw provider errors, and connector receipts
-  are not stored in the browser.
+- API keys, other secret server configuration, hidden prompts, raw provider errors, and connector
+  receipts are not stored in the browser.
 - Markdown and JSON exports include task content. Inspect them before copying or sharing.
 
 Do not enter confidential work into the public sample deployment.

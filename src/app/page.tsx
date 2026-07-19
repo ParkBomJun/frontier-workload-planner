@@ -1450,7 +1450,7 @@ export default function Home() {
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#17221c]/10 pb-5">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#173f31] font-mono text-sm font-bold text-white shadow-[0_8px_24px_rgba(23,63,49,0.22)]">
-              FW
+              NM
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-[-0.01em]">{copy.common.productName}</p>

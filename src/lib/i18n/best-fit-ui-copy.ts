@@ -669,7 +669,7 @@ const ko: BestFitUiCopy = {
     requirementsUnmetStatus: "조건 불충족",
     apiSetupTitle: "실행 전 API 준비",
     apiSetupDescription: "계획은 공식 모델/API 정보로 계산했습니다. 실제 실행 전에는 아래 공급자의 계정, 결제 설정과 API 키를 확인해 주세요.",
-    apiSetupPrivacy: "이 앱은 API 키를 요청하거나 저장하지 않으며, 개인 계정의 사용 가능 상태를 검사하지 않습니다.",
+    apiSetupPrivacy: "이 앱은 사용자에게 API 키를 입력받거나 브라우저에 저장하지 않으며, 개인 계정의 사용 가능 상태를 검사하지 않습니다.",
     apiSetupLink: (providerName) => `${providerName} 설정 안내 열기`,
     infeasibleHelp: {
       open: "왜 이용 방법을 확정하지 못했나요?",
@@ -1065,7 +1065,7 @@ const en: BestFitUiCopy = {
     requirementsUnmetStatus: "Requirements unmet",
     apiSetupTitle: "Prepare the API before running",
     apiSetupDescription: "This plan uses verified model and API catalog data. Before execution, check the account, billing setup, and API key for each provider below.",
-    apiSetupPrivacy: "This app never requests or stores API keys, and it does not test your personal account access.",
+    apiSetupPrivacy: "This app does not ask users for an API key or store one in the browser, and it does not test personal account access.",
     apiSetupLink: (providerName) => `Open ${providerName} setup guide`,
     infeasibleHelp: {
       open: "Why couldn't a usage method be confirmed?",
@@ -1462,7 +1462,7 @@ const ja: BestFitUiCopy = {
     requirementsUnmetStatus: "条件未達",
     apiSetupTitle: "実行前のAPI準備",
     apiSetupDescription: "この計画は公式のモデル/API情報を使って計算しています。実行前に、以下の各プロバイダーでアカウント、請求設定、APIキーを確認してください。",
-    apiSetupPrivacy: "このアプリはAPIキーを要求・保存せず、個人アカウントで現在利用できるかどうかも検査しません。",
+    apiSetupPrivacy: "このアプリは利用者にAPIキーの入力を求めず、ブラウザにも保存しません。また、個人アカウントで現在利用できるかどうかも検査しません。",
     apiSetupLink: (providerName) => `${providerName}の設定ガイドを開く`,
     infeasibleHelp: {
       open: "利用方法を確定できない理由は？",
