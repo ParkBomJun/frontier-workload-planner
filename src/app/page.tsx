@@ -19,6 +19,7 @@ import { BudgetSettings, type PlanningFormState } from "@/components/budget-sett
 import { CatalogOverrideEditor } from "@/components/catalog-override-editor";
 import { LanguageSelector } from "@/components/language-selector";
 import { useLanguage } from "@/components/language-provider";
+import { PlanUpdateFeedback } from "@/components/plan-update-feedback";
 import { ReferenceApiPlanSummary } from "@/components/reference-api-plan-summary";
 import { TaskEditor } from "@/components/task-editor";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
@@ -49,6 +50,12 @@ import {
   resolveRestoredPlanningRevisionAt,
 } from "@/lib/planning/planning-clock";
 import {
+  bestFitPlanOutcomeFingerprint,
+  compareBestFitPlanOutcome,
+  type PlanOutcomeChange,
+} from "@/lib/planning/plan-outcome";
+import { resolvePlanUpdateFeedbackAction } from "@/lib/planning/plan-update-feedback";
+import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
   updateAvailableAiResourceEvidenceObservedAt,
@@ -57,6 +64,7 @@ import {
   clearRecentScenario,
   confirmIncrementalCashBudget,
   loadRecentScenario,
+  reconcileIncrementalCashBudget,
   saveRecentScenario,
   type IncrementalCashBudget,
 } from "@/lib/storage/scenarios";
@@ -150,8 +158,28 @@ interface StorageNotice {
 
 type AllocationNotice =
   | { kind: "priority"; task: string; priority: TaskPriority }
-  | { kind: "settings"; budgetUsd: number; strategy: PlanningStrategy }
+  | {
+      kind: "settings";
+      budgetUsd: number;
+      strategy: PlanningStrategy;
+      outcome: PlanOutcomeChange;
+    }
+  | { kind: "budget-pending"; budgetUsd: number }
+  | { kind: "analysis"; taskCount: number; outcome: PlanOutcomeChange }
   | { kind: "provider"; providerId: ProviderId };
+
+type PendingPlanOutcomeNotice =
+  | {
+      kind: "settings";
+      previousFingerprint: string | null;
+      budgetUsd: number;
+      strategy: PlanningStrategy;
+    }
+  | {
+      kind: "analysis";
+      previousFingerprint: string | null;
+      taskCount: number;
+    };
 
 type ApiErrorCopyKey =
   | "requestTooLarge"
@@ -229,11 +257,29 @@ function allocationNoticeMessage(notice: AllocationNotice | null, copy: UiCopy):
       copy.enums.priority[notice.priority],
     );
   }
+  if (notice.kind === "budget-pending") {
+    return copy.page.allocationBudgetPendingNotice(notice.budgetUsd);
+  }
+  if (notice.kind === "analysis") {
+    const base = copy.page.statusSuccess(notice.taskCount);
+    if (notice.outcome === "created") return base;
+    return `${base} ${
+      notice.outcome === "changed"
+        ? copy.page.allocationResultChanged
+        : copy.page.allocationResultUnchanged
+    }`;
+  }
   if (notice.kind === "settings") {
-    return copy.page.allocationSettingsNotice(
+    const base = copy.page.allocationSettingsNotice(
       notice.budgetUsd,
       copy.enums.strategy[notice.strategy],
     );
+    if (notice.outcome === "created") return base;
+    return `${base} ${
+      notice.outcome === "changed"
+        ? copy.page.allocationResultChanged
+        : copy.page.allocationResultUnchanged
+    }`;
   }
   return copy.page.allocationProviderNotice(copy.enums.provider[notice.providerId]);
 }
@@ -326,25 +372,6 @@ function serverInputIssues(
   return [...new Set(issues.length > 0 ? issues : [copy.page.invalidInput])];
 }
 
-function reconcileIncrementalCashBudget(
-  budgetUsd: number,
-  current: IncrementalCashBudget | null,
-): IncrementalCashBudget | null {
-  if (!Number.isFinite(budgetUsd) || budgetUsd < 0.01 || budgetUsd > 10_000) {
-    return null;
-  }
-  if (
-    current?.status === "confirmed" &&
-    current.incrementalCashBudgetUsd === budgetUsd
-  ) {
-    return current;
-  }
-  return {
-    status: "legacy-api-only-unconfirmed",
-    legacyBudgetUsd: budgetUsd,
-  };
-}
-
 function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
   const taskIds = new Set(tasks.map((task) => task.id));
   let candidate = Math.max(1, startAt);
@@ -401,16 +428,33 @@ export default function Home() {
   const [scenarioRestoreEpoch, setScenarioRestoreEpoch] = useState(0);
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
   const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
+  const [pendingPlanOutcomeNotice, setPendingPlanOutcomeNotice] =
+    useState<PendingPlanOutcomeNotice | null>(null);
+  const [allocationNoticeEpoch, advanceAllocationNoticeEpoch] = useReducer(
+    (value: number) => value + 1,
+    0,
+  );
   const nextTaskNumber = useRef(2);
   const nextResourceNumber = useRef(1);
+  const latestBestFitOutcomeFingerprint = useRef<string | null>(null);
   const automaticRestore = useRef({ settled: false, userInteracted: false });
   const lastValidBestFitSettings = useRef<BestFitRelevantSettings>({
     budgetUsd: Number(INITIAL_SETTINGS.budgetUsd),
     strategy: INITIAL_SETTINGS.strategy,
   });
 
+  const publishAllocationNotice = useCallback((notice: AllocationNotice) => {
+    setAllocationNotice(notice);
+    advanceAllocationNoticeEpoch();
+  }, []);
+  const dismissAllocationNotice = useCallback(() => {
+    setAllocationNotice(null);
+  }, []);
+
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
+    latestBestFitOutcomeFingerprint.current = null;
     const result = loadRecentScenario();
 
     if (result.status === "loaded") {
@@ -639,6 +683,57 @@ export default function Home() {
     resourceDrafts,
     resourceEvidenceObservedAtById,
   ]);
+  const currentBestFitOutcomeFingerprint = useMemo(
+    () =>
+      bestFitPlanning?.ok
+        ? bestFitPlanOutcomeFingerprint(bestFitPlanning.result.plan)
+        : null,
+    [bestFitPlanning],
+  );
+
+  useEffect(() => {
+    if (currentBestFitOutcomeFingerprint === null) {
+      if (pendingPlanOutcomeNotice === null || bestFitPlanning?.ok !== false) {
+        return;
+      }
+      const frame = window.requestAnimationFrame(() => {
+        setPendingPlanOutcomeNotice(null);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    latestBestFitOutcomeFingerprint.current = currentBestFitOutcomeFingerprint;
+    if (pendingPlanOutcomeNotice === null) return;
+
+    const outcome = compareBestFitPlanOutcome(
+      pendingPlanOutcomeNotice.previousFingerprint,
+      currentBestFitOutcomeFingerprint,
+    );
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingPlanOutcomeNotice.kind === "settings") {
+        publishAllocationNotice({
+          kind: "settings",
+          budgetUsd: pendingPlanOutcomeNotice.budgetUsd,
+          strategy: pendingPlanOutcomeNotice.strategy,
+          outcome,
+        });
+      } else {
+        publishAllocationNotice({
+          kind: "analysis",
+          taskCount: pendingPlanOutcomeNotice.taskCount,
+          outcome,
+        });
+      }
+      setPendingPlanOutcomeNotice(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    currentBestFitOutcomeFingerprint,
+    bestFitPlanning,
+    pendingPlanOutcomeNotice,
+    publishAllocationNotice,
+  ]);
+
   const bestFitExportContext = useMemo<BestFitPlanExportContext | null>(() => {
     if (
       !completed ||
@@ -723,6 +818,8 @@ export default function Home() {
     setVisibleError(null);
     setStatus("idle");
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
+    latestBestFitOutcomeFingerprint.current = null;
   }
 
   function markPlanningRevision(changedAt = new Date().toISOString()) {
@@ -757,7 +854,7 @@ export default function Home() {
     setStatus("success");
     markPlanningRevision();
     const changedTask = updatedTasks.find((task) => task.id === taskId);
-    setAllocationNotice({
+    publishAllocationNotice({
       kind: "priority",
       task: changedTask?.name || taskId,
       priority,
@@ -864,19 +961,40 @@ export default function Home() {
       incrementalCashBudget,
     );
     setIncrementalCashBudget(nextIncrementalCashBudget);
+    const feedbackAction = resolvePlanUpdateFeedbackAction({
+      kind: "settings-edited",
+      hasCompletedAnalysis: completed !== null,
+      hasValidPlanningSettings: nextPlanningSettings !== null,
+      relevantSettingsChanged: relevantTransition.changed,
+      budgetConfirmed: nextIncrementalCashBudget?.status === "confirmed",
+    });
     if (completed && nextPlanningSettings) {
-      if (relevantTransition.changed) {
+      if (feedbackAction !== "none") {
         markPlanningRevision();
-        setAllocationNotice({
-          kind: "settings",
-          budgetUsd: nextPlanningSettings.budgetUsd,
-          strategy: nextPlanningSettings.strategy,
-        });
+        if (feedbackAction === "recalculate") {
+          setAllocationNotice(null);
+          setPendingPlanOutcomeNotice({
+            kind: "settings",
+            previousFingerprint: latestBestFitOutcomeFingerprint.current,
+            budgetUsd: nextPlanningSettings.budgetUsd,
+            strategy: nextPlanningSettings.strategy,
+          });
+        } else {
+          setPendingPlanOutcomeNotice(null);
+          publishAllocationNotice({
+            kind: "budget-pending",
+            budgetUsd: nextPlanningSettings.budgetUsd,
+          });
+        }
       } else {
-        setAllocationNotice(null);
+        setPendingPlanOutcomeNotice(null);
+        if (nextIncrementalCashBudget?.status === "confirmed") {
+          setAllocationNotice(null);
+        }
       }
     } else {
       setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
     }
     if (completed && hasRecentScenario && nextPlanningSettings) {
       persistCompletedScenario(
@@ -915,6 +1033,19 @@ export default function Home() {
     const confirmed = result.settings.incrementalCashBudget;
     setIncrementalCashBudget(confirmed);
     markPlanningRevision(confirmedAt);
+    const feedbackAction = resolvePlanUpdateFeedbackAction({
+      kind: "budget-confirmed",
+      hasCompletedAnalysis: completed !== null,
+    });
+    if (feedbackAction === "recalculate" && completed) {
+      setAllocationNotice(null);
+      setPendingPlanOutcomeNotice({
+        kind: "settings",
+        previousFingerprint: latestBestFitOutcomeFingerprint.current,
+        budgetUsd: planningSettings.budgetUsd,
+        strategy: planningSettings.strategy,
+      });
+    }
     if (completed && hasRecentScenario) {
       persistCompletedScenario(
         completed,
@@ -943,6 +1074,13 @@ export default function Home() {
     };
     setIncrementalCashBudget(unconfirmed);
     markPlanningRevision();
+    if (completed) {
+      setPendingPlanOutcomeNotice(null);
+      publishAllocationNotice({
+        kind: "budget-pending",
+        budgetUsd: planningSettings.budgetUsd,
+      });
+    }
     if (completed && hasRecentScenario) {
       persistCompletedScenario(
         completed,
@@ -1111,7 +1249,7 @@ export default function Home() {
     if (!completed) return;
 
     setStatus("success");
-    setAllocationNotice({ kind: "provider", providerId });
+    publishAllocationNotice({ kind: "provider", providerId });
     if (hasRecentScenario && parsedSettings) {
       persistCompletedScenario(completed, parsedSettings, providerId, false);
     }
@@ -1175,6 +1313,7 @@ export default function Home() {
         focusAfterClose: '[aria-invalid="true"]',
       });
       setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
       return;
     }
 
@@ -1188,6 +1327,7 @@ export default function Home() {
         focusAfterClose: "#confirm-incremental-cash-budget",
       });
       setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
       return;
     }
 
@@ -1197,6 +1337,7 @@ export default function Home() {
     setVisibleError(null);
     setCompleted(null);
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
 
     const acceptSuccessfulAnalysis = (payload: AnalyzeSuccessResponse) => {
       const completedSnapshot: CompletedAnalysis = {
@@ -1209,6 +1350,11 @@ export default function Home() {
       };
       setCompleted(completedSnapshot);
       setStatus("success");
+      setPendingPlanOutcomeNotice({
+        kind: "analysis",
+        previousFingerprint: latestBestFitOutcomeFingerprint.current,
+        taskCount: completedSnapshot.tasks.length,
+      });
       markPlanningRevision(payload.generatedAt);
       persistCompletedScenario(
         completedSnapshot,
@@ -1278,12 +1424,11 @@ export default function Home() {
   const statusMessage =
     status === "loading"
       ? copy.page.statusLoading(tasks.length)
-      : status === "success"
-        ? copy.page.statusSuccess(completed?.tasks.length ?? 0)
-        : status === "error"
-          ? copy.page.statusError
-          : "";
+      : status === "error"
+        ? copy.page.statusError
+        : "";
   const renderedAllocationNotice = allocationNoticeMessage(allocationNotice, copy);
+  const allocationNoticePending = allocationNotice?.kind === "budget-pending";
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f4f5f0] text-[#17221c]">
@@ -1466,9 +1611,19 @@ export default function Home() {
           onChange={updateApiOverrides}
         />
 
-        <p className="sr-only" aria-live="polite">
-          {renderedAllocationNotice || statusMessage}
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {statusMessage}
         </p>
+
+        {renderedAllocationNotice ? (
+          <PlanUpdateFeedback
+            key={allocationNoticeEpoch}
+            message={renderedAllocationNotice}
+            pending={allocationNoticePending}
+            dismissLabel={copy.page.allocationDismiss}
+            onDismiss={dismissAllocationNotice}
+          />
+        ) : null}
 
         {storageNotice ? (
           <section
@@ -1480,7 +1635,14 @@ export default function Home() {
           >
             <div>
               <p className="text-sm font-bold">{copy.page.storageTitle}</p>
-              <p role="status" className="mt-1 text-sm leading-6">
+              <p
+                role={
+                  allocationNotice === null && pendingPlanOutcomeNotice === null
+                    ? "status"
+                    : undefined
+                }
+                className="mt-1 text-sm leading-6"
+              >
                 {storageNoticeMessage(storageNotice, copy, localeMeta.dateLocale)}
               </p>
               <p className="mt-1 text-xs leading-5 opacity-75">

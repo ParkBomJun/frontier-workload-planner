@@ -137,6 +137,10 @@ export interface UiCopy {
     invalidSettingsForRecalculation: string;
     allocationPriorityNotice: (task: string, priority: string) => string;
     allocationSettingsNotice: (budget: number, strategy: string) => string;
+    allocationBudgetPendingNotice: (budget: number) => string;
+    allocationResultChanged: string;
+    allocationResultUnchanged: string;
+    allocationDismiss: string;
     allocationProviderNotice: (provider: string) => string;
     footerClaim: string;
     footerBoundary: string;
@@ -406,6 +410,11 @@ const ko: UiCopy = {
       `${task} 우선순위를 ${priority}로 바꾸고 계획을 다시 계산했습니다.`,
     allocationSettingsNotice: (budget, strategy) =>
       `예산 ${budget} USD와 ${strategy} 전략을 반영해 계획을 다시 계산했습니다.`,
+    allocationBudgetPendingNotice: (budget) =>
+      `예산을 ${budget} USD로 변경했습니다. 새 금액을 다시 확인하면 추천을 계산합니다.`,
+    allocationResultChanged: "추천 경로 또는 예상 비용이 이전 결과와 달라졌습니다.",
+    allocationResultUnchanged: "계산은 완료됐으며 추천 경로와 예상 비용은 이전 결과와 같습니다.",
+    allocationDismiss: "계획 업데이트 안내 닫기",
     allocationProviderNotice: (provider) =>
       `${provider} 제품군 가격을 반영해 계획을 다시 계산했습니다.`,
     footerClaim: "예산을 고려한 추천 · 가장 낮은 비용을 보장하지 않음",
@@ -717,6 +726,11 @@ const en: UiCopy = {
       `Changed ${task} to ${priority} and reallocated without another API request.`,
     allocationSettingsNotice: (budget, strategy) =>
       `Applied the ${budget} USD budget and ${strategy} strategy without another API request.`,
+    allocationBudgetPendingNotice: (budget) =>
+      `Changed the budget to ${budget} USD. Confirm the new amount to recalculate the recommendations.`,
+    allocationResultChanged: "The recommended route or estimated cost changed from the previous result.",
+    allocationResultUnchanged: "Recalculation is complete. The recommended routes and estimated costs are unchanged.",
+    allocationDismiss: "Dismiss plan update",
     allocationProviderNotice: (provider) =>
       `Recalculated with ${provider} family pricing without another API request.`,
     footerClaim: "Budget-aware recommendation · lowest cost is not guaranteed",
@@ -1027,6 +1041,11 @@ const ja: UiCopy = {
       `${task}の優先度を${priority}に変更し、APIを再呼び出しせず再配分しました。`,
     allocationSettingsNotice: (budget, strategy) =>
       `予算${budget} USDと${strategy}戦略を反映し、APIを再呼び出しせず再配分しました。`,
+    allocationBudgetPendingNotice: (budget) =>
+      `予算を${budget} USDに変更しました。新しい金額を確認すると、推奨を再計算します。`,
+    allocationResultChanged: "推奨経路または予想費用が前回の結果から変わりました。",
+    allocationResultUnchanged: "再計算は完了し、推奨経路と予想費用は前回と同じです。",
+    allocationDismiss: "計画更新のお知らせを閉じる",
     allocationProviderNotice: (provider) =>
       `${provider}製品群の料金で、APIを再呼び出しせず再計算しました。`,
     footerClaim: "予算を考慮した推奨・最安を保証するものではありません",

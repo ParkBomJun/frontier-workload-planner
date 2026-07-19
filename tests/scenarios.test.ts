@@ -37,6 +37,7 @@ import {
   confirmIncrementalCashBudget,
   loadRecentScenario,
   RECENT_SCENARIO_STORAGE_KEY,
+  reconcileIncrementalCashBudget,
   saveRecentScenario,
 } from "@/lib/storage/scenarios";
 import type {
@@ -558,6 +559,22 @@ describe("recent scenario storage v7", () => {
         },
       },
     });
+  });
+
+  it("keeps the same confirmed amount but requires confirmation after a budget edit", () => {
+    const confirmedAt = "2026-07-17T01:03:00.000Z";
+    const confirmed = {
+      status: "confirmed" as const,
+      incrementalCashBudgetUsd: 5,
+      confirmedAt,
+    };
+
+    expect(reconcileIncrementalCashBudget(5, confirmed)).toBe(confirmed);
+    expect(reconcileIncrementalCashBudget(0.5, confirmed)).toEqual({
+      status: "legacy-api-only-unconfirmed",
+      legacyBudgetUsd: 0.5,
+    });
+    expect(reconcileIncrementalCashBudget(0, confirmed)).toBeNull();
   });
 
   it("restores an invalid-deadline strategy change without rolling Sonnet pricing back", () => {

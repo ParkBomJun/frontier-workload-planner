@@ -9,6 +9,7 @@ import {
   reconcileBestFitRelevantSettings,
   type BuildBestFitUiPlanInput,
 } from "@/lib/planning/best-fit-ui-plan";
+import { bestFitPlanOutcomeFingerprint } from "@/lib/planning/plan-outcome";
 import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
@@ -131,6 +132,56 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         strategy: "quality-first",
       }).changed,
     ).toBe(false);
+  });
+
+  it("passes the confirmed budget and selected strategy into the generated plan", () => {
+    const result = buildBestFitUiPlan({
+      ...planInput(),
+      strategy: "quality-first",
+      incrementalCashBudgetUsd: 6.25,
+    });
+
+    expect(result.plan.strategy).toBe("quality-first");
+    expect(result.plan.incrementalCashBudgetMicroUsd).toBe(6_250_000);
+  });
+
+  it("compares visible outcomes without treating input metadata as a result change", () => {
+    const plan = buildBestFitUiPlan(planInput()).plan;
+    const sameVisibleOutcome = {
+      ...plan,
+      strategy: "cost-saver" as const,
+      planningAsOf: "2026-07-19T12:00:00.000Z",
+      pricingAsOf: "2026-07-19",
+      incrementalCashBudgetMicroUsd: 10_000_000,
+    };
+
+    expect(bestFitPlanOutcomeFingerprint(sameVisibleOutcome)).toBe(
+      bestFitPlanOutcomeFingerprint(plan),
+    );
+    expect(
+      bestFitPlanOutcomeFingerprint({
+        ...plan,
+        activeTaskCount: plan.activeTaskCount + 1,
+      }),
+    ).not.toBe(bestFitPlanOutcomeFingerprint(plan));
+
+    const changedAlternative = {
+      ...plan,
+      tasks: plan.tasks.map((taskResult, index) =>
+        index === 0 && taskResult.status === "active"
+          ? {
+              ...taskResult,
+              alternativeRouteIdentity:
+                taskResult.alternativeRouteIdentity === null
+                  ? taskResult.routeIdentity
+                  : null,
+            }
+          : taskResult,
+      ),
+    };
+    expect(bestFitPlanOutcomeFingerprint(changedAlternative)).not.toBe(
+      bestFitPlanOutcomeFingerprint(plan),
+    );
   });
 
   it("uses confirmed public API facts while excluding incompatible routes", () => {

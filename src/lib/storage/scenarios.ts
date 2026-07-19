@@ -244,6 +244,24 @@ export function confirmIncrementalCashBudget(
     : { ok: false, reason: "invalid" };
 }
 
+/**
+ * Keeps an explicit budget confirmation only while the edited amount still
+ * matches it. A new amount must be confirmed before allocation resumes.
+ */
+export function reconcileIncrementalCashBudget(
+  budgetUsd: number,
+  current: IncrementalCashBudget | null,
+): IncrementalCashBudget | null {
+  if (!budgetUsdSchema.safeParse(budgetUsd).success) return null;
+  if (
+    current?.status === "confirmed" &&
+    current.incrementalCashBudgetUsd === budgetUsd
+  ) {
+    return current;
+  }
+  return unconfirmedIncrementalCashBudget(budgetUsd);
+}
+
 function adaptV1ToV2(
   scenario: HistoricalRecentScenarioV1,
 ): HistoricalRecentScenarioV2 | null {
