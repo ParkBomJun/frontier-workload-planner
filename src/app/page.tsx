@@ -1487,7 +1487,7 @@ export default function Home() {
           onKeyDown={preventImplicitAnalysisSubmit}
           onInputCapture={preserveUserInputBeforeAutomaticRestore}
           noValidate
-          className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.55fr)] xl:items-start"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.55fr)] xl:items-start"
         >
           <TaskEditor
             tasks={tasks}
@@ -1527,8 +1527,8 @@ export default function Home() {
           </div>
 
           <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6 xl:col-span-2">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)] lg:items-center">
-              <div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)] lg:items-center">
+              <div className="min-w-0">
                 <fieldset>
                   <legend className="text-sm font-bold text-[#34443b]">
                     {copy.page.analysisModeLegend}
@@ -1577,7 +1577,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <button
                   type="submit"
                   disabled={status === "loading"}
@@ -1595,7 +1595,7 @@ export default function Home() {
                     </>
                   )}
                 </button>
-                <p className="mx-auto mt-3 max-w-lg whitespace-pre-line break-keep text-center text-xs leading-5 text-[#66736b]">
+                <p className="mx-auto mt-3 max-w-lg whitespace-pre-line text-center text-xs leading-5 text-[#66736b]">
                   {mode === "live" ? copy.page.liveSafety : copy.page.mockSafety}
                 </p>
               </div>

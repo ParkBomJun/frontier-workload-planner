@@ -121,9 +121,9 @@ with the same contract shape, so judges can test planning without a key or usage
 ## Project links and release status
 
 - Source: <https://github.com/ParkBomJun/frontier-workload-planner>
-- Existing stable demo: <https://frontier-workload-planner.vercel.app>
+- Public demo: <https://frontier-workload-planner.vercel.app>
 
-The current release candidate is **not yet represented by the public URL**. This draft must not be
-submitted until the exact candidate commit is public, that same commit is deployed, the production
-sample flow is verified, one protected local GPT-5.6 call passes, and the remaining human gates in
-`SUBMISSION_CHECKLIST.md` are complete.
+The public sample release has passed the same-commit GitHub/Vercel metadata check, production sample
+flow, and public disabled-Live verification. The protected local GPT-5.6 call, final video, Devpost
+form, identity, and remaining human-owned gates in `SUBMISSION_CHECKLIST.md` must still be completed
+before submission.

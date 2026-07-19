@@ -41,7 +41,7 @@ html:lang(ko) body {
 html:lang(ja) body {
   line-break: strict;
   word-break: auto-phrase;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 h1,
