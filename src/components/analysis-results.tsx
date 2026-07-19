@@ -27,6 +27,7 @@ interface AnalysisResultsProps {
   analysisModel: string;
   analysisContract: AnalysisContractIdentity;
   generatedAt: string;
+  referenceOnly?: boolean;
 }
 
 export function AnalysisResults({
@@ -39,6 +40,7 @@ export function AnalysisResults({
   analysisModel,
   analysisContract,
   generatedAt,
+  referenceOnly = false,
 }: AnalysisResultsProps) {
   const { copy, localeMeta } = useLanguage();
   const isBestFitAnalysis = analysisContract.compatibility === "best-fit";
@@ -89,15 +91,20 @@ export function AnalysisResults({
   return (
     <section
       aria-labelledby="analysis-results-title"
+      data-reference-only={referenceOnly ? "true" : "false"}
       className="overflow-hidden rounded-[1.75rem] border border-[#173f31]/15 bg-[#143e30] text-white shadow-[0_24px_70px_rgba(23,63,49,0.2)]"
     >
       <div className="flex flex-col gap-5 border-b border-white/10 px-5 py-6 sm:flex-row sm:items-start sm:justify-between sm:px-7">
         <div>
           <p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-[#9ed0b8]">
-            {copy.analysisResults.eyebrow}
+            {referenceOnly
+              ? copy.analysisResults.referenceEyebrow
+              : copy.analysisResults.eyebrow}
           </p>
           <h2 id="analysis-results-title" className="mt-1 text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">
-            {copy.analysisResults.title}
+            {referenceOnly
+              ? copy.analysisResults.referenceTitle
+              : copy.analysisResults.title}
           </h2>
         </div>
         <div className="sm:min-w-[250px]">
@@ -110,14 +117,23 @@ export function AnalysisResults({
               {copy.analysisResults.programCalculated} · {copy.enums.provider[selectedProvider]}
             </span>
           </div>
-          <div className="mt-3">
-            <ExportActions context={exportContext} />
-          </div>
+          {!referenceOnly ? (
+            <div className="mt-3">
+              <ExportActions context={exportContext} />
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="space-y-6 p-5 sm:p-7">
-        {isBestFitAnalysis ? (
+        {referenceOnly ? (
+          <p
+            data-reference-plan-notice
+            className="rounded-2xl border border-[#e9b082]/30 bg-[#e9b082]/12 p-4 text-sm font-semibold leading-6 text-[#ffe4d1]"
+          >
+            {copy.analysisResults.referenceNotice}
+          </p>
+        ) : isBestFitAnalysis ? (
           <p
             data-eligibility-verification="pending"
             className="rounded-2xl border border-[#e9b082]/25 bg-[#e9b082]/10 p-4 text-sm leading-6 text-[#ffe4d1]"
@@ -132,9 +148,13 @@ export function AnalysisResults({
             value={formatCurrency(plan.settings.budgetUsd)}
             detail={`${copy.enums.strategy[plan.settings.strategy]} · ${plan.settings.deadlineDays} ${copy.budgetSettings.deadlineUnit}`}
           />
-          <SummaryCard label="Low" value={formatCurrency(plan.totals.lowUsd)} detail={copy.analysisResults.lowDetail} />
           <SummaryCard
-            label="Expected"
+            label={copy.analysisResults.lowUsageLabel}
+            value={formatCurrency(plan.totals.lowUsd)}
+            detail={copy.analysisResults.lowDetail}
+          />
+          <SummaryCard
+            label={copy.analysisResults.expectedUsageLabel}
             value={formatCurrency(plan.totals.expectedUsd)}
             detail={copy.analysisResults.expectedDetail(
               percentFormatter.format(utilization),
@@ -145,7 +165,7 @@ export function AnalysisResults({
             emphasized
           />
           <SummaryCard
-            label="High"
+            label={copy.analysisResults.highUsageLabel}
             value={formatCurrency(plan.totals.highUsd)}
             detail={
               plan.highExceedsBudget
@@ -197,7 +217,11 @@ export function AnalysisResults({
 
         <div>
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <h3 className="text-lg font-semibold">{copy.analysisResults.allocationTitle}</h3>
+            <h3 className="text-lg font-semibold">
+              {referenceOnly
+                ? copy.analysisResults.referenceAllocationTitle
+                : copy.analysisResults.allocationTitle}
+            </h3>
             <p className="text-xs text-white/70">
               {copy.analysisResults.allocationSummary(
                 plan.activeTaskCount,
@@ -313,30 +337,41 @@ export function AnalysisResults({
                         <div className="flex flex-wrap items-end justify-between gap-3">
                           <div>
                             <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/70">
-                              {copy.analysisResults.assignedModel}
+                              {referenceOnly
+                                ? copy.analysisResults.referenceAssignedModel
+                                : copy.analysisResults.assignedModel}
                             </p>
                             <p className="mt-1 break-all text-xl font-semibold">{task.modelId}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-white/70">{copy.analysisResults.assignedTier}</p>
+                            <p className="text-xs text-white/70">
+                              {referenceOnly
+                                ? copy.analysisResults.referenceAssignedTier
+                                : copy.analysisResults.assignedTier}
+                            </p>
                             <p className="font-mono text-sm font-bold text-[#b9ddc9]">
                               {copy.enums.modelTier[task.assignedTier]}
                             </p>
                           </div>
                         </div>
                         <p className="mt-2 text-xs leading-5 text-white/70">
-                          {copy.analysisResults.recommendationTrail(
-                            copy.enums.modelTier[task.analysis.recommendedModelTier],
-                            copy.enums.modelTier[task.strategyTargetTier],
-                          )}
+                          {referenceOnly
+                            ? copy.analysisResults.referenceTrail(
+                                copy.enums.modelTier[task.analysis.recommendedModelTier],
+                                copy.enums.modelTier[task.strategyTargetTier],
+                              )
+                            : copy.analysisResults.recommendationTrail(
+                                copy.enums.modelTier[task.analysis.recommendedModelTier],
+                                copy.enums.modelTier[task.strategyTargetTier],
+                              )}
                         </p>
                       </div>
 
                       <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-white/10">
                         {([
-                          ["Low", task.cost.low.costUsd],
-                          ["Expected", task.cost.expected.costUsd],
-                          ["High", task.cost.high.costUsd],
+                          [copy.analysisResults.lowUsageLabel, task.cost.low.costUsd],
+                          [copy.analysisResults.expectedUsageLabel, task.cost.expected.costUsd],
+                          [copy.analysisResults.highUsageLabel, task.cost.high.costUsd],
                         ] as const).map(([label, value]) => (
                           <div key={label} className="min-w-0 bg-[#20513f] p-3">
                             <dt className="truncate text-xs text-white/65">{label}</dt>
@@ -456,9 +491,11 @@ export function AnalysisResults({
         <ProviderPricingAssumptions />
 
         <p className="border-t border-white/10 pt-4 text-xs leading-5 text-white/65">
-          {copy.analysisResults.generatedRuleBased(
-            `${new Date(generatedAt).toLocaleString(localeMeta.dateLocale)} · ${copy.enums.provider[plan.providerId]}`,
-          )}
+          {(referenceOnly
+            ? copy.analysisResults.referenceGeneratedRuleBased
+            : copy.analysisResults.generatedRuleBased)(
+              `${new Date(generatedAt).toLocaleString(localeMeta.dateLocale)} · ${copy.enums.provider[plan.providerId]}`,
+            )}
         </p>
       </div>
     </section>

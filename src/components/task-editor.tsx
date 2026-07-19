@@ -9,6 +9,9 @@ import {
 import type { TaskInput, TaskPriority } from "@/types/domain";
 import type { FailureImpact } from "@/types/workload";
 
+const FIELD_STATUS_BADGE_CLASS_NAME =
+  "inline-flex shrink-0 items-center rounded-full border border-[#173f31]/10 bg-[#edf1ed] px-2 py-0.5 text-[10px] font-bold leading-4 tracking-normal text-[#59675f]";
+
 interface TaskEditorProps {
   tasks: TaskInput[];
   disabled: boolean;
@@ -39,12 +42,12 @@ export function TaskEditor({
 
   return (
     <section className="min-w-0 rounded-[1.75rem] border border-white/80 bg-white/90 p-5 shadow-[0_24px_70px_rgba(28,47,37,0.1)] backdrop-blur sm:p-7">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#748078]">{taskCopy.eyebrow}</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em]">{taskCopy.title}</h2>
           <p className="mt-1 text-sm text-[#66736b]">{taskCopy.maxTasksHelp(MAX_TASKS)}</p>
-          <p id="task-priority-help" className="mt-1 text-xs leading-5 text-[#66736b]">
+          <p id="task-priority-help" className="sr-only">
             {taskCopy.priorityHelp}
           </p>
         </div>
@@ -52,13 +55,13 @@ export function TaskEditor({
           type="button"
           onClick={onLoadSample}
           disabled={disabled}
-          className="rounded-full border border-[#173f31]/15 px-3.5 py-2 text-sm font-bold text-[#365649] transition hover:border-[#173f31]/35 hover:bg-[#edf3ee] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 rounded-full border border-[#173f31]/15 px-3.5 py-2 text-sm font-bold text-[#365649] transition hover:border-[#173f31]/35 hover:bg-[#edf3ee] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {taskCopy.loadSample(3)}
         </button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {tasks.map((task, index) => {
           const nameInvalid = showValidation && !task.name.trim();
           const descriptionInvalid = showValidation && !task.description.trim();
@@ -70,10 +73,10 @@ export function TaskEditor({
           return (
             <fieldset
               key={task.id}
-              className="min-w-0 rounded-2xl border border-[#173f31]/12 bg-[#fbfcf9] p-4 sm:p-5"
+              className="min-w-0 rounded-2xl border border-[#173f31]/12 bg-[#fbfcf9] p-4"
             >
               <legend className="sr-only">{taskCopy.taskLegend(index + 1)}</legend>
-              <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span className="grid size-8 place-items-center rounded-lg bg-[#e8eee8] font-mono text-xs font-bold text-[#2e5a47]">
                     {String(index + 1).padStart(2, "0")}
@@ -93,10 +96,15 @@ export function TaskEditor({
                 </button>
               </div>
 
-              <div className="grid min-w-0 gap-4">
+              <div className="grid min-w-0 gap-3">
                 <label htmlFor={nameId} className="block min-w-0">
                   <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-[#34443b]">
-                    <span>{taskCopy.nameLabel}</span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span>{taskCopy.nameLabel}</span>
+                      <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
+                        {copy.common.required}
+                      </span>
+                    </span>
                     <span className="font-mono text-xs font-normal text-[#6f7d75]">
                       {taskCopy.characterCounter(task.name.length, MAX_TASK_NAME_LENGTH)}
                     </span>
@@ -106,6 +114,7 @@ export function TaskEditor({
                     value={task.name}
                     onChange={(event) => onChange(task.id, "name", event.target.value)}
                     maxLength={MAX_TASK_NAME_LENGTH}
+                    required
                     disabled={disabled}
                     aria-invalid={nameInvalid}
                     aria-describedby={nameInvalid ? nameErrorId : undefined}
@@ -119,9 +128,14 @@ export function TaskEditor({
                   ) : null}
                 </label>
 
-                <div className="grid min-w-0 gap-4 sm:grid-cols-3">
+                <div className="grid min-w-0 gap-3 sm:grid-cols-3">
                   <label htmlFor={`task-priority-${task.id}`} className="block min-w-0">
-                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.priorityLabel}</span>
+                    <span className="mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]">
+                      <span>{taskCopy.priorityLabel}</span>
+                      <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
+                        {copy.common.optional} · {copy.common.defaultValue}
+                      </span>
+                    </span>
                     <select
                       id={`task-priority-${task.id}`}
                       value={task.priority}
@@ -139,7 +153,12 @@ export function TaskEditor({
                   </label>
 
                   <label htmlFor={`task-deadline-${task.id}`} className="block min-w-0">
-                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.deadlineLabel}</span>
+                    <span className="mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]">
+                      <span>{taskCopy.deadlineLabel}</span>
+                      <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
+                        {copy.common.optional}
+                      </span>
+                    </span>
                     <input
                       id={`task-deadline-${task.id}`}
                       type="date"
@@ -153,14 +172,19 @@ export function TaskEditor({
                     />
                     <span
                       id={`task-deadline-help-${task.id}`}
-                      className="mt-1.5 block text-xs leading-5 text-[#68766e]"
+                      className="sr-only"
                     >
                       {taskCopy.deadlineHelp}
                     </span>
                   </label>
 
                   <label htmlFor={`task-failure-impact-${task.id}`} className="block min-w-0">
-                    <span className="mb-2 block text-sm font-bold text-[#34443b]">{taskCopy.failureImpactLabel}</span>
+                    <span className="mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]">
+                      <span>{taskCopy.failureImpactLabel}</span>
+                      <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
+                        {copy.common.optional} · {copy.common.defaultValue}
+                      </span>
+                    </span>
                     <select
                       id={`task-failure-impact-${task.id}`}
                       value={task.failureImpact}
@@ -178,16 +202,25 @@ export function TaskEditor({
                     </select>
                     <span
                       id={`task-failure-impact-help-${task.id}`}
-                      className="mt-1.5 block text-xs leading-5 text-[#68766e]"
+                      className="sr-only"
                     >
                       {taskCopy.failureImpactHelp}
                     </span>
                   </label>
                 </div>
 
+                <p className="text-[11px] leading-5 text-[#68766e]">
+                  {taskCopy.settingsHelp}
+                </p>
+
                 <label htmlFor={descriptionId} className="block min-w-0">
                   <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-[#34443b]">
-                    <span>{taskCopy.descriptionLabel}</span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span>{taskCopy.descriptionLabel}</span>
+                      <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
+                        {copy.common.required}
+                      </span>
+                    </span>
                     <span className="font-mono text-xs font-normal text-[#6f7d75]">
                       {taskCopy.characterCounter(task.description.length, MAX_TASK_DESCRIPTION_LENGTH)}
                     </span>
@@ -197,10 +230,11 @@ export function TaskEditor({
                     value={task.description}
                     onChange={(event) => onChange(task.id, "description", event.target.value)}
                     maxLength={MAX_TASK_DESCRIPTION_LENGTH}
+                    required
                     disabled={disabled}
                     aria-invalid={descriptionInvalid}
                     aria-describedby={descriptionInvalid ? descriptionErrorId : undefined}
-                    rows={4}
+                    rows={3}
                     placeholder={taskCopy.descriptionPlaceholder}
                     className="w-full min-w-0 resize-y rounded-xl border border-[#173f31]/15 bg-white px-4 py-3 text-base leading-6 outline-none transition placeholder:text-[#8b9890] focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-[#c65f3d]"
                   />

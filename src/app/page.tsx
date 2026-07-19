@@ -2,6 +2,7 @@
 
 import {
   type FormEvent,
+  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -13,17 +14,29 @@ import {
 import { AnalysisResults } from "@/components/analysis-results";
 import { AvailableAiResources } from "@/components/available-ai-resources";
 import { BestFitResults } from "@/components/best-fit-results";
+import { BlockingIssuesDialog } from "@/components/blocking-issues-dialog";
 import { BudgetSettings, type PlanningFormState } from "@/components/budget-settings";
 import { CatalogOverrideEditor } from "@/components/catalog-override-editor";
+import { LanguageSelector } from "@/components/language-selector";
 import { useLanguage } from "@/components/language-provider";
+import { PlanUpdateFeedback } from "@/components/plan-update-feedback";
+import { ReferenceApiPlanSummary } from "@/components/reference-api-plan-summary";
 import { TaskEditor } from "@/components/task-editor";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
-import type { SubscriptionPresetId } from "@/config/subscription-presets";
+import {
+  MAX_AVAILABLE_AI_RESOURCES,
+  type SubscriptionPresetId,
+} from "@/config/subscription-presets";
 import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
+import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { MAX_TASKS } from "@/lib/ai/schema";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import type { BestFitPlanExportContext } from "@/lib/export/best-fit";
-import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
+import { shouldPreventImplicitFormSubmit } from "@/lib/form-submit";
+import {
+  BEST_FIT_UI_COPY,
+  type BestFitUiCopy,
+} from "@/lib/i18n/best-fit-ui-copy";
 import type { UiCopy } from "@/lib/i18n/ui-copy";
 import {
   buildBestFitUiPlan,
@@ -37,6 +50,12 @@ import {
   resolveRestoredPlanningRevisionAt,
 } from "@/lib/planning/planning-clock";
 import {
+  bestFitPlanOutcomeFingerprint,
+  compareBestFitPlanOutcome,
+  type PlanOutcomeChange,
+} from "@/lib/planning/plan-outcome";
+import { resolvePlanUpdateFeedbackAction } from "@/lib/planning/plan-update-feedback";
+import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
   updateAvailableAiResourceEvidenceObservedAt,
@@ -45,6 +64,7 @@ import {
   clearRecentScenario,
   confirmIncrementalCashBudget,
   loadRecentScenario,
+  reconcileIncrementalCashBudget,
   saveRecentScenario,
   type IncrementalCashBudget,
 } from "@/lib/storage/scenarios";
@@ -55,6 +75,7 @@ import {
 import type {
   AnalysisMode,
   AnalyzeApiResponse,
+  AnalyzeSuccessResponse,
   PlanningSettings,
   PlanningStrategy,
   ProviderId,
@@ -110,6 +131,12 @@ interface CompletedAnalysis {
   tasks: TaskInput[];
 }
 
+interface BlockingDialogState {
+  description: string;
+  issues: readonly string[];
+  focusAfterClose?: string;
+}
+
 interface StorageNotice {
   tone: "success" | "warning";
   kind:
@@ -131,8 +158,28 @@ interface StorageNotice {
 
 type AllocationNotice =
   | { kind: "priority"; task: string; priority: TaskPriority }
-  | { kind: "settings"; budgetUsd: number; strategy: PlanningStrategy }
+  | {
+      kind: "settings";
+      budgetUsd: number;
+      strategy: PlanningStrategy;
+      outcome: PlanOutcomeChange;
+    }
+  | { kind: "budget-pending"; budgetUsd: number }
+  | { kind: "analysis"; taskCount: number; outcome: PlanOutcomeChange }
   | { kind: "provider"; providerId: ProviderId };
+
+type PendingPlanOutcomeNotice =
+  | {
+      kind: "settings";
+      previousFingerprint: string | null;
+      budgetUsd: number;
+      strategy: PlanningStrategy;
+    }
+  | {
+      kind: "analysis";
+      previousFingerprint: string | null;
+      taskCount: number;
+    };
 
 type ApiErrorCopyKey =
   | "requestTooLarge"
@@ -210,11 +257,29 @@ function allocationNoticeMessage(notice: AllocationNotice | null, copy: UiCopy):
       copy.enums.priority[notice.priority],
     );
   }
+  if (notice.kind === "budget-pending") {
+    return copy.page.allocationBudgetPendingNotice(notice.budgetUsd);
+  }
+  if (notice.kind === "analysis") {
+    const base = copy.page.statusSuccess(notice.taskCount);
+    if (notice.outcome === "created") return base;
+    return `${base} ${
+      notice.outcome === "changed"
+        ? copy.page.allocationResultChanged
+        : copy.page.allocationResultUnchanged
+    }`;
+  }
   if (notice.kind === "settings") {
-    return copy.page.allocationSettingsNotice(
+    const base = copy.page.allocationSettingsNotice(
       notice.budgetUsd,
       copy.enums.strategy[notice.strategy],
     );
+    if (notice.outcome === "created") return base;
+    return `${base} ${
+      notice.outcome === "changed"
+        ? copy.page.allocationResultChanged
+        : copy.page.allocationResultUnchanged
+    }`;
   }
   return copy.page.allocationProviderNotice(copy.enums.provider[notice.providerId]);
 }
@@ -227,23 +292,84 @@ function parsePlanningSettings(value: PlanningFormState): PlanningSettings | nul
   return { budgetUsd, deadlineDays, strategy: value.strategy };
 }
 
-function reconcileIncrementalCashBudget(
-  budgetUsd: number,
-  current: IncrementalCashBudget | null,
-): IncrementalCashBudget | null {
-  if (!Number.isFinite(budgetUsd) || budgetUsd < 0.01 || budgetUsd > 10_000) {
-    return null;
+function planningSettingIssues(
+  value: PlanningFormState,
+  copy: UiCopy,
+): string[] {
+  const issues: string[] = [];
+  const budget = Number(value.budgetUsd);
+  const deadline = Number(value.deadlineDays);
+  if (!Number.isFinite(budget) || budget < 0.01 || budget > 10_000) {
+    issues.push(copy.budgetSettings.budgetError);
   }
-  if (
-    current?.status === "confirmed" &&
-    current.incrementalCashBudgetUsd === budgetUsd
-  ) {
-    return current;
+  if (!Number.isInteger(deadline) || deadline < 1 || deadline > 90) {
+    issues.push(copy.budgetSettings.deadlineError);
   }
-  return {
-    status: "legacy-api-only-unconfirmed",
-    legacyBudgetUsd: budgetUsd,
-  };
+  return issues;
+}
+
+function planningSettingFocusSelector(value: PlanningFormState): string {
+  const budget = Number(value.budgetUsd);
+  if (!Number.isFinite(budget) || budget < 0.01 || budget > 10_000) {
+    return "#budget-usd";
+  }
+  return "#deadline-days";
+}
+
+function analysisInputIssues(
+  tasks: readonly TaskInput[],
+  settings: PlanningFormState,
+  copy: UiCopy,
+): string[] {
+  return [
+    ...tasks.flatMap((task, index) => {
+      const label = copy.taskEditor.taskLabel(index + 1);
+      const issues: string[] = [];
+      if (!task.name.trim()) {
+        issues.push(`${label}: ${copy.taskEditor.nameRequired}`);
+      }
+      if (!task.description.trim()) {
+        issues.push(`${label}: ${copy.taskEditor.descriptionRequired}`);
+      }
+      return issues;
+    }),
+    ...planningSettingIssues(settings, copy),
+  ];
+}
+
+function serverInputIssues(
+  details: readonly { path: string; message: string }[],
+  copy: UiCopy,
+  bestFitCopy: BestFitUiCopy,
+): string[] {
+  const issues = details.map(({ path }) => {
+    const match = path.match(/^tasks\.(\d+)(?:\.([^.]+))?/);
+    if (match) {
+      const taskIndex = Number(match[1]);
+      const taskLabel = Number.isSafeInteger(taskIndex)
+        ? copy.taskEditor.taskLabel(taskIndex + 1)
+        : copy.taskEditor.title;
+      const field = match[2];
+      const fieldLabel =
+        field === "name"
+          ? copy.taskEditor.nameLabel
+          : field === "description"
+            ? copy.taskEditor.descriptionLabel
+            : field === "priority"
+              ? copy.taskEditor.priorityLabel
+              : field === "deadlineDate"
+                ? copy.taskEditor.deadlineLabel
+                : field === "failureImpact"
+                  ? copy.taskEditor.failureImpactLabel
+                  : copy.taskEditor.title;
+      return bestFitCopy.validation.checkField(`${taskLabel} · ${fieldLabel}`);
+    }
+    if (path === "mode") {
+      return bestFitCopy.validation.checkField(copy.page.analysisModeLegend);
+    }
+    return copy.page.invalidInput;
+  });
+  return [...new Set(issues.length > 0 ? issues : [copy.page.invalidInput])];
 }
 
 function nextAvailableTaskNumber(tasks: TaskInput[], startAt = 1): number {
@@ -273,6 +399,8 @@ function planningFormState(settings: PlanningSettings): PlanningFormState {
 
 export default function Home() {
   const { locale, copy, localeMeta } = useLanguage();
+  const liveAnalysisEnabled =
+    process.env.NEXT_PUBLIC_LIVE_ANALYSIS_ENABLED === "true";
   const bestFitCopy = BEST_FIT_UI_COPY[locale];
   const [tasks, setTasks] = useState<TaskInput[]>(INITIAL_TASKS);
   const [settings, setSettings] = useState<PlanningFormState>(INITIAL_SETTINGS);
@@ -293,20 +421,40 @@ export default function Home() {
   const [completed, setCompleted] = useState<CompletedAnalysis | null>(null);
   const [visibleError, setVisibleError] = useState<VisibleError | null>(null);
   const [showValidation, setShowValidation] = useState(false);
+  const [blockingDialog, setBlockingDialog] =
+    useState<BlockingDialogState | null>(null);
   const [storageChecked, setStorageChecked] = useState(false);
   const [hasRecentScenario, setHasRecentScenario] = useState(false);
   const [scenarioRestoreEpoch, setScenarioRestoreEpoch] = useState(0);
   const [storageNotice, setStorageNotice] = useState<StorageNotice | null>(null);
   const [allocationNotice, setAllocationNotice] = useState<AllocationNotice | null>(null);
+  const [pendingPlanOutcomeNotice, setPendingPlanOutcomeNotice] =
+    useState<PendingPlanOutcomeNotice | null>(null);
+  const [allocationNoticeEpoch, advanceAllocationNoticeEpoch] = useReducer(
+    (value: number) => value + 1,
+    0,
+  );
   const nextTaskNumber = useRef(2);
   const nextResourceNumber = useRef(1);
+  const latestBestFitOutcomeFingerprint = useRef<string | null>(null);
+  const automaticRestore = useRef({ settled: false, userInteracted: false });
   const lastValidBestFitSettings = useRef<BestFitRelevantSettings>({
     budgetUsd: Number(INITIAL_SETTINGS.budgetUsd),
     strategy: INITIAL_SETTINGS.strategy,
   });
 
+  const publishAllocationNotice = useCallback((notice: AllocationNotice) => {
+    setAllocationNotice(notice);
+    advanceAllocationNoticeEpoch();
+  }, []);
+  const dismissAllocationNotice = useCallback(() => {
+    setAllocationNotice(null);
+  }, []);
+
   const restoreRecentScenario = useCallback((announceEmpty = true) => {
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
+    latestBestFitOutcomeFingerprint.current = null;
     const result = loadRecentScenario();
 
     if (result.status === "loaded") {
@@ -420,9 +568,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const restoreTimer = window.setTimeout(() => restoreRecentScenario(false), 0);
+    const restoreTimer = window.setTimeout(() => {
+      automaticRestore.current.settled = true;
+      if (automaticRestore.current.userInteracted) {
+        setStorageChecked(true);
+        return;
+      }
+      restoreRecentScenario(false);
+    }, 0);
     return () => window.clearTimeout(restoreTimer);
   }, [restoreRecentScenario]);
+
+  function preserveUserInputBeforeAutomaticRestore() {
+    if (!automaticRestore.current.settled) {
+      automaticRestore.current.userInteracted = true;
+    }
+  }
+
+  function preventImplicitAnalysisSubmit(event: KeyboardEvent<HTMLFormElement>) {
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement &&
+      shouldPreventImplicitFormSubmit(event.key, target.type, event.nativeEvent.isComposing)
+    ) {
+      event.preventDefault();
+    }
+  }
 
   const parsedSettings = useMemo(() => parsePlanningSettings(settings), [settings]);
   const planningAsOf = useMemo(
@@ -512,6 +683,57 @@ export default function Home() {
     resourceDrafts,
     resourceEvidenceObservedAtById,
   ]);
+  const currentBestFitOutcomeFingerprint = useMemo(
+    () =>
+      bestFitPlanning?.ok
+        ? bestFitPlanOutcomeFingerprint(bestFitPlanning.result.plan)
+        : null,
+    [bestFitPlanning],
+  );
+
+  useEffect(() => {
+    if (currentBestFitOutcomeFingerprint === null) {
+      if (pendingPlanOutcomeNotice === null || bestFitPlanning?.ok !== false) {
+        return;
+      }
+      const frame = window.requestAnimationFrame(() => {
+        setPendingPlanOutcomeNotice(null);
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    latestBestFitOutcomeFingerprint.current = currentBestFitOutcomeFingerprint;
+    if (pendingPlanOutcomeNotice === null) return;
+
+    const outcome = compareBestFitPlanOutcome(
+      pendingPlanOutcomeNotice.previousFingerprint,
+      currentBestFitOutcomeFingerprint,
+    );
+    const frame = window.requestAnimationFrame(() => {
+      if (pendingPlanOutcomeNotice.kind === "settings") {
+        publishAllocationNotice({
+          kind: "settings",
+          budgetUsd: pendingPlanOutcomeNotice.budgetUsd,
+          strategy: pendingPlanOutcomeNotice.strategy,
+          outcome,
+        });
+      } else {
+        publishAllocationNotice({
+          kind: "analysis",
+          taskCount: pendingPlanOutcomeNotice.taskCount,
+          outcome,
+        });
+      }
+      setPendingPlanOutcomeNotice(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    currentBestFitOutcomeFingerprint,
+    bestFitPlanning,
+    pendingPlanOutcomeNotice,
+    publishAllocationNotice,
+  ]);
+
   const bestFitExportContext = useMemo<BestFitPlanExportContext | null>(() => {
     if (
       !completed ||
@@ -530,6 +752,13 @@ export default function Home() {
       generatedAt: completed.analysisSnapshot.response.generatedAt,
     };
   }, [bestFitPlanning, bestFitSourceState, completed]);
+  const showReferencePlan =
+    bestFitPlanning?.ok === true &&
+    bestFitPlanning.result.plan.activeTaskCount === 0 &&
+    bestFitPlanning.result.plan.infeasibleTaskCount > 0 &&
+    (providerPlanning?.comparisons.some(
+      (comparison) => comparison.activeTaskCount > 0,
+    ) ?? false);
 
   function persistCompletedScenario(
     snapshot: CompletedAnalysis,
@@ -589,6 +818,8 @@ export default function Home() {
     setVisibleError(null);
     setStatus("idle");
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
+    latestBestFitOutcomeFingerprint.current = null;
   }
 
   function markPlanningRevision(changedAt = new Date().toISOString()) {
@@ -623,7 +854,7 @@ export default function Home() {
     setStatus("success");
     markPlanningRevision();
     const changedTask = updatedTasks.find((task) => task.id === taskId);
-    setAllocationNotice({
+    publishAllocationNotice({
       kind: "priority",
       task: changedTask?.name || taskId,
       priority,
@@ -730,19 +961,40 @@ export default function Home() {
       incrementalCashBudget,
     );
     setIncrementalCashBudget(nextIncrementalCashBudget);
+    const feedbackAction = resolvePlanUpdateFeedbackAction({
+      kind: "settings-edited",
+      hasCompletedAnalysis: completed !== null,
+      hasValidPlanningSettings: nextPlanningSettings !== null,
+      relevantSettingsChanged: relevantTransition.changed,
+      budgetConfirmed: nextIncrementalCashBudget?.status === "confirmed",
+    });
     if (completed && nextPlanningSettings) {
-      if (relevantTransition.changed) {
+      if (feedbackAction !== "none") {
         markPlanningRevision();
-        setAllocationNotice({
-          kind: "settings",
-          budgetUsd: nextPlanningSettings.budgetUsd,
-          strategy: nextPlanningSettings.strategy,
-        });
+        if (feedbackAction === "recalculate") {
+          setAllocationNotice(null);
+          setPendingPlanOutcomeNotice({
+            kind: "settings",
+            previousFingerprint: latestBestFitOutcomeFingerprint.current,
+            budgetUsd: nextPlanningSettings.budgetUsd,
+            strategy: nextPlanningSettings.strategy,
+          });
+        } else {
+          setPendingPlanOutcomeNotice(null);
+          publishAllocationNotice({
+            kind: "budget-pending",
+            budgetUsd: nextPlanningSettings.budgetUsd,
+          });
+        }
       } else {
-        setAllocationNotice(null);
+        setPendingPlanOutcomeNotice(null);
+        if (nextIncrementalCashBudget?.status === "confirmed") {
+          setAllocationNotice(null);
+        }
       }
     } else {
       setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
     }
     if (completed && hasRecentScenario && nextPlanningSettings) {
       persistCompletedScenario(
@@ -757,7 +1009,15 @@ export default function Home() {
 
   function confirmBudgetMeaning() {
     const planningSettings = parsePlanningSettings(settings);
-    if (!planningSettings) return;
+    if (!planningSettings) {
+      setShowValidation(true);
+      setBlockingDialog({
+        description: bestFitCopy.validation.budgetDescription,
+        issues: planningSettingIssues(settings, copy),
+        focusAfterClose: planningSettingFocusSelector(settings),
+      });
+      return;
+    }
     const confirmedAt = new Date().toISOString();
     const result = confirmIncrementalCashBudget(
       {
@@ -773,6 +1033,19 @@ export default function Home() {
     const confirmed = result.settings.incrementalCashBudget;
     setIncrementalCashBudget(confirmed);
     markPlanningRevision(confirmedAt);
+    const feedbackAction = resolvePlanUpdateFeedbackAction({
+      kind: "budget-confirmed",
+      hasCompletedAnalysis: completed !== null,
+    });
+    if (feedbackAction === "recalculate" && completed) {
+      setAllocationNotice(null);
+      setPendingPlanOutcomeNotice({
+        kind: "settings",
+        previousFingerprint: latestBestFitOutcomeFingerprint.current,
+        budgetUsd: planningSettings.budgetUsd,
+        strategy: planningSettings.strategy,
+      });
+    }
     if (completed && hasRecentScenario) {
       persistCompletedScenario(
         completed,
@@ -786,13 +1059,28 @@ export default function Home() {
 
   function revokeBudgetMeaning() {
     const planningSettings = parsePlanningSettings(settings);
-    if (!planningSettings) return;
+    if (!planningSettings) {
+      setShowValidation(true);
+      setBlockingDialog({
+        description: bestFitCopy.validation.budgetDescription,
+        issues: planningSettingIssues(settings, copy),
+        focusAfterClose: planningSettingFocusSelector(settings),
+      });
+      return;
+    }
     const unconfirmed: IncrementalCashBudget = {
       status: "legacy-api-only-unconfirmed",
       legacyBudgetUsd: planningSettings.budgetUsd,
     };
     setIncrementalCashBudget(unconfirmed);
     markPlanningRevision();
+    if (completed) {
+      setPendingPlanOutcomeNotice(null);
+      publishAllocationNotice({
+        kind: "budget-pending",
+        budgetUsd: planningSettings.budgetUsd,
+      });
+    }
     if (completed && hasRecentScenario) {
       persistCompletedScenario(
         completed,
@@ -806,8 +1094,7 @@ export default function Home() {
 
   function addResource(presetId: SubscriptionPresetId) {
     if (
-      resourceDrafts.length >= 4 ||
-      resourceDrafts.some((draft) => draft.preset.id === presetId)
+      resourceDrafts.length >= MAX_AVAILABLE_AI_RESOURCES
     ) {
       return;
     }
@@ -822,7 +1109,6 @@ export default function Home() {
         presetId,
       }),
       displayName: bestFitCopy.resources.presets[presetId].name,
-      surface: "",
     };
     const nextResourceDrafts = [...resourceDrafts, nextDraft];
     const nextResourceEvidenceObservedAtById = {
@@ -929,7 +1215,7 @@ export default function Home() {
     }
     window.requestAnimationFrame(() =>
       (removedPresetId
-        ? document.getElementById(`add-resource-${removedPresetId}`)
+        ? document.getElementById("add-resource-select")
         : null
       )?.focus(),
     );
@@ -963,10 +1249,23 @@ export default function Home() {
     if (!completed) return;
 
     setStatus("success");
-    setAllocationNotice({ kind: "provider", providerId });
+    publishAllocationNotice({ kind: "provider", providerId });
     if (hasRecentScenario && parsedSettings) {
       persistCompletedScenario(completed, parsedSettings, providerId, false);
     }
+  }
+
+  function openReferencePlanDetails() {
+    const details = document.getElementById(
+      "reference-api-plan-details",
+    ) as HTMLDetailsElement | null;
+    if (!details) return;
+    details.open = true;
+    requestAnimationFrame(() => {
+      const summary = details.querySelector<HTMLElement>("summary");
+      summary?.scrollIntoView({ behavior: "smooth", block: "start" });
+      summary?.focus({ preventScroll: true });
+    });
   }
 
   function updateMode(value: AnalysisMode) {
@@ -1003,14 +1302,32 @@ export default function Home() {
     const planningSettings = parsePlanningSettings(settings);
 
     if (hasInvalidTask || !planningSettings) {
+      const issues = analysisInputIssues(normalizedTasks, settings, copy);
       setCompleted(null);
       setStatus("error");
       setShowValidation(true);
       setVisibleError({ kind: "invalid-form" });
-      setAllocationNotice(null);
-      window.requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      setBlockingDialog({
+        description: bestFitCopy.validation.description,
+        issues,
+        focusAfterClose: '[aria-invalid="true"]',
       });
+      setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
+      return;
+    }
+
+    if (incrementalCashBudget?.status !== "confirmed") {
+      setCompleted(null);
+      setStatus("error");
+      setVisibleError({ kind: "invalid-form" });
+      setBlockingDialog({
+        description: bestFitCopy.results.budgetRequiredDescription,
+        issues: [bestFitCopy.validation.confirmBudgetIssue],
+        focusAfterClose: "#confirm-incremental-cash-budget",
+      });
+      setAllocationNotice(null);
+      setPendingPlanOutcomeNotice(null);
       return;
     }
 
@@ -1020,6 +1337,44 @@ export default function Home() {
     setVisibleError(null);
     setCompleted(null);
     setAllocationNotice(null);
+    setPendingPlanOutcomeNotice(null);
+
+    const acceptSuccessfulAnalysis = (payload: AnalyzeSuccessResponse) => {
+      const completedSnapshot: CompletedAnalysis = {
+        analysisSnapshot: {
+          contractVersion: "best-fit-analysis-v2",
+          compatibility: "best-fit",
+          response: payload,
+        },
+        tasks: normalizedTasks.map((task) => ({ ...task })),
+      };
+      setCompleted(completedSnapshot);
+      setStatus("success");
+      setPendingPlanOutcomeNotice({
+        kind: "analysis",
+        previousFingerprint: latestBestFitOutcomeFingerprint.current,
+        taskCount: completedSnapshot.tasks.length,
+      });
+      markPlanningRevision(payload.generatedAt);
+      persistCompletedScenario(
+        completedSnapshot,
+        planningSettings,
+        selectedProvider,
+        true,
+        incrementalCashBudget,
+      );
+    };
+
+    if (mode === "mock") {
+      acceptSuccessfulAnalysis({
+        ok: true,
+        mode: "mock",
+        model: "mock-fixture-v2",
+        generatedAt: new Date().toISOString(),
+        analysis: createMockAnalysis(normalizedTasks),
+      });
+      return;
+    }
 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 75_000);
@@ -1039,27 +1394,21 @@ export default function Home() {
           : { kind: "api", code: payload.error.code };
         setStatus("error");
         setVisibleError(error);
+        if (
+          !payload.ok &&
+          payload.error.code === "INVALID_INPUT" &&
+          payload.error.details &&
+          payload.error.details.length > 0
+        ) {
+          setBlockingDialog({
+            description: bestFitCopy.validation.description,
+            issues: serverInputIssues(payload.error.details, copy, bestFitCopy),
+          });
+        }
         return;
       }
 
-      const completedSnapshot: CompletedAnalysis = {
-        analysisSnapshot: {
-          contractVersion: "best-fit-analysis-v2",
-          compatibility: "best-fit",
-          response: payload,
-        },
-        tasks: normalizedTasks.map((task) => ({ ...task })),
-      };
-      setCompleted(completedSnapshot);
-      setStatus("success");
-      markPlanningRevision(payload.generatedAt);
-      persistCompletedScenario(
-        completedSnapshot,
-        planningSettings,
-        selectedProvider,
-        true,
-        incrementalCashBudget,
-      );
+      acceptSuccessfulAnalysis(payload);
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus("error");
@@ -1075,15 +1424,23 @@ export default function Home() {
   const statusMessage =
     status === "loading"
       ? copy.page.statusLoading(tasks.length)
-      : status === "success"
-        ? copy.page.statusSuccess(completed?.tasks.length ?? 0)
-        : status === "error"
-          ? copy.page.statusError
-          : "";
+      : status === "error"
+        ? copy.page.statusError
+        : "";
   const renderedAllocationNotice = allocationNoticeMessage(allocationNotice, copy);
+  const allocationNoticePending = allocationNotice?.kind === "budget-pending";
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f4f5f0] pb-20 text-[#17221c] sm:pb-0">
+    <main className="min-h-screen overflow-x-hidden bg-[#f4f5f0] text-[#17221c]">
+      <BlockingIssuesDialog
+        open={blockingDialog !== null}
+        title={bestFitCopy.validation.title}
+        description={blockingDialog?.description ?? ""}
+        issues={blockingDialog?.issues ?? []}
+        closeLabel={bestFitCopy.validation.close}
+        focusAfterClose={blockingDialog?.focusAfterClose}
+        onClose={() => setBlockingDialog(null)}
+      />
       <div className="pointer-events-none fixed inset-0 opacity-70" aria-hidden="true">
         <div className="absolute -left-24 top-20 h-72 w-72 rounded-full bg-[#d7e7d9] blur-3xl" />
         <div className="absolute -right-20 top-[-5rem] h-80 w-80 rounded-full bg-[#f3d9b3] blur-3xl" />
@@ -1100,27 +1457,38 @@ export default function Home() {
               <p className="text-xs text-[#536159]">{copy.page.headerSubtitle}</p>
             </div>
           </div>
-          <span className="max-w-full rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur">
-            {copy.page.headerBadge}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="hidden max-w-full rounded-full border border-[#173f31]/15 bg-white/70 px-3 py-1.5 text-xs font-semibold text-[#365649] backdrop-blur sm:inline-flex">
+              {copy.page.headerBadge}
+            </span>
+            <LanguageSelector />
+          </div>
         </header>
 
-        <section className="py-10 sm:py-14">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#b85331]">
+        <section className="py-8 sm:py-10">
+          <p className="text-balance text-xs font-bold leading-5 tracking-[-0.01em] text-[#b85331]">
             {bestFitCopy.hero.eyebrow}
           </p>
-          <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)] lg:items-end">
-            <h1 className="max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#12281f] sm:text-5xl lg:text-[3.5rem]">
+          <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(380px,0.65fr)] lg:items-start">
+            <h1 className="min-w-0 max-w-4xl break-keep break-words text-4xl font-semibold leading-[1.05] tracking-[-0.045em] text-[#12281f] sm:text-5xl lg:text-[3.25rem]">
               {bestFitCopy.hero.titleLine1}
               <br className="hidden sm:block" /> {bestFitCopy.hero.titleLine2}
             </h1>
-            <p className="max-w-xl text-base leading-7 text-[#536159] lg:justify-self-end">
+            <p className="max-w-[30rem] text-balance text-base leading-7 text-[#536159] lg:justify-self-end lg:pt-1">
               {bestFitCopy.hero.description}
             </p>
           </div>
         </section>
 
-        <form onSubmit={submitAnalysis} noValidate className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.55fr)] xl:items-start">
+        <form
+          onSubmit={submitAnalysis}
+          onPointerDownCapture={preserveUserInputBeforeAutomaticRestore}
+          onKeyDownCapture={preserveUserInputBeforeAutomaticRestore}
+          onKeyDown={preventImplicitAnalysisSubmit}
+          onInputCapture={preserveUserInputBeforeAutomaticRestore}
+          noValidate
+          className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.55fr)] xl:items-start"
+        >
           <TaskEditor
             tasks={tasks}
             disabled={status === "loading"}
@@ -1134,7 +1502,7 @@ export default function Home() {
             onLoadSample={loadSample}
           />
 
-          <aside className="min-w-0 space-y-4 xl:sticky xl:top-5">
+          <div className="min-w-0 xl:sticky xl:top-5">
             <BudgetSettings
               value={settings}
               disabled={status === "loading"}
@@ -1144,69 +1512,96 @@ export default function Home() {
               onConfirmIncrementalCashBudget={confirmBudgetMeaning}
               onRevokeIncrementalCashBudget={revokeBudgetMeaning}
             />
+          </div>
 
-            <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6">
-              <fieldset>
-                <legend className="mb-2 text-sm font-bold text-[#34443b]">{copy.page.analysisModeLegend}</legend>
-                <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#edf0eb] p-1.5">
-                  {(["mock", "live"] as const).map((item) => (
-                    <label key={item} className="cursor-pointer">
-                      <input
-                        type="radio"
-                        name="analysis-mode"
-                        value={item}
-                        checked={mode === item}
-                        onChange={() => updateMode(item)}
-                        disabled={status === "loading"}
-                        className="peer sr-only"
-                      />
-                      <span className="block rounded-xl px-3 py-3 text-[#647169] transition peer-checked:bg-white peer-checked:text-[#173f31] peer-checked:shadow-[0_4px_16px_rgba(26,48,37,0.1)] peer-focus-visible:ring-4 peer-focus-visible:ring-[#2f6c55]/20">
-                        <span className="block text-sm font-bold">{copy.enums.analysisMode[item]}</span>
-                        <span className="mt-0.5 block text-xs leading-5 opacity-80">
-                          {item === "mock" ? copy.page.mockDescription : copy.page.liveDescription}
+          <div className="min-w-0 xl:col-span-2">
+            <AvailableAiResources
+              key={scenarioRestoreEpoch}
+              drafts={resourceDrafts}
+              evidenceObservedAtById={resourceEvidenceObservedAtById}
+              disabled={status === "loading"}
+              onAdd={addResource}
+              onChange={updateResource}
+              onRemove={removeResource}
+            />
+          </div>
+
+          <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6 xl:col-span-2">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)] lg:items-center">
+              <div>
+                <fieldset>
+                  <legend className="text-sm font-bold text-[#34443b]">
+                    {copy.page.analysisModeLegend}
+                  </legend>
+                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl bg-[#edf0eb] p-1.5 sm:max-w-xl">
+                    {(["mock", "live"] as const).map((item) => (
+                      <label
+                        key={item}
+                        className={
+                          item === "live" && !liveAnalysisEnabled
+                            ? "cursor-not-allowed opacity-55"
+                            : "cursor-pointer"
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name="analysis-mode"
+                          value={item}
+                          checked={mode === item}
+                          onChange={() => updateMode(item)}
+                          disabled={
+                            status === "loading" ||
+                            (item === "live" && !liveAnalysisEnabled)
+                          }
+                          className="peer sr-only"
+                        />
+                        <span className="block h-full rounded-xl px-3 py-2.5 text-[#647169] transition peer-checked:bg-white peer-checked:text-[#173f31] peer-checked:shadow-[0_4px_16px_rgba(26,48,37,0.1)] peer-focus-visible:ring-4 peer-focus-visible:ring-[#2f6c55]/20">
+                          <span className="block text-sm font-bold">
+                            {copy.enums.analysisMode[item]}
+                          </span>
+                          <span className="mt-0.5 block text-xs leading-5 opacity-80">
+                            {item === "mock"
+                              ? copy.page.mockDescription
+                              : liveAnalysisEnabled
+                                ? copy.page.liveDescription
+                                : copy.page.liveDisabled}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
 
-              <p className="mt-4 rounded-xl border border-[#173f31]/10 bg-[#f7f8f4] px-3.5 py-3 text-xs leading-5 text-[#5f6d65]">
-                {copy.page.storageDisclosure}
-              </p>
+                <p className="mt-2 text-xs leading-5 text-[#66736b]">
+                  {copy.page.storageDisclosure}
+                </p>
+              </div>
 
-              <button
-                type="submit"
-                disabled={status === "loading"}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#173f31] px-5 py-4 text-sm font-bold text-white shadow-[0_12px_28px_rgba(23,63,49,0.2)] transition hover:bg-[#205541] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-wait disabled:opacity-65"
-              >
-                {status === "loading" ? (
-                  <>
-                    <span className="size-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
-                    {copy.page.submitting(tasks.length)}
-                  </>
-                ) : (
-                  <>
-                    {mode === "mock" ? copy.page.submitMock : copy.page.submitLive}
-                    <span aria-hidden="true">→</span>
-                  </>
-                )}
-              </button>
-              <p className="mt-3 text-center text-xs leading-5 text-[#66736b]">
-                {copy.page.liveSafety}
-              </p>
-            </section>
-          </aside>
+              <div>
+                <button
+                  type="submit"
+                  disabled={status === "loading"}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#173f31] px-5 py-3.5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(23,63,49,0.2)] transition hover:bg-[#205541] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-wait disabled:opacity-65"
+                >
+                  {status === "loading" ? (
+                    <>
+                      <span className="size-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+                      {copy.page.submitting(tasks.length)}
+                    </>
+                  ) : (
+                    <>
+                      {mode === "mock" ? copy.page.submitMock : copy.page.submitLive}
+                      <span aria-hidden="true">→</span>
+                    </>
+                  )}
+                </button>
+                <p className="mx-auto mt-3 max-w-lg whitespace-pre-line break-keep text-center text-xs leading-5 text-[#66736b]">
+                  {mode === "live" ? copy.page.liveSafety : copy.page.mockSafety}
+                </p>
+              </div>
+            </div>
+          </section>
         </form>
-
-        <AvailableAiResources
-          drafts={resourceDrafts}
-          evidenceObservedAtById={resourceEvidenceObservedAtById}
-          disabled={status === "loading"}
-          onAdd={addResource}
-          onChange={updateResource}
-          onRemove={removeResource}
-        />
 
         <CatalogOverrideEditor
           key={scenarioRestoreEpoch}
@@ -1216,9 +1611,19 @@ export default function Home() {
           onChange={updateApiOverrides}
         />
 
-        <p className="sr-only" aria-live="polite">
-          {renderedAllocationNotice || statusMessage}
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {statusMessage}
         </p>
+
+        {renderedAllocationNotice ? (
+          <PlanUpdateFeedback
+            key={allocationNoticeEpoch}
+            message={renderedAllocationNotice}
+            pending={allocationNoticePending}
+            dismissLabel={copy.page.allocationDismiss}
+            onDismiss={dismissAllocationNotice}
+          />
+        ) : null}
 
         {storageNotice ? (
           <section
@@ -1230,7 +1635,14 @@ export default function Home() {
           >
             <div>
               <p className="text-sm font-bold">{copy.page.storageTitle}</p>
-              <p role="status" className="mt-1 text-sm leading-6">
+              <p
+                role={
+                  allocationNotice === null && pendingPlanOutcomeNotice === null
+                    ? "status"
+                    : undefined
+                }
+                className="mt-1 text-sm leading-6"
+              >
                 {storageNoticeMessage(storageNotice, copy, localeMeta.dateLocale)}
               </p>
               <p className="mt-1 text-xs leading-5 opacity-75">
@@ -1265,12 +1677,14 @@ export default function Home() {
         ) : null}
 
         {storageChecked && status === "idle" && !completed ? (
-          <section className="mt-6 rounded-2xl border border-dashed border-[#173f31]/20 bg-white/55 p-6 text-center sm:p-8">
+          <section className="mt-6 rounded-2xl border border-dashed border-[#173f31]/20 bg-white/55 px-5 py-4 text-center">
             <p className="font-mono text-xs font-bold uppercase tracking-[0.14em] text-[#6b7a72]">
               {copy.page.emptyEyebrow}
             </p>
-            <h2 className="mt-2 text-lg font-semibold text-[#2b4136]">{copy.page.emptyTitle}</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#66736b]">
+            <h2 className="mt-1.5 text-base font-semibold text-[#2b4136]">
+              {copy.page.emptyTitle}
+            </h2>
+            <p className="mx-auto mt-1 max-w-xl text-sm leading-6 text-[#66736b]">
               {copy.page.emptyDescription}
             </p>
           </section>
@@ -1301,9 +1715,6 @@ export default function Home() {
                 <p className="mt-1 text-sm leading-6 text-[#91452d]">
                   {visibleErrorMessage(visibleError, copy)}
                 </p>
-                {visibleError.code ? (
-                  <p className="mt-2 font-mono text-xs text-[#a45b43]">{visibleError.code}</p>
-                ) : null}
               </div>
             </div>
           </div>
@@ -1331,6 +1742,7 @@ export default function Home() {
                 tasks={completed.tasks}
                 generatedAt={planningAsOf ?? completed.analysisSnapshot.response.generatedAt}
                 exportContext={bestFitExportContext}
+                referencePlanAvailable={showReferencePlan}
               />
             ) : (
               <section role="alert" className="rounded-2xl border border-[#cf6845]/25 bg-[#fff5ef] p-5 text-[#7c331f]">
@@ -1340,28 +1752,59 @@ export default function Home() {
           </div>
         ) : null}
 
+        {completed && plan && providerPlanning && showReferencePlan ? (
+          <ReferenceApiPlanSummary
+            plan={plan}
+            comparisons={providerPlanning.comparisons}
+            selectedProvider={selectedProvider}
+            onProviderChange={updateProvider}
+            onOpenDetails={openReferencePlanDetails}
+          />
+        ) : null}
+
         {completed && plan ? (
-          <div className="mt-8">
-            <section className="mb-4 rounded-2xl border border-[#173f31]/10 bg-white/70 px-5 py-4">
-              <h2 className="font-bold text-[#294638]">
-                {bestFitCopy.results.compatibilityView}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-[#607067]">
-                {bestFitCopy.results.compatibilityDescription}
-              </p>
-            </section>
-            <AnalysisResults
-              sourceTasks={completed.tasks}
-              plan={plan}
-              providerComparisons={providerPlanning?.comparisons ?? []}
-              selectedProvider={selectedProvider}
-              onProviderChange={updateProvider}
-              analysisMode={completed.analysisSnapshot.response.mode}
-              analysisModel={completed.analysisSnapshot.response.model}
-              analysisContract={completed.analysisSnapshot}
-              generatedAt={completed.analysisSnapshot.response.generatedAt}
-            />
-          </div>
+          <details
+            id="reference-api-plan-details"
+            data-reference-plan={showReferencePlan ? "reference-details" : "optional"}
+            className="group mt-6 rounded-2xl border border-[#173f31]/10 bg-white/70"
+          >
+            <summary className="min-h-11 cursor-pointer list-none rounded-2xl px-5 py-4 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center justify-between gap-4">
+                <span>
+                  <span className="block font-bold text-[#294638]">
+                    {showReferencePlan
+                      ? bestFitCopy.results.referencePlanView
+                      : bestFitCopy.results.compatibilityView}
+                  </span>
+                  <span className="mt-1 block text-sm leading-6 text-[#607067]">
+                    {showReferencePlan
+                      ? bestFitCopy.results.referencePlanDescription
+                      : bestFitCopy.results.compatibilityDescription}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="shrink-0 text-xl text-[#456455] transition group-open:rotate-45"
+                >
+                  +
+                </span>
+              </span>
+            </summary>
+            <div className="border-t border-[#173f31]/10 p-4 sm:p-5">
+              <AnalysisResults
+                sourceTasks={completed.tasks}
+                plan={plan}
+                providerComparisons={providerPlanning?.comparisons ?? []}
+                selectedProvider={selectedProvider}
+                onProviderChange={updateProvider}
+                analysisMode={completed.analysisSnapshot.response.mode}
+                analysisModel={completed.analysisSnapshot.response.model}
+                analysisContract={completed.analysisSnapshot}
+                generatedAt={completed.analysisSnapshot.response.generatedAt}
+                referenceOnly={showReferencePlan}
+              />
+            </div>
+          </details>
         ) : null}
 
         {completed && !plan ? (

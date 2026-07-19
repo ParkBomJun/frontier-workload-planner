@@ -10,12 +10,70 @@ import {
   catalogReferenceFor,
   isResolverIssuedEvidence,
   isResolverIssuedEvidenceForClaim,
+  isResolverIssuedPlannerApiOfferingIdentity,
   isResolverIssuedPlannerQualityTier,
   parseStoredEvidenceInput,
   resolveStoredEvidence,
   storedEvidenceInputSchema,
 } from "@/lib/offerings/evidence-resolver";
+import { resolveApiCatalogEntry } from "@/lib/offerings/provider-catalog-adapter";
 describe("stored evidence authority", () => {
+  it("keeps provider endpoint evidence separate from planner-authored API surfaces", () => {
+    const entry = resolveApiCatalogEntry("openai", "balanced");
+    const expectation = catalogClaimExpectation(
+      "openai",
+      "balanced",
+      "api-offering-identity",
+      API_CATALOG_REGISTRY_VERSION,
+    );
+    const resolution = resolveStoredEvidence(
+      catalogReferenceFor(
+        "openai",
+        "balanced",
+        "api-offering-identity",
+        API_CATALOG_REGISTRY_VERSION,
+      ),
+      expectation,
+    );
+
+    expect(resolution).toMatchObject({
+      status: "resolved",
+      value: {
+        modelId: "gpt-5.6-terra",
+        mode: "api",
+        endpointIds: ["responses", "chat-completions", "openai-batch"],
+      },
+      evidence: {
+        subjectId: "gpt-5.6-terra",
+        fieldPath: "api.offering-identity",
+      },
+    });
+    expect(resolution.status === "resolved" && resolution.value).not.toHaveProperty(
+      "supportedSurfaces",
+    );
+    expect(
+      isResolverIssuedPlannerApiOfferingIdentity(
+        entry.offering.evidence,
+        entry.offering.registryReference,
+        entry.offering,
+      ),
+    ).toBe(true);
+    expect(
+      isResolverIssuedPlannerApiOfferingIdentity(
+        entry.offering.evidence,
+        entry.offering.registryReference,
+        { ...entry.offering, supportedSurfaces: ["chat", "batch"] },
+      ),
+    ).toBe(false);
+    expect(
+      isResolverIssuedPlannerApiOfferingIdentity(
+        entry.offering.evidence,
+        entry.offering.registryReference,
+        { ...entry.offering, id: "provider-claimed-ide-route" },
+      ),
+    ).toBe(false);
+  });
+
   it("resolves only the exact immutable registry claim", () => {
     const reference = catalogReferenceFor(
       "openai",
@@ -66,7 +124,7 @@ describe("stored evidence authority", () => {
       kind: "provider-published",
       authority: "allowlisted-registry-resolver",
       sourceUrl: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
-      verifiedAt: "2026-07-17",
+      verifiedAt: "2026-07-18",
     };
     const extraField = {
       ...catalogReferenceFor(

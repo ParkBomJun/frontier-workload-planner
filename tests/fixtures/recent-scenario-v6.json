@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 6,
+  "savedAt": "2026-07-18T00:01:00.000Z",
+  "selectedProvider": "anthropic",
+  "tasks": [
+    {
+      "id": "best-fit-task-1",
+      "name": "Best-fit API design",
+      "description": "Design a validated API with a deterministic route plan.",
+      "priority": "high",
+      "deadlineDate": "2026-07-24",
+      "failureImpact": "high"
+    }
+  ],
+  "settings": {
+    "budgetUsd": 7.5,
+    "deadlineDays": 7,
+    "strategy": "balanced",
+    "incrementalCashBudget": {
+      "status": "confirmed",
+      "incrementalCashBudgetUsd": 7.5,
+      "confirmedAt": "2026-07-18T00:00:30.000Z"
+    }
+  },
+  "analysisSnapshot": {
+    "contractVersion": "best-fit-analysis-v2",
+    "compatibility": "best-fit",
+    "response": {
+      "ok": true,
+      "mode": "mock",
+      "model": "mock-fixture-v2",
+      "generatedAt": "2026-07-18T00:00:00.000Z",
+      "analysis": {
+        "contractVersion": "best-fit-analysis-v2",
+        "tasks": [
+          {
+            "taskId": "best-fit-task-1",
+            "taskType": "software-development",
+            "complexity": "high",
+            "reasoningDepth": "deep",
+            "expectedIterations": 3,
+            "estimatedInputSize": "m",
+            "estimatedOutputSize": "m",
+            "uncertainty": "medium",
+            "recommendedModelTier": "balanced",
+            "workMode": "coding-agent",
+            "requiredQualityTier": "balanced",
+            "requiredCapabilities": [
+              "code-editing",
+              "structured-output"
+            ],
+            "upgradeConditions": [
+              "deep-reasoning"
+            ],
+            "failureRisk": "high",
+            "riskFactors": [
+              "A failed migration could invalidate persisted plans."
+            ],
+            "rationale": "The task needs a deterministic validated implementation."
+          }
+        ]
+      }
+    }
+  },
+  "bestFitSources": {
+    "contractVersion": "best-fit-source-state-v1",
+    "availableAiResources": {
+      "contractVersion": "available-ai-resource-sources-v1",
+      "drafts": [
+        {
+          "uiId": "resource-1",
+          "preset": {
+            "id": "chatgpt-like-variable",
+            "version": "subscription-presets-v1"
+          },
+          "displayName": "Saved ChatGPT account",
+          "ownership": "owned",
+          "availability": "uncertain",
+          "surface": "chat",
+          "feeUsd": "20",
+          "quota": {
+            "kind": "opaque",
+            "description": "Five-hour and weekly limits were not recorded separately."
+          },
+          "reset": {
+            "kind": "unknown"
+          }
+        }
+      ],
+      "evidenceObservedAtById": {
+        "resource-1": {
+          "availability": "2026-07-18T00:00:40.000Z",
+          "commitment": "2026-07-18T00:00:41.000Z",
+          "quota": "2026-07-18T00:00:42.000Z",
+          "reset": "2026-07-18T00:00:43.000Z",
+          "offering": "2026-07-18T00:00:44.000Z"
+        }
+      }
+    },
+    "apiCatalogOverrides": {
+      "contractVersion": "api-catalog-override-sources-v1",
+      "overrides": []
+    }
+  }
+}

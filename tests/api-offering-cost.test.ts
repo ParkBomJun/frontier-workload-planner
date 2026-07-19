@@ -49,28 +49,28 @@ describe("evaluateApiOfferingCost", () => {
       providerId: "openai",
       tier: "economy",
       analysis: mediumAnalysis,
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
     });
     expect(isEvaluatedApiOfferingCost(evaluated)).toBe(true);
     expect(
       isEvaluatedApiOfferingCostFor(
         evaluated,
         mediumAnalysis,
-        "2026-07-17",
+        "2026-07-18",
       ),
     ).toBe(true);
     expect(
       isEvaluatedApiOfferingCostFor(
         evaluated,
         { ...mediumAnalysis, expectedIterations: 3 },
-        "2026-07-17",
+        "2026-07-18",
       ),
     ).toBe(false);
     expect(
       isEvaluatedApiOfferingCostFor(
         evaluated,
         mediumAnalysis,
-        "2026-07-18",
+        "2026-07-19",
       ),
     ).toBe(false);
     expect(Object.isFrozen(evaluated)).toBe(true);
@@ -79,7 +79,7 @@ describe("evaluateApiOfferingCost", () => {
       isEvaluatedApiOfferingCostFor(
         { ...evaluated },
         mediumAnalysis,
-        "2026-07-17",
+        "2026-07-18",
       ),
     ).toBe(false);
   });
@@ -91,7 +91,7 @@ describe("evaluateApiOfferingCost", () => {
           providerId,
           tier,
           analysis: mediumAnalysis,
-          pricingAsOf: "2026-07-17",
+          pricingAsOf: "2026-07-18",
         });
         expect(evaluated.status).toBe("priced");
         if (evaluated.status !== "priced") continue;
@@ -133,7 +133,7 @@ describe("evaluateApiOfferingCost", () => {
         estimatedInputSize: "xl",
         estimatedOutputSize: "xs",
       },
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
     });
 
     expect(evaluated).toMatchObject({
@@ -163,7 +163,7 @@ describe("evaluateApiOfferingCost", () => {
         estimatedInputSize: "l",
         estimatedOutputSize: "xs",
       },
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
     });
 
     expect(evaluated.status).toBe("priced");
@@ -188,7 +188,7 @@ describe("evaluateApiOfferingCost", () => {
         estimatedInputSize: "m",
         estimatedOutputSize: "xl",
       },
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
     });
     const both = evaluateApiOfferingCost({
       providerId: "google",
@@ -199,7 +199,7 @@ describe("evaluateApiOfferingCost", () => {
         estimatedInputSize: "xl",
         estimatedOutputSize: "xl",
       },
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
     });
 
     expect(invocationOnly).toMatchObject({
@@ -229,13 +229,13 @@ describe("evaluateApiOfferingCost", () => {
         estimatedInputSize: "xs",
         estimatedOutputSize: "xs",
       },
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       override: {
         kind: "api-catalog-override",
         provenance: "user-supplied",
         target: catalogOverrideTargetFor("openai", "economy"),
-        effectiveFrom: "2026-07-17",
-        recordedAt: "2026-07-17T09:00:00.000Z",
+        effectiveFrom: "2026-07-18",
+        recordedAt: "2026-07-18T09:00:00.000Z",
         standardTextPrice: {
           inputUsdPerMillion: 0.333333,
           outputUsdPerMillion: 1.777777,
@@ -257,13 +257,13 @@ describe("evaluateApiOfferingCost", () => {
       providerId: "openai",
       tier: "economy",
       analysis: mediumAnalysis,
-      pricingAsOf: "2026-07-17",
+      pricingAsOf: "2026-07-18",
       override: {
         kind: "api-catalog-override",
         provenance: "user-supplied",
         target: catalogOverrideTargetFor("openai", "economy"),
         effectiveFrom: "2026-08-01",
-        recordedAt: "2026-07-17T09:00:00.000Z",
+        recordedAt: "2026-07-18T09:00:00.000Z",
         planningTier: "premium",
         standardTextPrice: { inputUsdPerMillion: 0, outputUsdPerMillion: 0 },
       },

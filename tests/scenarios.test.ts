@@ -8,6 +8,7 @@ import recentScenarioV2 from "./fixtures/recent-scenario-v2.json";
 import recentScenarioV3 from "./fixtures/recent-scenario-v3.json";
 import recentScenarioV4 from "./fixtures/recent-scenario-v4.json";
 import recentScenarioV5 from "./fixtures/recent-scenario-v5.json";
+import recentScenarioV6 from "./fixtures/recent-scenario-v6.json";
 import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import { evaluateApiOfferingCost } from "@/lib/calculation/evaluate-api-offering";
@@ -25,6 +26,7 @@ import {
   historicalRecentScenarioV3Schema,
   historicalRecentScenarioV4Schema,
   historicalRecentScenarioV5Schema,
+  historicalRecentScenarioV6Schema,
 } from "@/lib/storage/historical-schemas";
 import {
   createEmptyBestFitSourceState,
@@ -35,6 +37,7 @@ import {
   confirmIncrementalCashBudget,
   loadRecentScenario,
   RECENT_SCENARIO_STORAGE_KEY,
+  reconcileIncrementalCashBudget,
   saveRecentScenario,
 } from "@/lib/storage/scenarios";
 import type {
@@ -112,17 +115,18 @@ const unconfirmedSettings = {
 };
 const emptyBestFitSources = createEmptyBestFitSourceState();
 const populatedBestFitSources: BestFitSourceState = {
-  contractVersion: "best-fit-source-state-v1",
+  contractVersion: "best-fit-source-state-v2",
   availableAiResources: {
-    contractVersion: "available-ai-resource-sources-v1",
+    contractVersion: "available-ai-resource-sources-v2",
     drafts: [
       {
         uiId: "resource-1",
         preset: {
           id: "github-copilot-like-credits",
-          version: "subscription-presets-v1",
+          version: "subscription-presets-v2",
         },
         displayName: "Owned coding credits",
+        provisionedBy: "personal",
         ownership: "owned",
         availability: "available",
         surface: "ide-cli",
@@ -180,6 +184,28 @@ const populatedBestFitSources: BestFitSourceState = {
   },
 };
 
+function resourceSourcesWithCount(count: number): BestFitSourceState {
+  const sources = structuredClone(populatedBestFitSources);
+  const baseDraft = sources.availableAiResources.drafts[0];
+  const baseEvidence =
+    sources.availableAiResources.evidenceObservedAtById["resource-1"];
+  if (!baseDraft || !baseEvidence) {
+    throw new Error("The populated source fixture requires one complete resource.");
+  }
+  sources.availableAiResources.drafts = Array.from({ length: count }, (_, index) => ({
+    ...structuredClone(baseDraft),
+    uiId: `resource-${index + 1}`,
+    displayName: `Owned coding credits ${index + 1}`,
+  }));
+  sources.availableAiResources.evidenceObservedAtById = Object.fromEntries(
+    Array.from({ length: count }, (_, index) => [
+      `resource-${index + 1}`,
+      structuredClone(baseEvidence),
+    ]),
+  );
+  return sources;
+}
+
 const goldenFiles = [
   {
     filename: "recent-scenario-v1.json",
@@ -211,6 +237,12 @@ const goldenFiles = [
     schema: historicalRecentScenarioV5Schema,
     digest: "c7c408909c5a4a3927ac1aa26d9cc46961cc9a63dc9596f6002447dc1519a905",
   },
+  {
+    filename: "recent-scenario-v6.json",
+    fixture: recentScenarioV6,
+    schema: historicalRecentScenarioV6Schema,
+    digest: "29e33340aee8e1bea4721a5c76e3efe2091ac8db69e3b951bab7e8fce7102c9b",
+  },
 ] as const;
 
 function rawFixture(filename: string): string {
@@ -235,7 +267,12 @@ describe("frozen historical scenario contracts", () => {
         expect(raw).not.toContain("incrementalCashBudget");
       } else {
         expect(raw).toContain("incrementalCashBudget");
-        expect(raw).not.toContain("bestFitSources");
+        if (fixture.schemaVersion === 5) {
+          expect(raw).not.toContain("bestFitSources");
+        } else {
+          expect(raw).toContain("bestFitSources");
+          expect(raw).not.toContain("provisionedBy");
+        }
       }
     }
   });
@@ -253,7 +290,7 @@ describe("frozen historical scenario contracts", () => {
   });
 });
 
-describe("recent scenario storage v6", () => {
+describe("recent scenario storage v7", () => {
   it("round-trips one validated best-fit scenario", () => {
     const storage = new MemoryStorage();
     const saved = saveRecentScenario(scenarioInput, storage, savedAt);
@@ -263,7 +300,7 @@ describe("recent scenario storage v6", () => {
     expect(loaded).toMatchObject({
       status: "loaded",
       scenario: {
-        schemaVersion: 6,
+        schemaVersion: 7,
         savedAt,
         selectedProvider,
         tasks,
@@ -304,7 +341,7 @@ describe("recent scenario storage v6", () => {
     expect(saved).toEqual({
       ok: true,
       scenario: expect.objectContaining({
-        schemaVersion: 6,
+        schemaVersion: 7,
         bestFitSources: populatedBestFitSources,
       }),
     });
@@ -317,6 +354,75 @@ describe("recent scenario storage v6", () => {
     expect(
       JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}").bestFitSources,
     ).toEqual(populatedBestFitSources);
+  });
+
+  it("round-trips separate accounts that use the same preset", () => {
+    const storage = new MemoryStorage();
+    const sources = resourceSourcesWithCount(2);
+
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: sources },
+        storage,
+        savedAt,
+      ),
+    ).toMatchObject({ ok: true });
+    expect(loadRecentScenario(storage)).toMatchObject({
+      status: "loaded",
+      scenario: { bestFitSources: sources },
+    });
+  });
+
+  it("accepts eight separate resources, rejects nine, and still rejects duplicate IDs", () => {
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: resourceSourcesWithCount(8) },
+        new MemoryStorage(),
+        savedAt,
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: resourceSourcesWithCount(9) },
+        new MemoryStorage(),
+        savedAt,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+
+    const duplicateIds = resourceSourcesWithCount(2);
+    duplicateIds.availableAiResources.drafts[1]!.uiId = "resource-1";
+    expect(
+      saveRecentScenario(
+        { ...scenarioInput, bestFitSources: duplicateIds },
+        new MemoryStorage(),
+        savedAt,
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("restores an older draft without provisioning as unspecified", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      RECENT_SCENARIO_STORAGE_KEY,
+      rawFixture("recent-scenario-v6.json"),
+    );
+
+    const loaded = loadRecentScenario(storage);
+    expect(loaded.status).toBe("loaded");
+    if (loaded.status !== "loaded") return;
+    expect(
+      loaded.scenario.bestFitSources.availableAiResources.drafts[0]
+        ?.provisionedBy,
+    ).toBe("unspecified");
+    expect(loaded.scenario).toMatchObject({
+      schemaVersion: 7,
+      bestFitSources: {
+        contractVersion: "best-fit-source-state-v2",
+        availableAiResources: {
+          contractVersion: "available-ai-resource-sources-v2",
+        },
+      },
+    });
   });
 
   it("preserves structurally valid in-progress resource drafts for later correction", () => {
@@ -453,6 +559,22 @@ describe("recent scenario storage v6", () => {
         },
       },
     });
+  });
+
+  it("keeps the same confirmed amount but requires confirmation after a budget edit", () => {
+    const confirmedAt = "2026-07-17T01:03:00.000Z";
+    const confirmed = {
+      status: "confirmed" as const,
+      incrementalCashBudgetUsd: 5,
+      confirmedAt,
+    };
+
+    expect(reconcileIncrementalCashBudget(5, confirmed)).toBe(confirmed);
+    expect(reconcileIncrementalCashBudget(0.5, confirmed)).toEqual({
+      status: "legacy-api-only-unconfirmed",
+      legacyBudgetUsd: 0.5,
+    });
+    expect(reconcileIncrementalCashBudget(0, confirmed)).toBeNull();
   });
 
   it("restores an invalid-deadline strategy change without rolling Sonnet pricing back", () => {
@@ -747,7 +869,7 @@ describe("recent scenario storage v6", () => {
 
   it("preserves an unknown future version", () => {
     const storage = new MemoryStorage();
-    const future = JSON.stringify({ schemaVersion: 7, future: true });
+    const future = JSON.stringify({ schemaVersion: 8, future: true });
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, future);
 
     expect(loadRecentScenario(storage)).toEqual({ status: "unsupported" });
@@ -755,7 +877,7 @@ describe("recent scenario storage v6", () => {
   });
 
   it("discards invalid non-future versions", () => {
-    for (const schemaVersion of [0, -1, 5.5, "6"]) {
+    for (const schemaVersion of [0, -1, 6.5, "7"]) {
       const storage = new MemoryStorage();
       storage.setItem(
         RECENT_SCENARIO_STORAGE_KEY,
@@ -767,7 +889,7 @@ describe("recent scenario storage v6", () => {
     }
   });
 
-  it.each(goldenFiles)("migrates $filename sequentially to v6 with empty Best-fit sources", ({ fixture }) => {
+  it.each(goldenFiles)("migrates $filename sequentially to v7 without inventing source facts", ({ fixture }) => {
     const storage = new MemoryStorage();
     const originalSnapshot = "analysisSnapshot" in fixture
       ? structuredClone(fixture.analysisSnapshot)
@@ -783,19 +905,45 @@ describe("recent scenario storage v6", () => {
             status: "legacy-api-only-unconfirmed" as const,
             legacyBudgetUsd: fixture.settings.budgetUsd,
           };
+    let expectedBestFitSources = emptyBestFitSources;
+    if ("bestFitSources" in fixture) {
+      const parsedV6 = historicalRecentScenarioV6Schema.safeParse(fixture);
+      if (!parsedV6.success) {
+        throw new Error("The frozen v6 fixture must parse before migration.");
+      }
+      expectedBestFitSources = {
+        contractVersion: "best-fit-source-state-v2",
+        availableAiResources: {
+          contractVersion: "available-ai-resource-sources-v2",
+          drafts: parsedV6.data.bestFitSources.availableAiResources.drafts.map(
+            (draft) => ({
+              ...structuredClone(draft),
+              provisionedBy: "unspecified" as const,
+            }),
+          ),
+          evidenceObservedAtById: structuredClone(
+            parsedV6.data.bestFitSources.availableAiResources
+              .evidenceObservedAtById,
+          ),
+        },
+        apiCatalogOverrides: structuredClone(
+          parsedV6.data.bestFitSources.apiCatalogOverrides,
+        ),
+      };
+    }
     storage.setItem(RECENT_SCENARIO_STORAGE_KEY, JSON.stringify(fixture));
 
     const loaded = loadRecentScenario(storage);
 
     expect(loaded.status).toBe("loaded");
     if (loaded.status !== "loaded") return;
-    expect(loaded.scenario.schemaVersion).toBe(6);
+    expect(loaded.scenario.schemaVersion).toBe(7);
     expect(loaded.scenario.analysisSnapshot).toEqual(originalSnapshot);
     expect(loaded.scenario.settings.incrementalCashBudget).toEqual(
       expectedIncrementalCashBudget,
     );
     expect(loaded.scenario.settings.budgetUsd).toBe(fixture.settings.budgetUsd);
-    expect(loaded.scenario.bestFitSources).toEqual(emptyBestFitSources);
+    expect(loaded.scenario.bestFitSources).toEqual(expectedBestFitSources);
     if (fixture.schemaVersion < 4) {
       expect(loaded.scenario.tasks.every((task) => task.deadlineDate === null)).toBe(true);
       expect(loaded.scenario.tasks.every((task) => task.failureImpact === "unspecified")).toBe(true);
@@ -805,12 +953,12 @@ describe("recent scenario storage v6", () => {
       expect(JSON.stringify(loaded.scenario.analysisSnapshot)).toContain("requiredQualityTier");
     }
     expect(JSON.parse(storage.getItem(RECENT_SCENARIO_STORAGE_KEY) ?? "{}")).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       settings: {
         budgetUsd: fixture.settings.budgetUsd,
         incrementalCashBudget: expectedIncrementalCashBudget,
       },
-      bestFitSources: emptyBestFitSources,
+      bestFitSources: expectedBestFitSources,
     });
 
     if (fixture.schemaVersion === 1) {
@@ -852,7 +1000,7 @@ describe("recent scenario storage v6", () => {
       loadRecentScenario(storage, {
         migrateHistoricalScenario: () => ({
           ok: true,
-          scenario: { schemaVersion: 6 } as never,
+          scenario: { schemaVersion: 7 } as never,
         }),
       }),
     ).toEqual({ status: "migration-required", reason: "target-validation-failed" });

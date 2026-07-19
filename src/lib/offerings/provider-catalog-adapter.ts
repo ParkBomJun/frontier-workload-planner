@@ -5,6 +5,10 @@ import {
   type ProviderModelPrice,
 } from "@/config/provider-catalog";
 import {
+  derivePlannerApiOfferingId,
+  derivePlannerApiSurfaces,
+} from "@/config/planner-api-route-adapter";
+import {
   API_CATALOG_REGISTRY_ID,
   API_CATALOG_REGISTRY_VERSION,
   getProviderRegistryEntry,
@@ -25,7 +29,6 @@ import {
   type ModelBoundOffering,
   type ModelDefinition,
   type ProviderPublishedEvidence,
-  type WorkSurface,
 } from "@/types/offerings";
 
 import {
@@ -34,12 +37,6 @@ import {
   resolveStoredEvidence,
 } from "./evidence-resolver";
 import { createApiRouteIdentity, registeredAccessProviderId } from "./route-identity";
-
-export const API_PLANNING_SURFACES: readonly WorkSurface[] = Object.freeze([
-  "chat",
-  "ide-cli",
-  "batch",
-]);
 
 export type ApiStandardTextPriceView = RegistryClaimValueById["standard-text-pricing"] & {
   basis: typeof PROVIDER_PRICING_BASIS;
@@ -83,10 +80,6 @@ function mustResolve<I extends RegistryClaimId>(
   return result;
 }
 
-function offeringId(providerId: ProviderId, modelId: string): string {
-  return `api.${providerId}.${modelId}.standard-text`;
-}
-
 function adaptEntry(
   providerId: ProviderId,
   tier: ModelTier,
@@ -101,6 +94,33 @@ function adaptEntry(
     "standard-text-pricing",
     catalogVersion,
   );
+  const capabilities = mustResolve(
+    providerId,
+    tier,
+    "model-capabilities",
+    catalogVersion,
+  );
+  const apiIdentity = mustResolve(
+    providerId,
+    tier,
+    "api-offering-identity",
+    catalogVersion,
+  );
+  const accessLimits = mustResolve(
+    providerId,
+    tier,
+    "api-access-limits",
+    catalogVersion,
+  );
+  const accessCapabilities = mustResolve(
+    providerId,
+    tier,
+    "api-access-capabilities",
+    catalogVersion,
+  );
+  if (apiIdentity.value.modelId !== identity.value.modelId) {
+    throw new Error("Bundled API offering identity does not match its model.");
+  }
   const registryReference = {
     registryId: API_CATALOG_REGISTRY_ID,
     registryVersion: catalogVersion,
@@ -114,8 +134,9 @@ function adaptEntry(
     displayName: identity.value.displayName,
     qualityTier: LEGACY_TO_PLANNING_TIER[tier],
     capabilityProfile: {
-      knowledge: "unknown",
-      reason: "capability-profile-not-yet-verified",
+      knowledge: "complete",
+      capabilityIds: [...capabilities.value.capabilityIds],
+      evidence: capabilities.evidence,
     },
     invocationLimits: {
       knowledge: "complete",
@@ -127,14 +148,34 @@ function adaptEntry(
   };
   const offering: ModelBoundOffering & { mode: "api" } = {
     kind: "model-bound",
-    id: offeringId(providerId, model.id),
+    id: derivePlannerApiOfferingId(providerId, model.id),
     providerId: accessProviderId,
     mode: "api",
     modelId: model.id,
-    supportedSurfaces: API_PLANNING_SURFACES,
-    limitPolicy: { kind: "unknown" },
-    capabilityPolicy: { kind: "unknown" },
-    evidence: identity.evidence,
+    supportedSurfaces: derivePlannerApiSurfaces(apiIdentity.value.endpointIds),
+    limitPolicy:
+      accessLimits.value.kind === "same-as-model"
+        ? { kind: "same-as-model", evidence: accessLimits.evidence }
+        : {
+            kind: "bounded",
+            invocationLimits: {
+              knowledge: "complete",
+              limits: { ...accessLimits.value.limits },
+              evidence: accessLimits.evidence,
+            },
+          },
+    capabilityPolicy:
+      accessCapabilities.value.kind === "same-as-model"
+        ? { kind: "same-as-model", evidence: accessCapabilities.evidence }
+        : {
+            kind: "bounded",
+            capabilityProfile: {
+              knowledge: "complete",
+              capabilityIds: [...accessCapabilities.value.capabilityIds],
+              evidence: accessCapabilities.evidence,
+            },
+          },
+    evidence: apiIdentity.evidence,
     registryReference,
   };
 
@@ -197,6 +238,11 @@ function projectCanonicalEntryToLegacyModel(
   }
   const price = entry.standardTextPrice;
   const limits = entry.model.invocationLimits.limits;
+  const verifiedApiClaims = getProviderRegistryEntry(
+    entry.legacyReference.providerId,
+    entry.legacyReference.tier,
+    API_CATALOG_REGISTRY_VERSION,
+  ).legacyModel.verifiedApiClaims;
 
   return {
     tier: entry.legacyReference.tier,
@@ -217,6 +263,26 @@ function projectCanonicalEntryToLegacyModel(
     ...(price.excludedLongContextPrice === undefined
       ? {}
       : { excludedLongContextPrice: { ...price.excludedLongContextPrice } }),
+    ...(verifiedApiClaims === undefined
+      ? {}
+      : {
+          verifiedApiClaims: {
+            modelCapabilities: {
+              capabilityIds: [
+                ...verifiedApiClaims.modelCapabilities.capabilityIds,
+              ],
+              sourceUrl: verifiedApiClaims.modelCapabilities.sourceUrl,
+            },
+            offeringIdentity: {
+              endpointIds: [...verifiedApiClaims.offeringIdentity.endpointIds],
+              sourceUrl: verifiedApiClaims.offeringIdentity.sourceUrl,
+            },
+            accessLimits: { ...verifiedApiClaims.accessLimits },
+            accessCapabilities: {
+              ...verifiedApiClaims.accessCapabilities,
+            },
+          },
+        }),
     limits: {
       ...(limits.maxInputTokens === undefined
         ? {}

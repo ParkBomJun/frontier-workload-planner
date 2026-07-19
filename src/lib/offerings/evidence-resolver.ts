@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import {
+  derivePlannerApiOfferingId,
+  derivePlannerApiSurfaces,
+} from "@/config/planner-api-route-adapter";
+import {
   API_CATALOG_REGISTRY_ID,
   getProviderRegistry,
   getProviderRegistryEntry,
@@ -15,6 +19,7 @@ import type {
   ConditionalReasonCode,
   EvidenceRef,
   EvidenceSubject,
+  ModelBoundOffering,
   ProviderPublishedEvidence,
   PlanningQualityTier,
   ResolvedRegistryReference,
@@ -346,5 +351,56 @@ export function isResolverIssuedPlannerQualityTier(
   return (
     entry?.claims["model-identity"] === claim &&
     LEGACY_TO_PLANNING_TIER[entry.legacyTier] === assertedTier
+  );
+}
+
+/**
+ * Verifies the planner-authored API offering ID and surface projection
+ * separately from the provider-published endpoint identity claim. Provider
+ * evidence never claims the planner's chat/IDE/Batch vocabulary.
+ */
+export function isResolverIssuedPlannerApiOfferingIdentity(
+  value: unknown,
+  registryReference: ResolvedRegistryReference | undefined,
+  offering: ModelBoundOffering,
+): boolean {
+  if (
+    offering.mode !== "api" ||
+    registryReference === undefined ||
+    !isResolverIssuedProviderEvidence(value)
+  ) {
+    return false;
+  }
+  const untypedClaim = issuedClaims.get(value);
+  if (!untypedClaim || untypedClaim.claimId !== "api-offering-identity") {
+    return false;
+  }
+  const claim = untypedClaim as ProviderRegistryClaim<"api-offering-identity">;
+  if (
+    claim.catalogId !== registryReference.registryId ||
+    claim.catalogVersion !== registryReference.registryVersion ||
+    claim.entryId !== registryReference.entryId ||
+    claim.subject.providerId !== offering.providerId ||
+    claim.subject.subjectId !== offering.modelId ||
+    claim.subject.fieldPath !== "api.offering-identity" ||
+    claim.value.mode !== "api" ||
+    claim.value.modelId !== offering.modelId
+  ) {
+    return false;
+  }
+  const entry = getProviderRegistryEntryById(
+    claim.catalogId,
+    claim.catalogVersion,
+    claim.entryId,
+  );
+  if (entry?.claims["api-offering-identity"] !== claim) return false;
+
+  const expectedSurfaces = derivePlannerApiSurfaces(claim.value.endpointIds);
+  return (
+    offering.id === derivePlannerApiOfferingId(offering.providerId, offering.modelId) &&
+    offering.supportedSurfaces.length === expectedSurfaces.length &&
+    offering.supportedSurfaces.every(
+      (surface, index) => surface === expectedSurfaces[index],
+    )
   );
 }

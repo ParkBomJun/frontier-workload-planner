@@ -1,6 +1,6 @@
 # Frontier Workload Planner — MVP Specification
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 Internal target: 2026-07-21
 
@@ -15,15 +15,15 @@ heuristic, not a quality ranking, benchmark, quote, or mathematically optimal al
 
 - One-page workflow with up to eight tasks
 - User-owned High / Medium / Low priority, optional date-only deadline, and bounded failure impact for every task
-- One GPT-5.6 request for all tasks
+- One Live analysis operation for all tasks, with at most one automatic GPT-5.6 retry
 - GPT recommends a model tier, never a concrete model or price
 - Program maps the same tier to one model in each supported provider catalog
 - Deterministic per-provider Low / Expected / High cost calculation
 - OpenAI, Anthropic, and Google comparison summaries plus a selected product-family plan
 - Expected-cost budget allocation, low-priority task holding, and a High-cost risk warning
 - One per-task cost bar chart
-- One recent source-only scenario in LocalStorage v6, with frozen v1–v5 migration
-- Legacy comparison exports plus separate Best-fit JSON v5 and localized Markdown
+- One recent source-only scenario in LocalStorage v7, with frozen v1–v6 migration
+- Legacy comparison exports plus separate Best-fit JSON v6 and localized Markdown
 - Mock and Live modes
 - Server-only OpenAI API key
 
@@ -37,24 +37,25 @@ an objective order between vendors.
 | `balanced` | GPT-5.6 Terra | Claude Sonnet 5 | Gemini 3 Flash |
 | `frontier` | GPT-5.6 Sol | Claude Fable 5 | Gemini 3.1 Pro |
 
-## Release source on main — not deployed yet
+## Release candidate — not deployed yet
 
-The reviewed Ver3 source is now merged into `main`. The public URL at
-<https://frontier-workload-planner.vercel.app> still serves the pre-Ver3 stable deployment. The
-following provider-comparison and workload-contract extension must not be described as publicly
-deployed until explicit redeployment and production verification:
+This candidate extends the reviewed Ver3 source. The public URL at
+<https://frontier-workload-planner.vercel.app> may still serve an earlier stable deployment. The
+following experience must not be described as publicly deployed until the exact candidate SHA is
+published, deployed, and verified:
 
 1. One to eight task names, descriptions, user priorities, optional date-only deadlines, and bounded failure impacts in a single-page UI.
 2. Budget, reference deadline, and planning-strategy controls.
-3. Explicit Mock or Live submission to `POST /api/analyze`.
-4. Server-side validation and one GPT-5.6 Responses API Structured Output for all tasks.
+3. Explicit browser-only sample analysis or Live submission to `POST /api/analyze`.
+4. Server-side Live validation and one GPT-5.6 Responses API Structured Output result for all tasks,
+   with at most one automatic retry.
 5. One immutable GPT analysis projected through three published standard-text price catalogs.
 6. Deterministic Low / Expected / High costs and complete budget plans for every provider.
 7. Product-family selection that swaps the displayed plan without another API request.
 8. Priority-first Expected-cost allocation, explicit active/held work, High-cost warnings, task cards, and one cost chart.
-9. One validated recent source-only scenario in LocalStorage v6, restored by re-resolving evidence
-   and recalculating without a new API request; frozen v1–v5 records migrate sequentially.
-10. Historical JSON v3/v4 comparison exports plus a separate Best-fit JSON v5 and localized
+9. One validated recent source-only scenario in LocalStorage v7, restored by re-resolving evidence
+   and recalculating without a new API request; frozen v1–v6 records migrate sequentially.
+10. Historical JSON v3/v4 comparison exports plus a separate Best-fit JSON v6 and localized
     Markdown projection for structured routes, resource/override source, and audit-only evidence.
 11. Empty, loading, success, input-error, configuration-error, storage-error, and upstream-error states.
 
@@ -305,8 +306,8 @@ through the API-family compatibility planner. They continue to include the selec
 Low / Expected / High costs, allocations, all three provider summaries, warnings, catalog sources,
 price conditions, invocation limits, and exclusions. Those schemas are not widened in place.
 
-Best-fit route/resource results use a separate JSON schema version 5 with `resultKind`
-`best-fit-route-plan`, plus a parallel localized Markdown projection. The v5 document contains:
+Best-fit route/resource results use a separate JSON schema version 6 with `resultKind`
+`best-fit-route-plan`, plus a parallel localized Markdown projection. The v6 document contains:
 
 - structured primary, fallback, and baseline `RouteIdentity` values and stable route keys;
 - task status, explanations, conditional/exclusion reasons, and activated resource identity;
@@ -341,7 +342,9 @@ Exports contain task descriptions and leave the app through the clipboard or a l
 - Structured output: Zod through `zodTextFormat`
 - Reasoning effort: `low`
 - Output cap: 3,000 tokens
-- Storage: `store: false`
+- Response application-state storage: `store: false`
+- Separate OpenAI abuse-monitoring logs: normally up to 30 days, with longer retention possible when
+  legally required or reasonably necessary to prevent harm
 - SDK retries: disabled
 - Application attempts: two total, therefore one retry maximum
 - Live gate: `ENABLE_LIVE_ANALYSIS` must equal `true`
@@ -384,8 +387,11 @@ adapters, versioned workload boundary, generalized API calculation, subscription
 deterministic Best-fit core, localized source editors, route results, and the monotonic restore
 clock while this work was developed on `feature/best-fit-offerings`. Checkpoint 7 is the accepted
 UI/clock baseline. Checkpoint 8 replaces its temporary session-only boundary with source-only
-LocalStorage v6, frozen v1–v5 migration, restore-time re-resolution, and separate Best-fit JSON
-v5/Markdown projections. The approved Checkpoint 8 source is now merged into `main`. The reviewed
+LocalStorage v6 and Best-fit JSON v5/Markdown projections. The post-checkpoint personal-user pass
+extends that boundary to LocalStorage v7, frozen v1–v6 migration, source state v2, and Best-fit
+JSON v6 without changing the calculation result contract. The approved Checkpoint 8 source is now
+merged into `main`; the post-checkpoint personal-user pass is an unmerged release candidate on
+`wip/personal-user-ux-20260718` and is not yet the public deployment. The reviewed
 API-only provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
@@ -927,9 +933,9 @@ LocalStorage v1/v2/v3 responses, legacy JSON v3, Mock v2 fixtures, and current U
 the heuristic recommendation field. The deterministic compatibility mapping uses
 `premium` → legacy catalog position `frontier` only where a floor must be enforced.
 
-The checkpoint-2 Offering adapter remains passive. It preserves immutable, reference-independent v1 and v2
-snapshots behind exact `(catalogId, catalogVersion)` lookup. The v1 canonical manifest has a fixed
-SHA-256 golden; changing catalog facts requires a new snapshot version rather than editing a
+The Offering adapter preserves immutable, reference-independent v1, v2, and v3 snapshots behind
+exact `(catalogId, catalogVersion)` lookup. Historical canonical manifests have fixed SHA-256
+goldens; changing catalog facts requires a new snapshot version rather than editing a
 published version. Evidence authority includes its exact catalog ID, version, entry, claim, subject,
 field, and value, so equal values in two versions are not interchangeable. Legacy projection accepts
 only a canonical provider/tier lookup and never caller-supplied resolved values. Checkpoint 3 adds
@@ -937,10 +943,12 @@ the workload contract and floor to the reviewed API-only allocator without promo
 Offerings into Best-fit routes. The provider-published
 model identity claim does not contain the planner-authored
 quality tier; a separately named resolver verifies the versioned `frontier` → `premium` heuristic
-adapter. Because the current catalog contains no versioned capability claims, adapted
-capability profiles remain `unknown`; model names are not evidence. Official model invocation
-limits remain available, but the access policy stays `unknown` until a dedicated access-path claim
-exists. Preset and connector references remain conditional until their allowlisted resolvers exist.
+adapter. Historical v1/v2 entries intentionally retain unknown capability and access knowledge.
+The v3 snapshot adds exact model-capability, provider-native API endpoint, API access-limit, and API
+access-capability claims from allowlisted provider documentation. A second versioned planner adapter
+maps provider endpoint IDs to the planner's `chat`, `ide-cli`, and `batch` surfaces; those surface
+names are never represented as provider-published vocabulary. Model names alone remain insufficient
+evidence. Preset and connector references remain conditional until their allowlisted resolvers exist.
 
 Ver3 may let the user override the planning tier and standard text price only for a model already
 present in the verified catalog. An override is source state, is visibly labeled user-supplied,
@@ -958,8 +966,8 @@ reproduce the plan. Arbitrary API providers and models remain out of scope.
 | `estimateTaskCost` and micro-USD arithmetic | Reuse token and currency math; introduce a resolved-price input behind the existing provider/tier compatibility wrapper. |
 | `allocateBudget` | Preserve deterministic priority, tie-breaking, compatible-tier, held, and infeasible rules as the API-only baseline. A new route orchestrator evaluates offerings above it. |
 | `compareProviderPlans` | Retain as a regression adapter for the current three API families, not as the subscription engine. |
-| source-only LocalStorage | Version 6 retains frozen v1–v5 parsers and adds only raw resource drafts, per-fact observation instants, and exact user override source; restore re-resolves and recalculates. |
-| allowlisted JSON and localized Markdown | Preserve JSON v3/v4 meanings; project expanded routes/resources through separate Best-fit JSON v5 and parallel localized Markdown. |
+| source-only LocalStorage | Version 7 retains frozen v1–v6 parsers and stores only raw resource drafts, per-fact observation instants, provisioner choice, and exact user override source; restore re-resolves and recalculates. |
+| allowlisted JSON and localized Markdown | Preserve JSON v3/v4 meanings; project expanded routes/resources through separate Best-fit JSON v6 and parallel localized Markdown. |
 
 The staged migration order is: adapt the existing catalog to model/API-offering views; prove parity
 with current provider plans; establish the storage safety gate; version the GPT/task contract and
@@ -968,8 +976,8 @@ orchestrator; then migrate UI and exports. The current API-only calculation and
 `compareProviderPlans` must not be deleted or silently change meaning before parity tests pass.
 
 JSON v3 remains the historical API-only result contract. JSON v4 carries the expanded v2 workload
-meaning without changing v3 in place. Best-fit JSON v5 is a different result document rather than
-a mutation of either historical schema. LocalStorage v6 persists raw resource/override source, not
+meaning without changing v3 in place. Best-fit JSON v6 is a different result document rather than
+a mutation of either historical schema. LocalStorage v7 persists raw resource/override source, not
 resolved evidence, routes, assignments, or ledgers; those projections are recalculated after every
 restore.
 
@@ -979,7 +987,7 @@ Checkpoint 3 owns the first Ver3 LocalStorage migration. It must land before or 
 first `TaskInput` or GPT analysis contract change; persistence migration cannot wait until
 checkpoint 8.
 
-Storage parsers for versions 1, 2, 3, 4, and 5 are immutable historical contracts. Each owns its complete
+Storage parsers for versions 1, 2, 3, 4, 5, and 6 are immutable historical contracts. Each owns its complete
 task, settings, provider, response, analysis, enum, and length-limit schema. They must not import or
 compose mutable live schemas such as `taskInputSchema`, `taskAnalysisSchema`,
 `analysisDocumentSchema`, current provider/strategy enums, or the current success-response schema.
@@ -1029,30 +1037,47 @@ API-only compatibility view until the user confirms or reanalyzes as required. A
 target-validation, rewrite, and future-version failures retain the original stored bytes under the
 existing safety rules.
 
-Storage version 6 extends the frozen chain as `v1 → v2 → v3 → v4 → v5 → v6`. Its additional
-`bestFitSources` value has source version `best-fit-source-state-v1` and contains two independently
-versioned source sets:
+Storage version 6 historically added `best-fit-source-state-v1`, with at most four unique-preset
+resource drafts and `api-catalog-override-sources-v1`. Version 7 freezes that complete parser and
+extends the chain as `v1 → v2 → v3 → v4 → v5 → v6 → v7`. Its current source state is
+`best-fit-source-state-v2` and contains two independently versioned source sets:
 
-- `available-ai-resource-sources-v1`: at most four bounded raw resource drafts plus the exact
-  availability, commitment, quota, reset, and surface observation instants recorded for each fact;
+- `available-ai-resource-sources-v2`: at most eight bounded raw resource drafts, an explicit
+  `personal`, `organization`, or `unspecified` provisioner, plus the exact availability,
+  commitment, quota, reset, and surface observation instants recorded for each fact;
 - `api-catalog-override-sources-v1`: at most nine exact catalog-entry override drafts, recording
   user-supplied tier/price values, `effectiveFrom`, and their source-recording metadata.
 
-The v6 parser accepts bounded invalid drafts so the user can repair them after restore; validation
+Separate accounts may use the same preset and remain distinct through their unique `uiId`. Multiple
+concurrent limits on one account, such as a five-hour and a weekly limit, must not be represented as
+separate resource drafts because the allocator would treat them as independent capacity.
+
+An opaque quota description may begin with the bounded `FWP_USAGE_SNAPSHOT_V1` subformat. It records
+one current user observation with separate 0–100 integer percentages for the product-specific
+five-hour, weekly, model-specific weekly, daily, or included-credit gauges, plus an optional model
+label and note. It is not a history series. Parsing, restore, and export preserve it as user-observed
+opaque source; the adapter projects only a readable description and never promotes the percentages
+to exact capacity or authoritative evidence. The minimum recorded percentage is display-only
+headroom and cannot derive an executable task count without a separately validated consumption
+contract.
+
+The v7 parser accepts bounded invalid drafts so the user can repair them after restore; validation
 diagnostics are derived, not persisted. Migrating any valid v1–v5 scenario creates an explicit
-empty v6 source state instead of inventing resources, observations, or overrides. Version 6 stores
-neither branded/resolved evidence nor route, ledger, baseline, compatibility, or display results.
-Automatic and manual restore rerun the current preset, resource, and exact-version catalog
-resolvers over the raw source, preserve unresolved references without promoting them, and
-recalculate the full route, quota, commitment, paid-overage, and Premium-baseline result. `savedAt`
-remains write metadata, not a planning/pricing clock candidate.
+empty v7 source state instead of inventing resources, observations, or overrides. Migrating v6
+preserves every raw source fact and assigns `provisionedBy: "unspecified"`; it never assumes a
+legacy resource was personally purchased. Version 7 stores neither branded/resolved evidence nor
+route, ledger, baseline, compatibility, or display results. Automatic and manual restore rerun the
+current preset, resource, and exact-version catalog resolvers over the raw source, preserve
+unresolved references without promoting them, and recalculate the full route, quota, commitment,
+paid-overage, and Premium-baseline result. `savedAt` remains write metadata, not a planning/pricing
+clock candidate.
 
 Adapters must not synthesize `workMode`, `requiredQualityTier`, capabilities, upgrade signals,
 `failureRisk`, or another GPT-derived value from a legacy tier, task type, free-form risk text,
 empty array, or default. User-owned fields added later use an explicit legacy/unspecified state when
 needed rather than pretending the user chose a value.
 
-Current v6 source-state records persist only untrusted source input, never branded `EvidenceRef` or
+Current v7 source-state records persist only untrusted source input, never branded `EvidenceRef` or
 a resolved result snapshot. Restore re-runs the exact-version registry and connector resolvers before
 calculation. Resolution failure preserves the reference and produces a recoverable conditional
 state; it does not delete the scenario, trust exported provenance, or copy a claimed official kind
@@ -1145,12 +1170,13 @@ For each `best-fit-analysis-v2` snapshot, the deterministic route engine now:
 
 The public authority boundary accepts only exact resolver-issued task candidate sets and rejects
 structural clones or a mismatched `planningAsOf` or `pricingAsOf`; the plan preserves both dates.
-A separate normalized pure core exists for closed
-calculation tests; it performs no storage, UI, network, or registry mutation. Current catalog
-access and capability profiles remain incomplete, so the production resolver currently yields no
-confirmed Best-fit API route instead of manufacturing compatibility. The reviewed API-only
-`allocateBudget` and `compareProviderPlans` paths remain unchanged and continue to power the
-existing interface until checkpoint 7 connects confirmed resource inputs.
+A separate normalized pure core exists for closed calculation tests; it performs no storage, UI,
+network, or registry mutation. V3 API entries can become confirmed catalog-compatible routes only
+when the exact model, endpoint, capability, access policy, limits, price conditions, quality floor,
+and workload requirements all resolve. This confirmation describes the public API route, not the
+state of a user's API key, billing account, region, or entitlement. The reviewed API-only
+`allocateBudget` and `compareProviderPlans` paths remain unchanged as a separately labeled
+compatibility/reference calculation.
 
 Every confirmed subscription candidate preserves its native demand unit and exact decimal
 overage-rate coefficient. Low, Expected, and High start from three independent copies of source
@@ -1202,7 +1228,7 @@ Quality First headroom, and it permits Premium without another risk trigger. Pre
 eligible when the minimum itself is Premium or a closed trigger represents High failure exposure,
 deep reasoning, a large code change, or deadline retry risk. Results lead with the access route and
 include deterministic
-`Best-fit route`, `Why this is enough`, `Why not premium`, `Upgrade trigger`, an alternative route,
+`Best-fit route`, `Why this is enough`, `Premium choice`, `Upgrade trigger`, an alternative route,
 and any hold reason. GPT does not generate cost or route-selection explanations.
 
 For a fixed activated-subscription set, confirmed task routes use a complete lexicographic
@@ -1412,11 +1438,12 @@ be exact resolver/evaluator-issued values; structurally similar clones are rejec
 is also bound to the task ID and demand-driving iteration count, while fallback eligibility and
 pricing are bound to one canonical workload requirement and pricing date. A conditional
 subscription suggestion accepts only a resolver-issued eligible API Offering paired with the exact
-evaluated priced API route. Price alone is not compatibility. Current API adapters still have
-unknown access/capability knowledge, so they do not become guaranteed fallbacks merely to exercise
-a success test. Pure cash-boundary arithmetic is tested separately.
+evaluated priced API route. Price alone is not compatibility. Historical API entries with unknown
+access/capability knowledge remain conditional, while v3 entries can act as fallbacks only after all
+versioned claims and price conditions resolve. Pure cash-boundary arithmetic is tested separately.
 
-ChatGPT-like, Copilot-like, GLM-like, and Custom presets are non-authoritative input hints. They
+ChatGPT/Codex, Claude, Gemini Apps chat, Google Antigravity, organization-managed Gemini Code Assist,
+GitHub Copilot, and Custom presets are non-authoritative input hints. They
 contain no invented fee, quota, reset interval, or evidence. Connector code currently produces an
 untrusted diagnostic after registered-adapter, authenticated binding, freshness, replay, and
 receipt checks; no deployed backend evidence issuer exists. Likewise, the bundled registry has no
@@ -1431,7 +1458,7 @@ Existing subscription use and API spend remain separate ledgers. A commitment le
 use as zero incremental cash and deduplicates a selected candidate resource's full plan-period fee
 once. The commitment primitive does not choose which resource to activate. Checkpoint 6 now
 composes it with resolver-issued candidates, independent scenario quota ledgers, complete-plan
-comparison, budget relief, and the deterministic add-one subscription heuristic. LocalStorage v6
+comparison, budget relief, and the deterministic add-one subscription heuristic. LocalStorage v7
 now stores the raw resource and override source alongside the budget-meaning source; it still stores
 no resolved evidence or derived routes. Checkpoint 7 supplies the accepted input/result UI and
 monotonic restore clock. Checkpoint 8 adds source rehydration and the separate route-result export.
@@ -1443,15 +1470,56 @@ The current task, budget, reference deadline, and strategy flow remains. Ver3 ad
 task-level deadline, bounded failure impact, and the versioned incremental-cash budget. The
 `Available AI resources` section adds owned or candidate subscriptions, their remaining native
 quota, reset information, supported surfaces, and a `Custom subscription` entry. Representative
-presets may illustrate variable/opaque chat access, credit-based coding access, and rolling quota,
-but presets must not invent unpublished capacity.
+presets may illustrate variable/opaque chat access and credit-based coding access, but they must not
+invent unpublished capacity. A generic rolling-quota product preset is not exposed.
+
+The resource editor uses progressive disclosure for personal users. A new resource starts with an
+opaque quota and unknown reset policy, even when its preset can accept exact credits. The quick path
+requires only the prefilled display name, explicit subscription arrangement, availability,
+work-surface selection, and applicable plan-period fee. For known products, optional native range
+and numeric controls record each 0–100 remaining gauge shown on the official usage screen in one
+opaque snapshot. Concurrent gauges for one account stay in one card. The lowest percentage is a
+display-only warning; percentage alone never becomes an exact remaining task count. Quota knowledge
+and reset policy remain available as compact advanced inputs; exact quota or observed-consumption
+fields appear inline only after the user selects that input shape.
+An empty opaque description adapts to the neutral statement that the user did not
+provide an exact quota. It never becomes zero capacity, provider evidence, or a confirmed route.
+Credit preset hints still constrain units when the user chooses exact input. A rolling reset remains
+available only as user-entered metadata for a service whose official screen explicitly describes
+per-use sequential expiry; it is not used to approximate combined five-hour and weekly limits.
+Selecting an exact or calibrated quota continues to require the complete bounded
+numeric observation set.
+
+The result-side subscription diagnostic repeats every recorded remaining-percentage gauge and its
+lowest value so the user can verify that the input was preserved. Those values remain reference-only
+when quota is opaque: without a supported per-task consumption unit, they cannot activate a route,
+become an exact task count, or enter the subscription usage ledger.
+
+The personal-user landing flow presents task input and compact budget preferences first, then one
+optional subscription selector and one full-width plan action. The action follows the inputs it
+uses; it is not stranded in a taller right sidebar. Internal names such as `Best-fit`, `Mock`, and
+catalog `override` are not primary navigation labels. API price editing and the legacy provider
+comparison remain available but are collapsed as optional advanced details by default.
+
+The final full-width action is the only intentional analysis submit control. Pressing Enter in a
+single-line task, budget, or resource input does not submit the form; textarea newline entry and
+keyboard activation while the final action itself is focused continue to work. If a user interacts
+with the planning form before the scheduled automatic restore callback runs, that explicit input
+cancels the automatic restore so stored source cannot overwrite the first action. After the storage
+check completes, an idle result panel remains visible until analysis starts or a completed result
+is available.
 
 Checkpoint 7 requires an explicit confirmation before the legacy `budgetUsd` amount becomes the
 total incremental-cash budget. Editing that amount revokes confirmation unless the numeric amount
 is unchanged. Confirmation, strategy, task priority/deadline/failure impact, resource drafts, and
 catalog overrides trigger a local deterministic recalculation; they never call `/api/analyze`.
-Task descriptions still require a new Mock or Live analysis. A restored legacy analysis remains in
-the compatibility view until the user explicitly reanalyzes it.
+Task names, descriptions, and task-list membership still require a new Mock or Live analysis. A
+restored legacy analysis remains in the compatibility view until the user explicitly reanalyzes it.
+With a completed Best-fit analysis, editing the budget shows a persistent confirmation-pending
+status. Reconfirming the budget, or changing strategy while the budget remains confirmed,
+recalculates locally. The UI compares the previous and current user-visible plan fingerprints and
+explicitly reports whether routes or estimated costs changed. Completed notices dismiss after eight
+seconds; pending notices do not auto-dismiss.
 The legacy global `deadlineDays` remains compatibility metadata: changing it alone recalculates the
 legacy view and persists the setting but does not advance Best-fit `planningAsOf` or `pricingAsOf`.
 The UI retains the last valid `{ budgetUsd, strategy }` snapshot across invalid form states. On
@@ -1475,9 +1543,11 @@ date backward, even when React state updates are batched.
 Resource drafts adapt only into strict source inputs and model-opaque, unprofiled subscription
 Offerings. User observations never mint provider-published or connector evidence. A draft with
 invalid fields stays visible with field diagnostics; a resolved-but-unverified resource remains a
-conditional/excluded route. Current generalized API Offerings likewise retain unknown access and
-capability profiles, so the production Best-fit view may honestly show no confirmed executable
-route while the reviewed API price/limit comparison remains available below it.
+conditional/excluded route. Current v3 API Offerings use complete allowlisted catalog profiles and
+may become confirmed catalog-compatible routes. The UI separately states that it does not inspect or
+store API keys and has not verified the user's account readiness. If no confirmed route survives the
+workload, evidence, limit, or price conditions, the reviewed API price/limit comparison may still be
+shown below as explicitly non-authoritative reference information.
 
 Availability, commitment, quota, reset, and Offering surface retain separate user-observation
 timestamps. A display-name edit changes none of them; a source-field edit updates only its own fact
@@ -1535,12 +1605,14 @@ does not weaken checkpoint 7's evidence or calculation-clock rules.
 
 ### Checkpoint-8 source persistence and route/resource export contract
 
-Checkpoint 8 stores the exact raw source needed to reproduce a Best-fit calculation in one recent
-LocalStorage v6 scenario. It does not store the answer. Resource drafts, independent per-fact
+The current post-checkpoint contract stores the exact raw source needed to reproduce a Best-fit
+calculation in one recent LocalStorage v7 scenario. It does not store the answer. Resource drafts,
+their provisioner choice, independent per-fact
 observation instants, and user API override source are saved automatically with the tasks, settings,
 analysis snapshot, and confirmed budget meaning. A v1–v5 restore runs every frozen migration in
-order and receives an explicit empty Best-fit source state. Invalid but bounded v6 drafts remain
-editable. Structurally malformed records are discarded under the existing safety rule; a valid
+order and receives an explicit empty Best-fit source state. A v6 restore preserves the raw source
+and marks its missing provisioner as unspecified. Invalid but bounded v7 drafts remain editable.
+Structurally malformed records are discarded under the existing safety rule; a valid
 historical record whose adaptation, target validation, or rewrite fails keeps its original bytes,
 and an unknown future version is left untouched.
 
@@ -1566,7 +1638,7 @@ identity, invocation limits, access, capability, or evidence authority. Restorin
 deletes the override. The reviewed API-family compatibility comparison continues to use only the
 official catalog default.
 
-Best-fit JSON v5 and localized Markdown are the release projections for route/resource results.
+Best-fit JSON v6 and localized Markdown are the release projections for route/resource results.
 They include structured routes and route keys, restorable resource/override source, planning and
 pricing dates, separated cash/quota/commitment ledgers, and resolved evidence snapshots for audit.
 Every resolved snapshot is marked `purpose: "audit-only"` and `importAuthority: false`. Import or
@@ -1574,11 +1646,12 @@ restore may use the source section only and must re-resolve it; audit data is ex
 not a receipt, resolver result cache, or authority transfer. Legacy JSON v3/v4 and their Markdown
 meaning remain unchanged.
 
-The release demo matrix fixes six distinct outcomes and their truthfulness boundaries:
+The release regression and evidence matrix fixes six distinct outcomes and their truthfulness
+boundaries:
 
 | Demo | Required visible result | Truthfulness boundary |
 | --- | --- | --- |
-| Chat subscription | A subscription branch consumes native quota before avoidable API cash | Show a separately labeled test-only normalized allocator fixture; do not imply it was loaded into the UI, and keep real ChatGPT-like presets conditional/excluded. |
+| Chat subscription | A subscription branch consumes native quota before avoidable API cash | Show a separately labeled test-only normalized allocator fixture; do not imply it was loaded into the UI, and keep real subscription presets conditional/excluded. |
 | Coding route | A coding-agent task selects a compatible coding surface and shows fallback identity | A preset name or model family never proves tool/access capability; production input remains conditional until exact claims resolve. |
 | Batch API | The third product Mock sample emits `workMode: batch`; a focused deterministic test then prices and allocates it on a catalog Offering whose standard API surface includes `batch` | The confirmed execution is labeled test evidence. “Batch” describes the work surface only; pricing still excludes discounted provider Batch processing, caching, tools, and long-context surcharges. |
 | Selective Premium | Only tasks whose floor/trigger requires Premium are upgraded | This is a deterministic quality-floor/closed-trigger policy, not a model benchmark or universal “best model” recommendation. |
@@ -1589,13 +1662,15 @@ The six demonstrations may combine deterministic Mock UI analysis and separately
 normalized allocator fixtures. Any fixture-only confirmed subscription or Batch API branch is
 labeled as test evidence and is never presented as a UI-loaded confirmed scenario. No actual preset, connector, public
 deployment, or external provider account is presented as verified merely because the code path can
-be demonstrated.
+be demonstrated. This six-case matrix combines test, fixture, and UI evidence; it is not a
+requirement to stage all six cases as separate scenes in the public submission video.
 
 ### Phase and checkpoint boundary
 
-The Ver3 target covers API and subscription offerings. ChatGPT-like variable subscriptions,
-credit-based coding plans, rolling-quota plans, and `Custom subscription` are non-authoritative
-preset metadata exposed through the checkpoint-7 input UI and persisted as raw source in v6.
+The Ver3 target covers API and subscription offerings. ChatGPT/Codex, Claude, Gemini Apps chat, Google
+Antigravity, organization-managed Gemini Code Assist, GitHub Copilot, and `Custom subscription`
+are non-authoritative preset metadata exposed through the resource UI and persisted as raw source
+in v7. Gemini Apps chat, Antigravity, Code Assist, and Gemini API remain separate access products.
 A cloud subscription for a model family that can also run
 locally is represented only as `Custom subscription`. This user-defined subscription metadata does
 not authorize an arbitrary API provider, custom model catalog, local-inference claim, or
@@ -1610,7 +1685,8 @@ Sonnet 5 pricing, OpenAI's independent input cap, 320px provider-card readabilit
 descriptions, and locale-bound Markdown feedback. This design checkpoint neither fixes them nor
 claims that `provider-comparison-stable` is P2-complete.
 
-Checkpoint 8 is releasable only when source-only v6 migration/restore, re-resolution, JSON v5 and
+The post-checkpoint usability pass is releasable only when source-only v7 migration/restore,
+re-resolution, JSON v6 and
 Markdown allowlists, the six-demo matrix, localized disclosure copy, and regression coverage all
 agree with the implementation, while the stable public deployment is still described accurately.
 

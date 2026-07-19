@@ -31,6 +31,9 @@ Hard boundaries:
 - requiredQualityTier is the minimum sufficient planning tier (economy, balanced, premium), not a provider ranking and not a request to maximize quality.
 - recommendedModelTier remains the legacy economy/balanced/frontier planning recommendation. Do not silently rename frontier to premium.
 - requiredCapabilities uses only these closed IDs: ${CAPABILITY_IDS.join(", ")}. General text generation is not a capability, coding-agent and batch are work modes, and long context is handled by size and invocation limits.
+- Include a requiredCapabilities ID only when the task name or description explicitly requires that capability; otherwise return an empty array.
+- Use file-input only when the task explicitly requires reading supplied files or documents. Do not infer file-input from research, source comparison, long context, or data analysis alone.
+- Use vision-input only for explicitly required image understanding, structured-output only for an explicitly required machine-readable format, code-editing only for explicit repository or file edits, and tool-use only for explicit external tool execution or source retrieval such as public-source or web research.
 - upgradeConditions uses only these closed IDs: ${UPGRADE_CONDITION_CODES.join(", ")}. Include a code only when the task itself requires that condition; never infer it from price or provider availability.
 - failureRisk is the likelihood that the task will fail or require substantial rework (low, medium, high). It is separate from the user-owned consequence of failure.
 - Choose the closest expected-case size anchors for one iteration: ${EXPECTED_SIZE_ANCHORS}.

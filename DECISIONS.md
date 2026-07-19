@@ -309,7 +309,7 @@ API provider identity remains separate from extensible access-provider identity.
 including a model-opaque subscription, has an immutable locale-independent access-provider ID.
 Every execution path uses the same structured `(providerId, offeringId, resourceId)` identity: APIs
 use a null resource, while subscriptions use their stable source resource ID. This avoids forcing
-ChatGPT, GitHub, GLM, or Custom subscription values into every current `Record<ProviderId, ...>`
+ChatGPT, GitHub, timed-recovery coding, or Custom subscription values into every current `Record<ProviderId, ...>`
 consumer and closes ties between multiple accounts for one Offering. Registered IDs come from the
 registry; Custom access providers use the exact planner-owned `custom.<stable-id>` namespace. The
 suffix is a stable identifier, not a display label or unvalidated provider name. The existing
@@ -830,9 +830,9 @@ receipt, cache, or authority transfer. Only raw source can seed reconstruction, 
 validated and re-resolved before calculation. Continue the explicit allowlist, localized Markdown,
 secret exclusion, stable identity, escaping, and isolated export-error rules.
 
-### Lock the release story to six truthful demonstrations
+### Lock release evidence to six truthful cases
 
-Demonstrate six distinct outcomes: Chat subscription, coding route, Batch API work surface,
+Maintain six distinct evidence cases: Chat subscription, coding route, Batch API work surface,
 selective Premium upgrade, budget-held work, and avoided spend. Label the fixture-only confirmed
 subscription branch as test evidence and keep it separate from the product UI. The third product
 Mock sample must produce an actual `batch` analysis, and a focused test-only fixture must prove the
@@ -867,3 +867,156 @@ Publish the reviewed merge as `ver3-checkpoint-8-stable` and use that immutable 
 architecture learning. Learning sessions do not modify the repository. If a genuine defect is
 found, pause learning, fix it on a separate branch, repeat the full review and release gates, and
 publish a new explicit baseline before resuming.
+
+## 2026-07-18 — Personal-user resource input pass
+
+### Treat unknown quota as a valid starting point
+
+Default every newly added or relinked subscription draft to an opaque quota and unknown reset
+policy. Require an explicit work surface and plan-period fee, but do not require a personal user to
+know included credits, remaining credits, per-task observations, or the reset window before the
+draft can be adapted. If the optional opaque note is empty, project only the neutral statement that
+the user did not provide an exact quota. This state remains conditional and cannot become numeric
+capacity, provider-published evidence, or a confirmed route.
+
+Keep exact and calibrated inputs available as quota-knowledge dropdown choices. Show their numeric
+fields inline only after the matching choice is selected; do not add a second details panel below
+the same card. Their existing complete-field and fixed-decimal validation remains unchanged. A credit-shaped
+preset still fixes the exact unit when exact values are supplied, and a rolling-shaped preset still
+accepts only unknown or rolling reset input. Continue requiring users to select a work surface;
+never turn the preset's suggested surface into a user confirmation.
+
+### Make the first screen follow the user's action order
+
+Keep tasks and compact budget preferences in the first two-column row. Put the optional subscription
+selector below that row, followed by one full-width analysis action. This removes the desktop gap
+caused by a tall analysis sidebar and ensures the action comes after every input it uses. Present
+example and real analysis in user language rather than `Mock` and `Live` labels. Collapse API price
+editing and the legacy provider comparison by default because they are optional expert tools, not
+requirements for creating a personal plan.
+
+### Keep plan submission explicit and preserve the first user action
+
+Treat the final full-width action as the only intentional analysis submission control. Enter in a
+single-line task, budget, or resource field must not implicitly submit the surrounding form;
+textarea newlines and keyboard activation of the final button remain available. This prevents an
+unfinished optional-resource edit from starting Mock analysis or a paid Live request.
+
+Keep the automatic source-only restore asynchronous, but make it yield if the user interacts with
+the planning form before its zero-delay callback runs. The first explicit user edit or sample-load
+action wins over a pending automatic restore. Once storage has been checked, retain a compact
+visible idle result panel so changing inputs does not make the result area appear broken or lost.
+
+### Resolve app-owned API uncertainty before asking the user
+
+Preserve the historical v1/v2 provider snapshots and publish API eligibility facts only in a new
+v3 snapshot. Store the provider-native capability, endpoint, access-limit, and access-capability
+claims in that immutable snapshot. Map provider endpoint IDs to the planner's chat, IDE/CLI, and
+batch surfaces through a separately versioned planner adapter so the app never presents its own
+surface vocabulary as a provider statement.
+
+Treat a resolved API route as catalog-compatible without claiming that an anonymous user's API key,
+billing account, region, or entitlement was checked. Do not block a planning result on information
+the browser-only planner cannot inspect. When a selected plan uses an API, show a neutral execution
+preparation panel with the relevant provider's official setup guide and state that the app never
+requests or stores API keys.
+
+### Make every remaining blocker actionable
+
+Use prevention and inline validation first. If submission still fails, list the plain-language field
+labels, make the primary action return to the first problem, scroll it into view, and move keyboard
+focus there. Keep provider/evidence diagnostics behind progressive disclosure. A modal may summarize
+a blocking state, but it must not end with a generic `OK`, expose internal reason codes, or ask the
+user to repair catalog data owned by the app. Non-blocking account preparation belongs in the result
+content rather than an error dialog.
+
+### Separate plan inclusion from account ownership
+
+Let a user decide whether an entered subscription can be used for the current plan. Keep excluded
+subscriptions as saved source input, but do not use them as recommendation candidates. Phrase this
+as a plan-specific choice instead of the internal `available` / `unavailable` status names.
+
+Treat a company- or school-provided chat or coding-tool account as a subscription resource only. It
+does not prove access to an organization API project, billing account, model allowlist, or budget.
+Do not add a cosmetic `personal API` / `enterprise API` switch: making that choice authoritative
+requires a new versioned selection source carried through candidate issuance, restore, calculation,
+and export. Defer that contract change until after the submission freeze, and never request or store
+API keys, organization IDs, email addresses, or account balances in this browser planner.
+
+## 2026-07-19 — Mixed personal/organization resources and current coding products
+
+### Use one provisioner choice per resource, not a global Enterprise tab
+
+Users can combine a personally paid ChatGPT account, a company Copilot seat, and another personal
+coding tool in one plan. Add `어떻게 제공받았나요?` to each resource with `personal`,
+`organization`, and migration-only `unspecified` values. An organization-provided resource is always
+an already assigned resource, contributes US$0 to the user's personal incremental-cash budget in
+this calculation, and still requires an explicit availability and work-surface choice. Shared
+organization capacity, administrator policy, and overage permission remain unknown unless observed;
+the planner never divides an organization pool among seats or treats it as unlimited.
+
+This provisioner choice describes a chat or coding-tool seat only. It does not prove access to an
+organization API project, model allowlist, billing account, or budget. Company API projects remain a
+future separately versioned source and ledger rather than a cosmetic UI switch.
+
+### Separate products whose entitlements and quota clocks differ
+
+Expose current non-authoritative presets for ChatGPT/Codex, Claude, Gemini Apps chat, Google Antigravity,
+Gemini Code Assist Standard/Enterprise, GitHub Copilot, and a custom subscription. Gemini Apps chat,
+personal Antigravity, organization-managed Code Assist, and Gemini API are separate access products.
+Code Assist defaults to organization-provided; all other named presets default to personal, while
+the user can change the provisioner when their actual arrangement differs.
+
+One Google AI Pro or Ultra payment may expose both Gemini Apps chat and Antigravity. The current
+resource identity and commitment ledger cannot group two access routes under one payment contract,
+so the editor warns when both are marked as candidate-new. It does not silently set one fee to zero
+or deduplicate by vendor, because separate accounts can have separate payments. Until a versioned
+commitment-group source is added, a user considering one new Google plan records only the route they
+intend to use; existing accounts may still record both routes because existing fees are not added to
+incremental cash.
+
+Codex and Antigravity may show both a five-hour baseline and a weekly limit. Preserve this as opaque
+quota text unless the official screen supplies one exact supported numeric shape. The personal-user
+editor may encode one current observation as `FWP_USAGE_SNAPSHOT_V1` inside that opaque description:
+multiple 0–100 integer gauges remain separate, and their minimum is only a UI summary of the lowest
+recorded headroom. It is not quota capacity, provider evidence, or a computed task count. Do not
+describe a five-hour limit as if each use necessarily expires exactly five hours later. Keep a
+rolling reset input only for services whose official UI explicitly describes per-use sequential
+expiry; there is no generic rolling-quota product preset.
+
+### Distinguish separate accounts from multiple limits on one account
+
+Allow up to eight resources and permit repeated preset IDs because two separately authenticated
+accounts are distinct capacity. Keep their `uiId` values unique. Do not instruct users to split a
+single account's five-hour, weekly, model-specific, or shared limits into multiple cards: the
+allocator would incorrectly treat those cards as independent resources.
+
+### Version every changed persistence boundary
+
+Freeze LocalStorage v6, `best-fit-source-state-v1`,
+`available-ai-resource-sources-v1`, subscription presets v1, and Best-fit JSON v5. Publish the
+expanded source as LocalStorage v7, source-state/resource-source v2, subscription presets v2, and
+Best-fit JSON v6. Migrate valid v1–v5 scenarios to an empty v2 source state. Migrate valid v6 source
+facts intact while assigning `provisionedBy: "unspecified"`; never reinterpret a legacy resource as
+personally purchased. Preserve the v6 bytes when migration, target validation, or rewrite fails.
+
+This decision supersedes earlier current-product references to four unique presets and a dedicated
+timed-recovery or rolling-quota preset. It does not weaken the prior evidence-authority, source-only
+persistence, API/subscription separation, or audit-only export rules.
+
+## 2026-07-19 — Visible local recalculation feedback
+
+### Keep budget consent and outcome feedback distinct
+
+After a completed analysis, reuse the workload snapshot only for planning-only changes: confirmed
+budget, strategy, priority, task deadline, failure impact, resource observations, and bounded price
+overrides. Task names, descriptions, additions, and removals invalidate the snapshot and require a
+new sample or Live analysis.
+
+Changing the numeric budget revokes its incremental-cash confirmation and shows a persistent pending
+notice; do not present the new amount as applied until the user confirms it again. After budget
+reconfirmation or a strategy change while the budget remains confirmed, compare the user-visible
+route and cost outcome with the previous fingerprint and state whether it changed or remained the
+same. Completed notices dismiss after eight seconds; the pending notice does not auto-dismiss. Keep
+feedback inside the viewport—top-centered on wider screens and bottom-centered on mobile—with
+sufficient contrast and bounded scrolling in short windowed layouts.

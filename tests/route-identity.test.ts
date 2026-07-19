@@ -175,7 +175,6 @@ describe("canonical route identity", () => {
   it("keeps registered and Custom provider namespaces separate", () => {
     expect(parseAccessProviderId("openai")).toBe("openai");
     expect(parseAccessProviderId("github")).toBe("github");
-    expect(parseAccessProviderId("z-ai")).toBe("z-ai");
     expect(() => parseAccessProviderId("unregistered-provider")).toThrow(
       /not registered/,
     );

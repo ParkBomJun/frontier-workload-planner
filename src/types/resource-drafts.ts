@@ -16,6 +16,25 @@ export interface AvailableAiResourceDraftPreset {
   version: string;
 }
 
+export const AVAILABLE_AI_RESOURCE_PROVISIONING = [
+  "unspecified",
+  "personal",
+  "organization",
+] as const;
+
+export type AvailableAiResourceProvisioning =
+  (typeof AVAILABLE_AI_RESOURCE_PROVISIONING)[number];
+
+/** UI-only arrangement derived from provisioning and ownership. */
+export const SUBSCRIPTION_ACCESS_ARRANGEMENTS = [
+  "personal-existing",
+  "personal-new",
+  "organization-provided",
+] as const;
+
+export type SubscriptionAccessArrangement =
+  (typeof SUBSCRIPTION_ACCESS_ARRANGEMENTS)[number];
+
 export interface AvailableAiResourceObservedConsumptionDraft {
   basis: SubscriptionConsumptionBasis;
   low: string;
@@ -59,6 +78,8 @@ export interface AvailableAiResourceDraft {
   uiId: string;
   preset: AvailableAiResourceDraftPreset;
   displayName: string;
+  /** Missing only at legacy input boundaries; persistence migration makes it unspecified. */
+  provisionedBy?: AvailableAiResourceProvisioning;
   ownership: SubscriptionOwnership;
   availability: SubscriptionAvailabilityStatus;
   surface: WorkSurface | "";
@@ -90,6 +111,7 @@ export type AvailableAiResourceDraftField =
   | "preset.id"
   | "preset.version"
   | "displayName"
+  | "provisionedBy"
   | "ownership"
   | "availability"
   | "surface"

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  catalogOverrideValidationIssues,
   CatalogOverrideEditor,
   isImmediateOverrideDateAllowed,
   resolveCatalogOverrideEditorValues,
@@ -57,6 +58,49 @@ function futureOverride(): ApiCatalogOverride {
 }
 
 describe("Checkpoint 8 catalog override editor policy", () => {
+  it("reports every user-fixable empty, range, date, and source-limit blocker", () => {
+    expect(
+      catalogOverrideValidationIssues(
+        {
+          planningTier: "",
+          inputPrice: "1",
+          outputPrice: "",
+          effectiveFrom: "",
+        },
+        PRICING_AS_OF,
+      ),
+    ).toEqual(["output-price-required", "effective-date-invalid"]);
+
+    expect(
+      catalogOverrideValidationIssues(
+        {
+          planningTier: "",
+          inputPrice: "0.0000001",
+          outputPrice: "1000001",
+          effectiveFrom: "2026-07-19",
+        },
+        PRICING_AS_OF,
+        true,
+      ),
+    ).toEqual([
+      "price-invalid",
+      "effective-date-invalid",
+      "maximum-sources",
+    ]);
+
+    expect(
+      catalogOverrideValidationIssues(
+        {
+          planningTier: "",
+          inputPrice: "",
+          outputPrice: "",
+          effectiveFrom: PRICING_AS_OF,
+        },
+        PRICING_AS_OF,
+      ),
+    ).toEqual(["no-changes"]);
+  });
+
   it("accepts current or historical dates and rejects future activation", () => {
     expect(isImmediateOverrideDateAllowed("2026-07-17", "2026-07-18")).toBe(
       true,
@@ -176,7 +220,11 @@ describe("Checkpoint 8 catalog override editor policy", () => {
 
     expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.unresolvedSource);
     expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.removeUnresolved);
+    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.savedSources);
+    expect(markup).not.toContain(BEST_FIT_UI_COPY.ko.overrides.active);
     expect(markup).toContain("min-h-11");
+    expect(markup.startsWith("<details")).toBe(true);
+    expect(markup).not.toContain("<details open=");
   });
 
   it("labels an injected future source as rejected rather than user-applied", () => {
@@ -196,6 +244,28 @@ describe("Checkpoint 8 catalog override editor policy", () => {
     expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.futureSource);
     expect(markup).not.toContain(
       `>${BEST_FIT_UI_COPY.ko.overrides.userSupplied}<`,
+    );
+    expect(markup.split("</summary>")[0]).not.toContain(
+      `${BEST_FIT_UI_COPY.ko.overrides.active}: 1`,
+    );
+  });
+
+  it("counts only current resolved overrides in the collapsed summary", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        LanguageProvider,
+        null,
+        createElement(CatalogOverrideEditor, {
+          overrides: [currentOverride(), futureOverride(), unresolvedOverride()],
+          pricingAsOf: PRICING_AS_OF,
+          disabled: false,
+          onChange: () => undefined,
+        }),
+      ),
+    );
+
+    expect(markup.split("</summary>")[0]).toContain(
+      `${BEST_FIT_UI_COPY.ko.overrides.active}: 1`,
     );
   });
 });

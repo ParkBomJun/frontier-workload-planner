@@ -10,6 +10,7 @@ import {
   type UiLocale,
 } from "@/lib/i18n/ui-copy";
 import { resolveExportAnalysisContract } from "@/lib/export/analysis-contract";
+import { escapeMarkdownText } from "@/lib/export/markdown-escape";
 import { isBestFitTaskAnalysis } from "@/lib/planning/workload-requirements";
 import { MODEL_TIERS, PROVIDER_IDS, type PlanExportContext } from "@/types/domain";
 
@@ -30,6 +31,9 @@ interface MarkdownLocaleCopy {
   infeasibleTasks: string;
   taskCount: (count: number) => string;
   costSummary: string;
+  lowUsage: string;
+  expectedUsage: string;
+  highUsage: string;
   expectedRemainingBudget: string;
   providerComparison: string;
   productFamily: string;
@@ -90,7 +94,7 @@ interface MarkdownLocaleCopy {
 
 const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
   ko: {
-    tagline: "> 예산 중심 추천 계획 — 규칙 기반 추천이며 수학적 최적화를 의미하지 않습니다.",
+    tagline: "> 예산을 고려한 추천 계획이며 가장 낮은 비용을 보장하지 않습니다.",
     analysisInformation: "분석 정보",
     analysisMode: "분석 모드",
     analysisModel: "분석 모델",
@@ -106,7 +110,10 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleTasks: "실행 불가 작업",
     taskCount: (count) => `${count}개`,
     costSummary: "비용 요약",
-    expectedRemainingBudget: "Expected 잔여 예산",
+    lowUsage: "적게 사용",
+    expectedUsage: "보통 사용",
+    highUsage: "많이 사용",
+    expectedRemainingBudget: "보통 사용 후 남은 예산",
     providerComparison: "공급자별 비교",
     productFamily: "제품군",
     budgetStatus: "예산 상태",
@@ -143,13 +150,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleReason: "실행 불가 사유",
     excludedOfferingReasons: "호출 한도로 제외된 모델",
     expectedTotals: (iterations, inputTokens, outputTokens) =>
-      `Expected 반복 및 토큰 합계: ${iterations}회 / 입력 ${inputTokens} / 출력 ${outputTokens}`,
+      `보통 사용 기준 반복 및 토큰 합계: ${iterations}회 / 입력 ${inputTokens} / 출력 ${outputTokens}`,
     riskFactors: "위험 요인",
     warnings: "경고",
     pricingAndCalculation: "가격과 계산 가정",
     comparisonBasis: "비교 기준",
     excludedItems: "제외 항목",
-    heuristicMeaning: "tier 매핑은 예산 계획용 휴리스틱이며 모델 간 객관적 품질 우열을 의미하지 않고, 객관적 품질 순위가 아닙니다.",
+    heuristicMeaning: "절약형·균형형·고성능 등급 연결은 예산 계획을 위한 단순 규칙이며, 모델의 객관적인 품질 순위가 아닙니다.",
     priceVerifiedAt: "가격 확인일",
     pricingSource: "가격 출처",
     modelsSource: "모델 출처",
@@ -163,11 +170,11 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     fixedBands: "토큰 크기 구간은 반복 1회당 고정 표이며, 표시 토큰은 모든 반복을 합친 값입니다.",
     activeCostsOnly: "비용 합계는 실행 작업만 포함하며 보류 또는 실행 불가 작업에는 모델이나 실행 비용을 배정하지 않습니다.",
     pricingExclusions: "캐시 쓰기·적중, Batch 할인, 도구 호출비, 장문 구간 할증은 비교 비용에 포함하지 않습니다.",
-    mockBoundary: "Mock 모드는 저장된 fixture를 사용합니다. Live 분석 엔진은 GPT-5.6만 지원하며 Claude와 Gemini API는 호출하지 않습니다.",
-    liveBoundary: "Live 분석은 GPT-5.6만 수행하며 Claude와 Gemini API는 호출하지 않습니다.",
+    mockBoundary: "예시 계획은 저장된 예시 분석을 사용하며 외부 AI를 호출하지 않습니다.",
+    liveBoundary: "내 작업 분석은 GPT-5.6만 수행하며 Claude와 Gemini API는 호출하지 않습니다.",
   },
   en: {
-    tagline: "> Budget-aware recommended plan — a rule-based recommendation, not mathematical optimization.",
+    tagline: "> A budget-aware recommendation; it does not guarantee the lowest possible cost.",
     analysisInformation: "Analysis information",
     analysisMode: "Analysis mode",
     analysisModel: "Analysis model",
@@ -183,7 +190,10 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleTasks: "Infeasible tasks",
     taskCount: (count) => `${count}`,
     costSummary: "Cost summary",
-    expectedRemainingBudget: "Expected budget remaining",
+    lowUsage: "Lower use",
+    expectedUsage: "Likely use",
+    highUsage: "Higher use",
+    expectedRemainingBudget: "Budget remaining after likely use",
     providerComparison: "Provider comparison",
     productFamily: "Product family",
     budgetStatus: "Budget status",
@@ -220,13 +230,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleReason: "Reason infeasible",
     excludedOfferingReasons: "Models excluded by invocation limits",
     expectedTotals: (iterations, inputTokens, outputTokens) =>
-      `Expected iterations and token totals: ${iterations} iteration${iterations === 1 ? "" : "s"} / input ${inputTokens} / output ${outputTokens}`,
+      `Likely-use iterations and token totals: ${iterations} iteration${iterations === 1 ? "" : "s"} / input ${inputTokens} / output ${outputTokens}`,
     riskFactors: "Risk factors",
     warnings: "Warnings",
     pricingAndCalculation: "Pricing and calculation assumptions",
     comparisonBasis: "Comparison basis",
     excludedItems: "Excluded items",
-    heuristicMeaning: "Tier mappings are budget-planning heuristics and do not indicate objective quality equivalence or superiority between models.",
+    heuristicMeaning: "The economy, balanced, and high-performance groups use a simple budget-planning rule and are not an objective model-quality ranking.",
     priceVerifiedAt: "Price verified",
     pricingSource: "Pricing source",
     modelsSource: "Models source",
@@ -240,11 +250,11 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     fixedBands: "Token size bands are fixed per iteration; displayed token counts are totals across all iterations.",
     activeCostsOnly: "Cost totals include active tasks only; held and infeasible tasks receive no model or execution cost.",
     pricingExclusions: "Cache writes and hits, Batch discounts, tool-call fees, and long-context surcharges are excluded from comparison costs.",
-    mockBoundary: "Mock mode uses a stored fixture. GPT-5.6 is the only Live analysis engine; Claude and Gemini APIs are not called.",
-    liveBoundary: "Only GPT-5.6 performs Live analysis; Claude and Gemini APIs are not called.",
+    mockBoundary: "The sample plan uses a saved sample analysis and does not call an external AI.",
+    liveBoundary: "Only GPT-5.6 analyzes your tasks; Claude and Gemini APIs are not called.",
   },
   ja: {
-    tagline: "> 予算重視の推奨計画 — ルールベースの推奨であり、数学的最適化ではありません。",
+    tagline: "> 予算を考慮した推奨であり、最安を保証するものではありません。",
     analysisInformation: "分析情報",
     analysisMode: "分析モード",
     analysisModel: "分析モデル",
@@ -260,7 +270,10 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleTasks: "実行不可タスク",
     taskCount: (count) => `${count}件`,
     costSummary: "コスト概要",
-    expectedRemainingBudget: "Expected残予算",
+    lowUsage: "少なめ",
+    expectedUsage: "標準",
+    highUsage: "多め",
+    expectedRemainingBudget: "標準利用後の残予算",
     providerComparison: "プロバイダー別比較",
     productFamily: "製品群",
     budgetStatus: "予算状況",
@@ -297,13 +310,13 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     infeasibleReason: "実行不可の理由",
     excludedOfferingReasons: "呼び出し上限により除外したモデル",
     expectedTotals: (iterations, inputTokens, outputTokens) =>
-      `Expected反復・トークン合計: ${iterations}回 / 入力 ${inputTokens} / 出力 ${outputTokens}`,
+      `標準利用時の反復・トークン合計: ${iterations}回 / 入力 ${inputTokens} / 出力 ${outputTokens}`,
     riskFactors: "リスク要因",
     warnings: "警告",
     pricingAndCalculation: "料金と計算の前提",
     comparisonBasis: "比較基準",
     excludedItems: "除外項目",
-    heuristicMeaning: "tierの対応付けは予算計画用ヒューリスティックであり、モデル間の客観的な品質の同等性や優劣を示しません。",
+    heuristicMeaning: "節約・バランス・高性能グレードの対応付けは予算計画用の簡単なルールで、モデルの客観的な品質順位ではありません。",
     priceVerifiedAt: "料金確認日",
     pricingSource: "料金ソース",
     modelsSource: "モデルソース",
@@ -317,14 +330,10 @@ const MARKDOWN_COPY: Record<UiLocale, MarkdownLocaleCopy> = {
     fixedBands: "トークンのサイズ帯は反復1回ごとの固定表で、表示トークン数は全反復の合計です。",
     activeCostsOnly: "コスト合計には実行タスクのみを含め、保留・実行不可タスクにはモデルや実行コストを割り当てません。",
     pricingExclusions: "キャッシュの書き込み・ヒット、Batch割引、ツール呼び出し料金、長文追加料金は比較コストに含めません。",
-    mockBoundary: "Mockモードは保存済みfixtureを使用します。Live分析エンジンはGPT-5.6のみで、ClaudeとGemini APIは呼び出しません。",
-    liveBoundary: "Live分析はGPT-5.6のみが行い、ClaudeとGemini APIは呼び出しません。",
+    mockBoundary: "サンプル計画は保存済みのサンプル分析を使い、外部AIを呼び出しません。",
+    liveBoundary: "自分の作業はGPT-5.6だけが分析し、ClaudeとGemini APIは呼び出しません。",
   },
 };
-
-function escapeMarkdownCell(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("|", "\\|").replace(/\r?\n/g, "<br>");
-}
 
 function formatUsd(value: number): string {
   const decimal = value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
@@ -413,7 +422,7 @@ export function createPlanMarkdown(
     "",
     `## ${copy.costSummary}`,
     "",
-    `| Low | Expected | High | ${copy.expectedRemainingBudget} |`,
+    `| ${copy.lowUsage} | ${copy.expectedUsage} | ${copy.highUsage} | ${copy.expectedRemainingBudget} |`,
     "| ---: | ---: | ---: | ---: |",
     `| ${formatUsd(plan.totals.lowUsd)} | ${formatUsd(plan.totals.expectedUsd)} | ${formatUsd(plan.totals.highUsd)} | ${formatUsd(plan.remainingBudgetUsd)} |`,
     "",
@@ -426,7 +435,7 @@ export function createPlanMarkdown(
     `- ${ui.providerComparison.standardPricingNotice}`,
     ...(isBestFit ? [`- ${ui.providerComparison.eligibilityScopeNotice}`] : []),
     "",
-    `| ${copy.productFamily} | Low | Expected | High | ${copy.budgetStatus} | ${copy.active} | ${copy.held} | ${copy.infeasible} |`,
+    `| ${copy.productFamily} | ${copy.lowUsage} | ${copy.expectedUsage} | ${copy.highUsage} | ${copy.budgetStatus} | ${copy.active} | ${copy.held} | ${copy.infeasible} |`,
     "| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: |",
   ];
 
@@ -453,7 +462,7 @@ export function createPlanMarkdown(
     "",
     `## ${copy.taskAllocation}`,
     "",
-    `| # | ${copy.task} | ${copy.priority} | ${copy.status} | ${copy.gptRecommendation} | ${copy.strategyTarget} | ${copy.assignedModel} | Low | Expected | High |`,
+    `| # | ${copy.task} | ${copy.priority} | ${copy.status} | ${copy.gptRecommendation} | ${copy.strategyTarget} | ${copy.assignedModel} | ${copy.lowUsage} | ${copy.expectedUsage} | ${copy.highUsage} |`,
     "| ---: | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
   );
 
@@ -475,7 +484,7 @@ export function createPlanMarkdown(
             high: "—",
           };
     lines.push(
-      `| ${index + 1} | ${escapeMarkdownCell(task.taskName)} | ${labelWithEnum(ui.enums.priority[task.priority], task.priority)} | ${allocation.status} | ${labelWithEnum(ui.enums.modelTier[task.analysis.recommendedModelTier], task.analysis.recommendedModelTier)} | ${labelWithEnum(ui.enums.modelTier[task.strategyTargetTier], task.strategyTargetTier)} | ${allocation.model} | ${allocation.low} | ${allocation.expected} | ${allocation.high} |`,
+      `| ${index + 1} | ${escapeMarkdownText(task.taskName)} | ${labelWithEnum(ui.enums.priority[task.priority], task.priority)} | ${allocation.status} | ${labelWithEnum(ui.enums.modelTier[task.analysis.recommendedModelTier], task.analysis.recommendedModelTier)} | ${labelWithEnum(ui.enums.modelTier[task.strategyTargetTier], task.strategyTargetTier)} | ${allocation.model} | ${allocation.low} | ${allocation.expected} | ${allocation.high} |`,
     );
   });
 
@@ -495,15 +504,15 @@ export function createPlanMarkdown(
     ];
     lines.push(
       "",
-      `### ${index + 1}. ${escapeMarkdownCell(task.taskName)}`,
+      `### ${index + 1}. ${escapeMarkdownText(task.taskName)}`,
       "",
-      `- ${copy.description}: ${sourceTask ? escapeMarkdownCell(sourceTask.description) : copy.missingDescription}`,
+      `- ${copy.description}: ${sourceTask ? escapeMarkdownText(sourceTask.description) : copy.missingDescription}`,
       `- ${copy.userPriority}: ${labelWithEnum(ui.enums.priority[task.priority], task.priority)}`,
       `- ${copy.allocationStatus}: ${labelWithEnum(ui.enums.allocationStatus[task.status], task.status)}`,
       `- ${copy.classification}: ${labelWithEnum(ui.enums.taskType[task.analysis.taskType], task.analysis.taskType)} / ${copy.complexity} ${labelWithEnum(ui.enums.complexity[task.analysis.complexity], task.analysis.complexity)} / ${copy.reasoning} ${labelWithEnum(ui.enums.reasoningDepth[task.analysis.reasoningDepth], task.analysis.reasoningDepth)}`,
       `- ${copy.sizeBands}: ${copy.input} ${labelWithEnum(ui.enums.sizeBand[task.analysis.estimatedInputSize], task.analysis.estimatedInputSize)} / ${copy.output} ${labelWithEnum(ui.enums.sizeBand[task.analysis.estimatedOutputSize], task.analysis.estimatedOutputSize)}`,
       `- ${copy.uncertainty}: ${labelWithEnum(ui.enums.uncertainty[task.analysis.uncertainty], task.analysis.uncertainty)}`,
-      `- ${copy.rationale}: ${escapeMarkdownCell(task.analysis.rationale)}`,
+      `- ${copy.rationale}: ${escapeMarkdownText(task.analysis.rationale)}`,
     );
 
     if (isBestFitTaskAnalysis(task.analysis)) {
@@ -555,7 +564,7 @@ export function createPlanMarkdown(
     if (task.analysis.riskFactors.length) {
       lines.push(`- ${copy.riskFactors}:`);
       task.analysis.riskFactors.forEach((risk) => {
-        lines.push(`  - ${escapeMarkdownCell(risk)}`);
+        lines.push(`  - ${escapeMarkdownText(risk)}`);
       });
     }
   }
@@ -563,7 +572,7 @@ export function createPlanMarkdown(
   const warnings = localizedWarnings(context, ui, isBestFit);
   lines.push("", `## ${copy.warnings}`, "");
   if (warnings.length) {
-    warnings.forEach((warning) => lines.push(`- ${escapeMarkdownCell(warning)}`));
+    warnings.forEach((warning) => lines.push(`- ${escapeMarkdownText(warning)}`));
   } else {
     lines.push(`- ${ui.common.none}`);
   }

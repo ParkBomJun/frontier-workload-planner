@@ -19,7 +19,7 @@ import {
 import type { OfferingEligibilityResult } from "@/types/offerings";
 import type { TaskAnalysis } from "@/types/domain";
 
-const PRICING_AS_OF = "2026-07-17";
+const PRICING_AS_OF = "2026-07-18";
 
 const analysis: TaskAnalysis = {
   taskId: "task-1",
@@ -83,7 +83,7 @@ describe("conditional subscription API fallback", () => {
   it("rejects a resolver-issued conditional result", () => {
     const entry = resolveApiCatalogEntry("openai", "economy");
     const currentEligibility = resolveOfferingEligibility(
-      entry.offering,
+      { ...entry.offering, supportedSurfaces: ["chat"] },
       new Map([[entry.model.id, entry.model]]),
       requirementFor(),
     );
@@ -256,7 +256,7 @@ describe("conditional subscription API fallback", () => {
         eligibility: exactEligibility,
         pricing: pricedFallback(),
         analysis,
-        pricingAsOf: "2026-07-18",
+        pricingAsOf: "2026-07-19",
         incrementalCashBudgetMicroUsd: 1_000_000,
       }),
     ).toEqual({

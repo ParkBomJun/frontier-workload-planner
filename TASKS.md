@@ -221,7 +221,7 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 - [x] Count a new subscription commitment once and existing included use as `$0` incremental cash
 - [x] Keep subscription consumption and API spend in separate ledgers
 - [x] Reject resolver-issued hard-ineligible routes and require an API fallback for uncertain capacity
-- [x] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
+- [x] Add the initial four bounded subscription presets; the post-checkpoint pass supersedes their product list without promoting preset evidence
 - [x] Test exact and fractional quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
 - [x] Test valid/oversized/unresolved initial capacity without fabricating a provider-published positive source
 - [x] Prove conditional-only routes cannot set active/all-active; fallback budget arithmetic has an exact boundary and missing/unconfirmed fallback is infeasible
@@ -305,8 +305,40 @@ storage and route/resource export contract below.
 - [x] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
 - [x] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
 - [x] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
-- [x] Demonstrate chat subscription, coding route, actual Mock Batch analysis plus focused Batch API execution fixture, selective premium, held work, and avoided spend
+- [x] Lock and verify the six-case release evidence matrix: chat subscription, coding route, actual
+      Mock Batch analysis plus a focused Batch API execution fixture, selective Premium, held work,
+      and avoided spend
 - [x] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
+
+### Post-checkpoint-8 personal-user usability pass
+
+- [x] Make unknown quota and reset information safe defaults instead of requiring exact credits
+- [x] Keep work-surface selection explicit and preserve conditional evidence boundaries
+- [x] Show exact quota and observed-consumption fields inline only when their dropdown option is selected
+- [x] Replace raw field identifiers with a plain-language prompt and optional technical details
+- [x] Keep the simplified resource flow consistent in Korean, English, and Japanese
+- [x] Move the plan action after task, budget, and optional subscription inputs to remove the empty desktop column
+- [x] Collapse expert API price editing and provider comparison by default
+- [x] Remove `Best-fit`, `Mock`, `Live`, and `override` jargon from the primary personal-user flow
+- [x] Prevent single-line Enter from bypassing the explicit final plan action
+- [x] Let first user input win over pending automatic restore and retain a compact idle result state
+- [x] Publish immutable v3 API capability, endpoint, and access-policy claims without rewriting v1/v2
+- [x] Separate provider endpoint evidence from planner-authored chat/IDE/Batch surface mapping
+- [x] Stop blocking plans on app-owned catalog gaps and keep personal account readiness separate
+- [x] Link active API recommendations to provider setup guides without requesting or storing keys
+- [x] Send blocking form recovery to the first exact field and keep technical route reasons secondary
+- [x] Separate ChatGPT/Codex, Claude, Gemini Apps chat, Google Antigravity, organization Gemini Code Assist, GitHub Copilot, and Custom presets
+- [x] Explain Codex and Antigravity five-hour plus weekly limits without modeling them as one rolling quota
+- [x] Store one account's product-specific remaining gauges in one opaque usage snapshot and restore them independently
+- [x] Keep the lowest recorded percentage display-only instead of promoting it to capacity or an exact task count
+- [x] Repeat recorded remaining gauges in result diagnostics without promoting them to allocatable quota
+- [x] Warn when Gemini Apps and Antigravity candidate cards may duplicate one new Google plan fee
+- [x] Add a per-resource personal/company-school provisioner choice without implying organization API access
+- [x] Treat organization-provided seats as US$0 in the personal budget while retaining availability, surface, and conditional quota checks
+- [x] Allow up to eight independent resources and repeated presets for separate accounts, but warn against splitting one account's concurrent limits
+- [x] Freeze scenario v6 and migrate to LocalStorage v7, source state v2, preset v2, and Best-fit JSON v6
+- [x] Add a frozen v6 fixture and preserve missing provisioner as `unspecified`
+- [x] Distinguish budget-confirmation pending, recalculated-result changed, and recalculated-result unchanged feedback
 
 ## Provider-comparison P2 backlog — compatibility-view follow-up
 
@@ -318,7 +350,11 @@ storage and route/resource export contract below.
 
 ## Explicitly deferred
 
-- Arbitrary API providers or custom model catalog entries; `Custom subscription` metadata remains planned
+- Personal and organization-managed API access selection; add it only with a versioned source,
+  candidate-set binding, restore migration, and export contract rather than a UI-only switch
+- Arbitrary API providers or custom model catalog entries; the implemented **Other AI subscription**
+  records non-authoritative subscription metadata only and does not add an API provider, model, or
+  verified execution route
 - Direct Claude or Gemini API analysis
 - Cross-provider quality benchmarks or automatic “best model” selection
 - Multiple scenario management

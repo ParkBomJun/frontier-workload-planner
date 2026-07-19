@@ -33,6 +33,31 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html:lang(ko) body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+html:lang(ja) body {
+  line-break: strict;
+  word-break: auto-phrase;
+  overflow-wrap: break-word;
+}
+
+h1,
+h2,
+h3,
+h4,
+legend,
+summary,
+button {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
 button,
 input,
 select,
@@ -47,4 +72,43 @@ button {
 ::selection {
   background: #c9e0d2;
   color: #10281e;
+}
+
+.plan-update-feedback {
+  position: fixed;
+  z-index: 50;
+  right: 1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 1rem;
+  max-width: 36rem;
+  max-height: calc(100dvh - 2rem);
+  margin-inline: auto;
+  overflow-y: auto;
+  animation: plan-update-feedback-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1)
+    both;
+}
+
+@media (min-width: 48rem) {
+  .plan-update-feedback {
+    top: 1rem;
+    bottom: auto;
+  }
+}
+
+@keyframes plan-update-feedback-in {
+  from {
+    opacity: 0.6;
+    transform: translateY(0.35rem) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-update-feedback {
+    animation: none;
+  }
 }

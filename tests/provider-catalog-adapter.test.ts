@@ -68,8 +68,14 @@ describe("provider catalog offering adapter", () => {
           providerId,
           mode: "api",
           modelId: entry.model.id,
-          limitPolicy: { kind: "unknown" },
-          capabilityPolicy: { kind: "unknown" },
+          supportedSurfaces: ["chat", "ide-cli", "batch"],
+          limitPolicy: { kind: "same-as-model" },
+          capabilityPolicy: { kind: "same-as-model" },
+          evidence: {
+            claimId: "api-offering-identity",
+            subjectId: entry.model.id,
+            fieldPath: "api.offering-identity",
+          },
         });
         expect(entry.routeIdentity).toEqual({
           providerId,
@@ -154,11 +160,30 @@ describe("provider catalog offering adapter", () => {
     ).toThrow(/Resolved API catalog entry is missing/);
   });
 
-  it("keeps unverified capabilities unknown instead of inferring them from model names", () => {
+  it("uses only the provider capability claims resolved from the v3 registry", () => {
     for (const entry of resolveAllApiCatalogEntries()) {
-      expect(entry.model.capabilityProfile).toEqual({
-        knowledge: "unknown",
-        reason: "capability-profile-not-yet-verified",
+      expect(entry.model.capabilityProfile).toMatchObject({
+        knowledge: "complete",
+        capabilityIds:
+          entry.legacyReference.providerId === "openai"
+            ? [
+                "vision-input",
+                "file-input",
+                "code-editing",
+                "structured-output",
+                "tool-use",
+              ]
+            : [
+                "vision-input",
+                "file-input",
+                "structured-output",
+                "tool-use",
+              ],
+        evidence: {
+          claimId: "model-capabilities",
+          subjectId: entry.model.id,
+          fieldPath: "model.capabilities",
+        },
       });
       expect(entry.standardTextPrice).toMatchObject({
         basis: PROVIDER_PRICING_BASIS,
@@ -183,6 +208,13 @@ describe("provider catalog offering adapter", () => {
       excludedLongContextPrice: {
         inputUsdPerMillion: 4,
         outputUsdPerMillion: 18,
+      },
+    });
+    expect(resolveApiCatalogEntry("openai", "balanced").standardTextPrice).toMatchObject({
+      standardPriceInputLimitTokens: 272_000,
+      excludedLongContextPrice: {
+        inputUsdPerMillion: 5,
+        outputUsdPerMillion: 22.5,
       },
     });
   });

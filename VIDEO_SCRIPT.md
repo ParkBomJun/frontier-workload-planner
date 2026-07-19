@@ -1,196 +1,129 @@
-# Frontier Workload Planner — Ver3 demo script
+# Frontier Workload Planner — 2:49 English demo script
 
-Target length: 3–4 minutes
+Target: **2 minutes 49 seconds maximum**. Use English UI and English voiceover for the entire
+recording. Record after the release SHA is frozen, deployed, and has passed the non-video technical
+and manual gates. Complete the recording, upload, and submission-form gates afterward.
 
-Recording status: merged-source, pre-deployment demo. Ver3 is merged into `main`, but the public URL
-still serves the pre-Ver3 stable deployment. Unauthenticated Live analysis remains disabled.
+## Recording safety and truthfulness
 
-## Recording truthfulness rules
+- Record the exact public release commit. Do not record an uncommitted or locally modified UI.
+- Use non-sensitive sample text. Hide local paths, account identifiers, bookmarks, extensions,
+  environment files, network panels, and API keys.
+- Keep subscription presets and advanced cross-provider comparison controls collapsed.
+- Show only an OpenAI reference path. Rehearse a truthful scenario whose visible route is OpenAI. If
+  the unmodified app does not produce one, keep route identities out of frame and show the existing
+  OpenAI-selected reference-plan view instead. Never alter data or footage to manufacture a
+  recommendation.
+- Do not feature or discuss another provider's product name, trademark, logo, model name, or website.
+  OpenAI, GPT-5.6, and Codex plain-text names must remain visible or spoken where this script requires
+  them; do not add product logos or imply endorsement.
+- Use no music unless it is original or separately licensed for this submission.
+- The protected GPT-5.6 request may be recorded from the same release commit running locally, but the
+  server-only key and private URL must never appear. The public sample path must be shown separately.
+- Keep the final upload below three minutes, public on YouTube, with captions checked against the
+  spoken English.
+- Show one representative UI path in the short video. The six-case release evidence matrix also
+  includes tests and fixtures; never stage a fixture-only route as a real account result.
 
-- Use deterministic Mock analysis for the product UI. If a confirmed subscription route is needed,
-  show the test-only normalized allocator/export fixture as test evidence in the terminal or source;
-  do not imply that the fixture can be loaded into the product UI. Keep the caption
-  **“Deterministic test fixture — not a verified real account or production input.”**
-- Real ChatGPT-like, coding-plan, rolling-quota, and Custom presets must remain visibly
-  conditional/excluded unless their exact evidence resolves. Do not edit footage to imply otherwise.
-- Use the third Mock sample to show the actual `batch` classification, then show the focused
-  deterministic Batch API test as a separate evidence shot. Say “Batch work mode on a compatible
-  standard API route,” never “discounted Batch API.” The
-  calculation excludes discounted provider Batch processing, caching, tool fees, and long-context
-  surcharges.
-- Call Economy / Balanced / Premium a planning heuristic. Do not call it an objective ranking,
-  benchmark, provider equivalence, quote, optimization proof, or “best model.”
-- Call avoided spend a compatible all-Premium API counterfactual, not money received.
-- If any required outcome is not reachable from the current production-facing source inputs, show
-  its focused deterministic test assertion as a separate evidence shot. Never fabricate or edit a
-  product UI state to resemble that fixture.
+## Shot list and voiceover
 
-## Shot list and narration
+### 0:00–0:17 — Personal problem
 
-### 0:00–0:20 — Problem and contract
+**Shot:** English hero and the three-step flow. Keep advanced sections closed.
 
-**Shot:** Open the Korean hero, then briefly switch to English and Japanese. Return to the demo
-locale. Show tasks, incremental-cash budget, strategy, and Available AI resources without exposing
-any secret or developer console.
+**Voiceover:**
 
-**Narration:**
+> Many people already pay for AI tools, but still cannot tell which access method fits a task or
+> what new cash it may require. Frontier Workload Planner turns that uncertainty into an explainable
+> personal plan.
 
-> Frontier Workload Planner turns up to eight task descriptions into an explainable access-route
-> and budget plan. GPT-5.6 analyzes bounded workload requirements once. A deterministic planner—not
-> GPT—checks quality floors, provider limits, subscription source, API prices, quota, and budget.
+### 0:17–0:38 — Simple input
 
-**Caption:** `GPT analyzes requirements · deterministic code selects and prices routes`
+**Shot:** Load the three samples, show priorities, confirm the amount as the complete new-cash
+budget, show the strategy and optional-subscription message, then keep **Try a sample** selected. Do
+not open the subscription selector.
 
-### 0:20–0:45 — Source and evidence boundary
+**Voiceover:**
 
-**Shot:** Expand one real preset. Show the editable availability/quota/surface fields and its
-conditional diagnostics. Open one API override, change a Best-fit price or tier, then point to the
-official default and “restore default” action.
+> I enter up to eight tasks, set priorities, and confirm one total new-cash budget. I can optionally
+> describe a subscription I already use, without knowing exact credits. Here I use harmless sample
+> work and leave expert settings closed.
 
-**Narration:**
+### 0:38–1:01 — GPT-5.6's bounded role
 
-> Presets and user observations are source hints, not provider proof. A real preset remains
-> conditional until exact evidence resolves. API overrides are also separate user source: they
-> affect only Best-fit and never rewrite the official catalog, access, capability, or limits.
+**Shot:** On the protected local build, choose **Analyze my tasks**, submit once, and show the
+successful analysis state. No secret, URL, console, or request details may be visible.
 
-**Caption:** `Official default ≠ user override · source ≠ authority`
+**Voiceover:**
 
-### 0:45–1:05 — Demo 1: Chat subscription
+> GPT-5.6 converts the descriptions into a versioned structured contract: complexity, size band,
+> work mode, minimum quality, required capabilities, upgrade conditions, and failure risk. It does
+> not choose a provider, price, subscription, or final route.
 
-**Shot:** First show the real Chat-like preset in the product UI remaining conditional. Then switch
-to the focused allocator/export test and its fixture assertions, where one synthetic candidate uses
-native quota before avoidable API cash. Keep the test-fixture disclosure on screen; do not present
-the test object as a product account or UI-loaded scenario.
+### 1:01–1:24 — Deterministic result
 
-```bash
-npm test -- --run tests/best-fit-export.test.ts
-```
+**Shot:** Switch the viewport below 640px, select OpenAI in the reference-provider control, leave the
+closed select visible, and show the plan summary. Do not open comparison details or show another
+provider name or logo.
 
-**Narration:**
+**Voiceover:**
 
-> The real preset remains conditional. This separate deterministic test fixture exercises the
-> allocator's confirmed-subscription branch: native quota is reserved before avoidable API cash.
-> It is code-path evidence, not a product input or a claim that a real account was verified.
+> Deterministic TypeScript code then checks invocation limits, applies versioned standard-text
+> prices, estimates Low, Expected, and High cost, and holds lower-priority work when the confirmed
+> budget is insufficient. The visible reference path in this recording is OpenAI only.
 
-**Caption:** `1 · Chat subscription — test-only normalized allocator fixture`
+### 1:24–1:42 — Recalculate without GPT
 
-### 1:05–1:25 — Demo 2: Coding route
+**Shot:** Change the strategy and show the completed update. Then edit the budget, show the
+confirmation-pending notice, select **Plan with this amount**, and show the recalculated result.
 
-**Shot:** Select a coding-agent task. Show its structured coding surface, route identity, and
-fallback identity. If using a real preset rather than the fixture, keep it conditional.
+**Voiceover:**
 
-**Narration:**
+> Strategy changes recalculate immediately. A budget edit first waits for me to confirm its
+> new-cash meaning. After confirmation, the plan recalculates without another model call and tells
+> me whether the recommendation changed.
 
-> A coding task can select a compatible coding surface and carry an explicit fallback. A product
-> name alone never proves tool support or access, so unresolved production source stays conditional.
+### 1:42–2:04 — Restore and privacy
 
-**Caption:** `2 · Coding route — surface and fallback stay explicit`
+**Shot:** Show the plaintext-storage notice, restore the recent scenario, and point to delete and
+export controls without opening private payloads.
 
-### 1:25–1:42 — Demo 3: Batch API
+**Voiceover:**
 
-**Shot:** Load the third sample and show its `workMode: batch` analysis. Then cut to the focused test
-that asserts the required `batch` surface, a compatible catalog Offering, verified-default standard
-price resolution, active API allocation, and matching JSON/Markdown export. Keep the test-evidence
-caption visible; do not present the confirmed fixture as a UI-loaded route.
+> The browser stores one recent scenario in plaintext and restores it without another API request.
+> It keeps raw task and resource sources, not old routes or totals. Restore validates those sources
+> and recalculates with a clock that cannot move backward. The API key stays server-side.
 
-**Narration:**
+### 2:04–2:39 — Codex collaboration
 
-> The product Mock emits a real Batch workload. This separate deterministic fixture proves the
-> standard API route and export path. Batch here is the task's work surface; it does not apply a
-> provider's discounted Batch product, caching, tools, or long-context surcharges.
+**Shot:** Stay on the working UI. Briefly show the responsive mobile view and the passing test summary;
+do not show source containing third-party names.
 
-**Caption:** `3 · Batch work mode · deterministic test evidence · standard API price`
+**Voiceover:**
 
-### 1:42–2:02 — Demo 4: Selective Premium
+> I built this through an extended Codex collaboration. Codex helped turn my requirements into the
+> Zod contract, implement the fixed-decimal planner and source-authority boundaries, and build
+> regression tests. During review, we reproduced a P1 bug where restore moved the calculation date
+> backward, then replaced overwrites with monotonic clock merging. I also used screenshot reviews to
+> simplify the expert interface for individuals and improve mobile recovery. I made the final
+> decisions: GPT classifies work but never selects money or routes, and saved planning sources are
+> revalidated instead of restoring old results.
 
-**Shot:** Compare tasks with different minimum-quality floors or closed upgrade triggers. Show that
-only the qualifying tasks move to Premium.
+### 2:39–2:49 — Close
 
-**Narration:**
+**Shot:** Return to the product summary and product name. Do not show hosting or repository domains;
+the submission form provides those links.
 
-> Premium is selective. The planner upgrades only where the minimum floor or a closed trigger
-> requires it. This is a transparent planning policy, not a model leaderboard.
+**Voiceover:**
 
-**Caption:** `4 · Selective Premium — floor and closed triggers only`
+> This is an estimate, not a quote or ranking. Judges can use the free sample path, while protected
+> analysis uses GPT-5.6 through a server-only key.
 
-### 2:02–2:22 — Demo 5: Held work
+## Final recording check
 
-**Shot:** Lower the incremental-cash budget until a feasible low-priority task becomes held. Keep an
-excluded/infeasible example visible beside it if possible.
-
-**Narration:**
-
-> When cash is constrained, feasible lower-priority work is held deterministically. Held means
-> deferred for budget. A task with no compatible route is separately infeasible; the UI never
-> merges those outcomes.
-
-**Caption:** `5 · Held ≠ infeasible`
-
-### 2:22–2:42 — Demo 6: Avoided spend
-
-**Shot:** Show the selected plan, compatible all-Premium API baseline, and avoided-spend value.
-Point to unavailable rather than `$0` if the baseline cannot be constructed.
-
-**Narration:**
-
-> Avoided spend compares the complete selected plan with a disclosed compatible all-Premium API
-> counterfactual. It is not cash received, and a missing compatible baseline remains unavailable
-> instead of becoming a misleading zero.
-
-**Caption:** `6 · Avoided spend — disclosed counterfactual`
-
-### 2:42–3:15 — Save, restore, and recalculate
-
-**Shot:** Edit one raw resource fact and one override, then show the automatic recent-scenario save.
-Reload or use manual restore. Confirm that source returns, the current restore/pricing date does not
-move backward, and routes/ledgers are recalculated.
-
-**Narration:**
-
-> LocalStorage v6 saves one recent source-only scenario: raw resource drafts, per-fact observation
-> times, and exact override source. Frozen v1 through v5 records migrate with empty Best-fit source.
-> Restore never trusts an old answer. It re-resolves current exact-version evidence and recalculates
-> route, quota, commitment, overage, cash, and baseline with a monotonic calculation clock.
-
-**Caption:** `LocalStorage v6 · raw source in · re-resolution and recalculation out`
-
-### 3:15–3:40 — JSON v5 and Markdown
-
-**Shot:** Export Best-fit JSON v5 and localized Markdown. Highlight the structured route/source
-section, then the audit flags `purpose: "audit-only"` and `importAuthority: false`. Do not linger on
-user descriptions longer than needed.
-
-**Narration:**
-
-> Best-fit has its own allowlisted JSON v5 and localized Markdown. They carry structured routes,
-> restorable resource and override source, and resolved snapshots for audit. Audit is never restore
-> authority; source must be validated, re-resolved, and recalculated. Historical JSON v3 and v4
-> comparison contracts remain unchanged.
-
-**Caption:** `Best-fit JSON v5 + Markdown · audit-only evidence is not authority`
-
-### 3:40–3:55 — Close
-
-**Shot:** Return to the separated cash/quota summary and merged-source / not-deployed README status.
-
-**Narration:**
-
-> The result is an explainable planning estimate, not a quote or guarantee. Ver3 source is merged
-> into `main`, but the public deployment has not yet been replaced by this build.
-
-**Caption:** `Merged into main · not yet the public deployment`
-
-## Pre-recording checklist
-
-- All six demo outcomes are visible and named.
-- Fixture disclosure stays readable during confirmed subscription footage.
-- A real preset is never shown as authoritative; the confirmed branch appears only as separately
-  labeled test evidence.
-- Official defaults and user overrides are both visible and distinct.
-- Batch wording says standard API price, not discounted Batch processing.
-- Held and infeasible states are shown separately.
-- Avoided spend shows its baseline or an honest unavailable state.
-- Restore demonstrates source re-resolution and a non-regressing pricing date.
-- JSON v5/Markdown audit disclosure is readable.
-- No API key, LocalStorage payload containing private task text, account identifier, or private URL
-  appears in the recording.
+- Duration is no more than 2:49.
+- English voice, captions, UI, and testing instructions agree.
+- The product, GPT-5.6, and the concrete Codex workflow are all audible.
+- The sample path and protected Live path are described honestly.
+- No other-provider mark, secret, private task, local path, or account information is visible or
+  spoken; the required OpenAI, GPT-5.6, and Codex plain-text references are accurate.

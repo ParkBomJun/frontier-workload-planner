@@ -13,8 +13,8 @@ import {
 import type { TaskInput } from "@/types/domain";
 import type { ApiCatalogOverride } from "@/types/pricing";
 
-const PRICING_AS_OF = "2026-07-17";
-const PLANNING_AS_OF = "2026-07-17T12:00:00.000Z";
+const PRICING_AS_OF = "2026-07-18";
+const PLANNING_AS_OF = "2026-07-18T12:00:00.000Z";
 const task: TaskInput = {
   id: "task-1",
   name: "API 설계",
@@ -23,13 +23,6 @@ const task: TaskInput = {
   deadlineDate: "2026-07-21",
   failureImpact: "high",
 };
-
-const conditionalReasons = [
-  "evidence-authority-invalid",
-  "access-limits-incomplete",
-  "model-capabilities-incomplete",
-  "access-capabilities-incomplete",
-] as const;
 
 function candidateInput(
   originalIndex = 0,
@@ -81,7 +74,7 @@ function allocate(
 function apiExclusion(
   providerId: "anthropic" | "google" | "openai",
   modelId: string,
-  status: "conditional" | "ineligible",
+  reasonCode: "below-minimum-quality" | "required-capability-missing",
 ) {
   return {
     routeIdentity: {
@@ -89,33 +82,35 @@ function apiExclusion(
       offeringId: `api.${providerId}.${modelId}.standard-text`,
       resourceId: null,
     },
-    status,
-    reasonCodes:
-      status === "conditional" ? conditionalReasons : ["below-minimum-quality"],
+    status: "ineligible",
+    reasonCodes: [reasonCode],
   };
 }
 
 describe("Best-fit resolver-issued task candidates", () => {
-  it("keeps the current production API catalog excluded in canonical order", () => {
+  it("confirms documented API routes and keeps incompatible routes excluded in canonical order", () => {
     const first = resolveBestFitTaskCandidates(candidateInput());
     const second = resolveBestFitTaskCandidates(candidateInput());
 
-    expect(first.confirmedRoutes).toEqual([]);
+    expect(
+      first.confirmedRoutes.map(({ routeIdentity }) => routeIdentity.offeringId),
+    ).toEqual([
+      "api.openai.gpt-5.6-sol.standard-text",
+      "api.openai.gpt-5.6-terra.standard-text",
+    ]);
     expect(first.conditionalAlternatives).toEqual([]);
     expect(first.excludedRoutes).toEqual([
-      apiExclusion("anthropic", "claude-fable-5", "conditional"),
-      apiExclusion("anthropic", "claude-haiku-4-5", "ineligible"),
-      apiExclusion("anthropic", "claude-sonnet-5", "conditional"),
-      apiExclusion("google", "gemini-3-flash-preview", "conditional"),
-      apiExclusion("google", "gemini-3.1-flash-lite", "ineligible"),
-      apiExclusion("google", "gemini-3.1-pro-preview", "conditional"),
-      apiExclusion("openai", "gpt-5.6-luna", "ineligible"),
-      apiExclusion("openai", "gpt-5.6-sol", "conditional"),
-      apiExclusion("openai", "gpt-5.6-terra", "conditional"),
+      apiExclusion("anthropic", "claude-fable-5", "required-capability-missing"),
+      apiExclusion("anthropic", "claude-haiku-4-5", "below-minimum-quality"),
+      apiExclusion("anthropic", "claude-sonnet-5", "required-capability-missing"),
+      apiExclusion("google", "gemini-3-flash-preview", "required-capability-missing"),
+      apiExclusion("google", "gemini-3.1-flash-lite", "below-minimum-quality"),
+      apiExclusion("google", "gemini-3.1-pro-preview", "required-capability-missing"),
+      apiExclusion("openai", "gpt-5.6-luna", "below-minimum-quality"),
     ]);
     expect(second.excludedRoutes).toEqual(first.excludedRoutes);
     expect(first.excludedRoutes.filter(({ status }) => status === "conditional"))
-      .toHaveLength(6);
+      .toHaveLength(0);
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.excludedRoutes)).toBe(true);
     expect(Object.isFrozen(first.excludedRoutes[0]?.reasonCodes)).toBe(true);
@@ -163,13 +158,13 @@ describe("Best-fit resolver-issued task candidates", () => {
     expect(
       isResolvedBestFitTaskCandidateSetFor(issued, {
         ...input,
-        planningAsOf: "2026-07-18T12:00:00.000Z",
+        planningAsOf: "2026-07-19T12:00:00.000Z",
       }),
     ).toBe(false);
     expect(
       isResolvedBestFitTaskCandidateSetFor(issued, {
         ...input,
-        pricingAsOf: "2026-07-18",
+        pricingAsOf: "2026-07-19",
       }),
     ).toBe(false);
 
@@ -293,7 +288,7 @@ describe("Best-fit resolver-issued task candidates", () => {
     );
   });
 
-  it("applies an exact effective planning-tier override without promoting API authority", () => {
+  it("applies an exact user planning-tier override on top of confirmed API facts", () => {
     const luna = apiOverride("openai", "economy", {
       planningTier: "premium",
       standardTextPrice: { inputUsdPerMillion: 0.75, outputUsdPerMillion: 4 },
@@ -302,21 +297,28 @@ describe("Best-fit resolver-issued task candidates", () => {
       ...candidateInput(),
       apiOverrides: [luna],
     });
-    const lunaRoute = issued.excludedRoutes.find(
+    const lunaRoute = issued.confirmedRoutes.find(
       ({ routeIdentity }) =>
         routeIdentity.offeringId === "api.openai.gpt-5.6-luna.standard-text",
     );
 
-    expect(lunaRoute).toEqual({
+    expect(lunaRoute).toMatchObject({
+      mode: "api",
+      modelId: "gpt-5.6-luna",
+      qualityTier: "premium",
       routeIdentity: {
         providerId: "openai",
         offeringId: "api.openai.gpt-5.6-luna.standard-text",
         resourceId: null,
       },
-      status: "conditional",
-      reasonCodes: conditionalReasons,
     });
-    expect(issued.confirmedRoutes).toEqual([]);
+    expect(issued.excludedRoutes).not.toContainEqual(
+      expect.objectContaining({
+        routeIdentity: expect.objectContaining({
+          offeringId: "api.openai.gpt-5.6-luna.standard-text",
+        }),
+      }),
+    );
 
     expect(
       () =>
@@ -325,8 +327,8 @@ describe("Best-fit resolver-issued task candidates", () => {
           apiOverrides: [
             {
               ...luna,
-              effectiveFrom: "2026-07-18",
-              recordedAt: "2026-07-19T12:00:00.000Z",
+              effectiveFrom: "2026-07-19",
+              recordedAt: "2026-07-20T12:00:00.000Z",
             },
           ],
         }),
@@ -371,7 +373,7 @@ describe("Best-fit resolver-issued task candidates", () => {
     ).toBe(false);
   });
 
-  it("accepts the exact issued set and returns an infeasible current-catalog plan", () => {
+  it("accepts the exact issued set and holds a confirmed route when cash is zero", () => {
     const issued = resolveBestFitTaskCandidates(candidateInput());
     const plan = allocate([issued]);
 
@@ -381,8 +383,8 @@ describe("Best-fit resolver-issued task candidates", () => {
       pricingAsOf: PRICING_AS_OF,
       incrementalCashBudgetMicroUsd: 0,
       activeTaskCount: 0,
-      heldTaskCount: 0,
-      infeasibleTaskCount: 1,
+      heldTaskCount: 1,
+      infeasibleTaskCount: 0,
       expectedWithinBudget: true,
       highExceedsBudget: false,
       premiumBaseline: null,
@@ -390,12 +392,12 @@ describe("Best-fit resolver-issued task candidates", () => {
     });
     expect(plan.tasks).toEqual([
       {
-        status: "infeasible",
+        status: "held",
         taskId: task.id,
         originalIndex: 0,
         routeIdentity: null,
         strategyTargetTier: "balanced",
-        infeasibleReason: "no-compatible-confirmed-route",
+        holdReason: "incremental-cash-budget-exhausted",
         appliedUpgradeTriggers: ["high-failure-exposure"],
         conditionalAlternatives: [],
       },
@@ -426,7 +428,7 @@ describe("Best-fit resolver-issued task candidates", () => {
       allocateResolvedBestFitPlan({
         tasks: [issued],
         strategy: "balanced",
-        planningAsOf: "2026-07-18T12:00:00.000Z",
+        planningAsOf: "2026-07-19T12:00:00.000Z",
         pricingAsOf: PRICING_AS_OF,
         incrementalCashBudgetMicroUsd: 0,
         apiOverrides: [],
@@ -437,7 +439,7 @@ describe("Best-fit resolver-issued task candidates", () => {
         tasks: [issued],
         strategy: "balanced",
         planningAsOf: PLANNING_AS_OF,
-        pricingAsOf: "2026-07-18",
+        pricingAsOf: "2026-07-19",
         incrementalCashBudgetMicroUsd: 0,
         apiOverrides: [],
       }),

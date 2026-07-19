@@ -1,9 +1,11 @@
 import type { ProviderCatalog } from "./provider-catalog";
+import { PROVIDER_CATALOG } from "./provider-catalog";
 import type { ProviderId } from "@/types/domain";
 
 export const API_CATALOG_REGISTRY_VERSIONS = [
   "provider-comparison-stable-v1",
   "provider-comparison-stable-v2",
+  "provider-comparison-stable-v3",
 ] as const;
 
 export type ApiCatalogRegistryVersion =
@@ -186,10 +188,12 @@ const v1Literal: Record<ProviderId, ProviderCatalog> = {
 
 const v1 = deepFreeze(cloneCatalog(v1Literal));
 const v2 = deepFreeze(cloneCatalog(v1Literal));
+const v3 = deepFreeze(cloneCatalog(PROVIDER_CATALOG));
 
 export const PROVIDER_CATALOG_SNAPSHOTS: Readonly<
   Record<ApiCatalogRegistryVersion, Readonly<Record<ProviderId, ProviderCatalog>>>
 > = deepFreeze({
   "provider-comparison-stable-v1": v1,
   "provider-comparison-stable-v2": v2,
+  "provider-comparison-stable-v3": v3,
 });

@@ -3,7 +3,6 @@ const registeredAccessProviderIds = [
   "anthropic",
   "google",
   "github",
-  "z-ai",
 ] as const;
 
 export type RegisteredAccessProviderId =
@@ -23,7 +22,6 @@ const entries = [
   { id: "anthropic", displayName: "Anthropic" },
   { id: "google", displayName: "Google" },
   { id: "github", displayName: "GitHub" },
-  { id: "z-ai", displayName: "Z.ai" },
 ] as const satisfies readonly AccessProviderRegistryEntry[];
 
 export const ACCESS_PROVIDER_REGISTRY = Object.freeze(

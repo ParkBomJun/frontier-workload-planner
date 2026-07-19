@@ -17,20 +17,18 @@ import {
 } from "@/lib/offerings/route-identity";
 
 describe("access-provider registry", () => {
-  it("keeps existing API identities and adds only the subscription access providers", () => {
+  it("keeps existing API identities and adds only the registered subscription access provider", () => {
     expect(REGISTERED_ACCESS_PROVIDER_IDS).toEqual([
       "openai",
       "anthropic",
       "google",
       "github",
-      "z-ai",
     ]);
     expect(Object.keys(ACCESS_PROVIDER_REGISTRY)).toEqual([
       "openai",
       "anthropic",
       "google",
       "github",
-      "z-ai",
     ]);
     for (const providerId of REGISTERED_ACCESS_PROVIDER_IDS) {
       expect(parseAccessProviderId(providerId)).toBe(providerId);
@@ -57,7 +55,7 @@ describe("access-provider registry", () => {
 });
 
 describe("illustrative subscription presets", () => {
-  it("provides the four bounded preset shapes in stable order", () => {
+  it("provides the seven bounded preset shapes in stable order", () => {
     expect(SUBSCRIPTION_PRESETS.map(({ id }) => id)).toEqual([
       ...SUBSCRIPTION_PRESET_IDS,
     ]);
@@ -67,7 +65,29 @@ describe("illustrative subscription presets", () => {
     expect(getSubscriptionPreset("chatgpt-like-variable")).toMatchObject({
       providerId: "openai",
       quotaInput: { kind: "opaque" },
+      suggestedSurfaces: ["chat", "ide-cli"],
+    });
+    expect(getSubscriptionPreset("claude-subscription")).toMatchObject({
+      providerId: "anthropic",
+      quotaInput: { kind: "opaque" },
+      suggestedSurfaces: ["chat", "ide-cli"],
+    });
+    expect(getSubscriptionPreset("gemini-subscription")).toMatchObject({
+      providerId: "google",
+      quotaInput: { kind: "opaque" },
       suggestedSurfaces: ["chat"],
+    });
+    expect(getSubscriptionPreset("google-antigravity")).toMatchObject({
+      providerId: "google",
+      defaultProvisioning: "personal",
+      quotaInput: { kind: "opaque" },
+      suggestedSurfaces: ["ide-cli"],
+    });
+    expect(getSubscriptionPreset("gemini-code-assist")).toMatchObject({
+      providerId: "google",
+      defaultProvisioning: "organization",
+      quotaInput: { kind: "opaque" },
+      suggestedSurfaces: ["ide-cli"],
     });
     expect(getSubscriptionPreset("github-copilot-like-credits")).toMatchObject({
       providerId: "github",
@@ -78,11 +98,7 @@ describe("illustrative subscription presets", () => {
       },
       suggestedSurfaces: ["ide-cli"],
     });
-    expect(getSubscriptionPreset("glm-like-rolling")).toMatchObject({
-      providerId: "z-ai",
-      quotaInput: { kind: "user-supplied-rolling" },
-      suggestedSurfaces: ["ide-cli"],
-    });
+    expect(getSubscriptionPreset("rolling-window-coding-plan")).toBeUndefined();
   });
 
   it("keeps Custom provider identity user-specific and planner-generated", () => {

@@ -33,6 +33,17 @@ const CAPABILITY_IDS_V4 = [
 ] as const;
 const UPGRADE_CONDITION_CODES_V4 = ["deep-reasoning", "large-code-change"] as const;
 const FAILURE_RISKS_V4 = ["low", "medium", "high"] as const;
+const SUBSCRIPTION_OWNERSHIPS_V6 = ["owned", "candidate-new"] as const;
+const SUBSCRIPTION_AVAILABILITY_STATUSES_V6 = [
+  "available",
+  "unavailable",
+  "uncertain",
+] as const;
+const SUBSCRIPTION_CONSUMPTION_BASES_V6 = [
+  "task",
+  "analysis-iteration",
+] as const;
+const WORK_SURFACES_V6 = ["chat", "ide-cli", "batch"] as const;
 
 const MAX_TASKS_V1 = 8;
 const MAX_TASK_ID_LENGTH_V1 = 64;
@@ -101,6 +112,183 @@ function createHistoricalTaskSchemaV4() {
     priority: z.enum(TASK_PRIORITIES_V2),
     deadlineDate: z.iso.date().nullable(),
     failureImpact: z.enum(FAILURE_IMPACTS_V4),
+  });
+}
+
+function createHistoricalBestFitSourceStateV6Schema() {
+  const maxSourceStringLength = 2_000;
+  const uiIdPattern = /^[a-z0-9][a-z0-9-]{7,63}$/;
+  const boundedSourceString = z.string().max(maxSourceStringLength);
+  const observedConsumptionDraftSchema = z.strictObject({
+    basis: z.enum(SUBSCRIPTION_CONSUMPTION_BASES_V6),
+    low: boundedSourceString,
+    expected: boundedSourceString,
+    high: boundedSourceString,
+    sampleSize: boundedSourceString,
+  });
+  const quotaDraftSchema = z.discriminatedUnion("kind", [
+    z.strictObject({
+      kind: z.literal("opaque"),
+      description: boundedSourceString,
+    }),
+    z.strictObject({
+      kind: z.literal("metered"),
+      unit: z.enum(["request", "credit"]),
+      included: boundedSourceString,
+      remaining: boundedSourceString,
+      consumption: observedConsumptionDraftSchema,
+    }),
+    z.strictObject({
+      kind: z.literal("calibrated"),
+      remainingPercent: boundedSourceString,
+      consumption: observedConsumptionDraftSchema,
+    }),
+  ]);
+  const resetDraftSchema = z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("none") }),
+    z.strictObject({ kind: z.literal("unknown") }),
+    z.strictObject({
+      kind: z.literal("fixed"),
+      cadenceDays: boundedSourceString,
+      nextResetAt: boundedSourceString,
+    }),
+    z.strictObject({
+      kind: z.literal("rolling"),
+      windowHours: boundedSourceString,
+    }),
+  ]);
+  const resourceDraftSchema = z.strictObject({
+    uiId: z.string().regex(uiIdPattern),
+    preset: z.strictObject({
+      id: z.string().min(1).max(200),
+      version: z.string().min(1).max(200),
+    }),
+    displayName: z.string().max(200),
+    ownership: z.enum(SUBSCRIPTION_OWNERSHIPS_V6),
+    availability: z.enum(SUBSCRIPTION_AVAILABILITY_STATUSES_V6),
+    surface: z.union([z.enum(WORK_SURFACES_V6), z.literal("")]),
+    feeUsd: boundedSourceString,
+    quota: quotaDraftSchema,
+    reset: resetDraftSchema,
+  });
+  const evidenceObservedAtSchema = z.strictObject({
+    availability: z.iso.datetime(),
+    commitment: z.iso.datetime(),
+    quota: z.iso.datetime(),
+    reset: z.iso.datetime(),
+    offering: z.iso.datetime(),
+  });
+  const availableAiResourcesSchema = z
+    .strictObject({
+      contractVersion: z.literal("available-ai-resource-sources-v1"),
+      drafts: z.array(resourceDraftSchema).max(4),
+      evidenceObservedAtById: z.record(
+        z.string().regex(uiIdPattern),
+        evidenceObservedAtSchema,
+      ),
+    })
+    .superRefine(({ drafts, evidenceObservedAtById }, context) => {
+      const uiIds = drafts.map(({ uiId }) => uiId);
+      if (new Set(uiIds).size !== uiIds.length) {
+        context.addIssue({
+          code: "custom",
+          path: ["drafts"],
+          message: "Historical v6 resource source IDs must be unique.",
+        });
+      }
+
+      const presetIds = drafts.map(({ preset }) => preset.id);
+      if (new Set(presetIds).size !== presetIds.length) {
+        context.addIssue({
+          code: "custom",
+          path: ["drafts"],
+          message: "Historical v6 resource presets must be unique.",
+        });
+      }
+
+      const evidenceIds = Object.keys(evidenceObservedAtById).sort();
+      const sortedUiIds = [...uiIds].sort();
+      if (
+        evidenceIds.length !== sortedUiIds.length ||
+        evidenceIds.some((uiId, index) => uiId !== sortedUiIds[index])
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["evidenceObservedAtById"],
+          message: "Historical v6 resources require one timestamp group per draft.",
+        });
+      }
+    });
+  const exactMicroUsdRateSchema = z
+    .number()
+    .finite()
+    .min(0)
+    .max(1_000_000)
+    .refine((value) => {
+      const scaled = Math.round(value * 1_000_000);
+      return (
+        Number.isSafeInteger(scaled) &&
+        Math.abs(value - scaled / 1_000_000) <= 1e-12
+      );
+    });
+  const apiOverrideSchema = z
+    .strictObject({
+      kind: z.literal("api-catalog-override"),
+      provenance: z.literal("user-supplied"),
+      target: z.strictObject({
+        registryId: z.string().min(1).max(200),
+        registryVersion: z.string().min(1).max(200),
+        entryId: z.string().min(1).max(200),
+      }),
+      effectiveFrom: z.iso.date(),
+      recordedAt: z.iso.datetime(),
+      planningTier: z.enum(PLANNING_QUALITY_TIERS_V4).optional(),
+      standardTextPrice: z
+        .strictObject({
+          inputUsdPerMillion: exactMicroUsdRateSchema,
+          outputUsdPerMillion: exactMicroUsdRateSchema,
+        })
+        .optional(),
+    })
+    .refine(
+      ({ planningTier, standardTextPrice }) =>
+        planningTier !== undefined || standardTextPrice !== undefined,
+      { message: "Historical v6 overrides must change tier or price." },
+    )
+    .refine(
+      ({ effectiveFrom, recordedAt }) =>
+        effectiveFrom <= recordedAt.slice(0, 10),
+      {
+        path: ["effectiveFrom"],
+        message: "Historical v6 overrides cannot be future scheduled.",
+      },
+    );
+  const apiOverridesSchema = z
+    .strictObject({
+      contractVersion: z.literal("api-catalog-override-sources-v1"),
+      overrides: z.array(apiOverrideSchema).max(9),
+    })
+    .superRefine(({ overrides }, context) => {
+      const targets = overrides.map(({ target }) =>
+        JSON.stringify([
+          target.registryId,
+          target.registryVersion,
+          target.entryId,
+        ]),
+      );
+      if (new Set(targets).size !== targets.length) {
+        context.addIssue({
+          code: "custom",
+          path: ["overrides"],
+          message: "Historical v6 override targets must be unique.",
+        });
+      }
+    });
+
+  return z.strictObject({
+    contractVersion: z.literal("best-fit-source-state-v1"),
+    availableAiResources: availableAiResourcesSchema,
+    apiCatalogOverrides: apiOverridesSchema,
   });
 }
 
@@ -325,6 +513,42 @@ export const historicalRecentScenarioV5Schema = z
     }
   });
 
+export const historicalRecentScenarioV6Schema = z
+  .strictObject({
+    schemaVersion: z.literal(6),
+    savedAt: z.iso.datetime(),
+    selectedProvider: z.enum(PROVIDER_IDS_V3),
+    tasks: z.array(createHistoricalTaskSchemaV4()).min(1).max(MAX_TASKS_V1),
+    settings: createHistoricalPlanningSettingsSchemaV5(),
+    analysisSnapshot: createHistoricalAnalysisSnapshotV4Schema(),
+    bestFitSources: createHistoricalBestFitSourceStateV6Schema(),
+  })
+  .superRefine(({ tasks, analysisSnapshot }, context) => {
+    const taskIds = new Set<string>();
+    tasks.forEach((task, index) => {
+      if (taskIds.has(task.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["tasks", index, "id"],
+          message: "Stored task IDs must be unique.",
+        });
+      }
+      taskIds.add(task.id);
+    });
+
+    const analyses = analysisSnapshot.response.analysis.tasks;
+    const identitiesMatch =
+      analyses.length === tasks.length &&
+      analyses.every((analysis, index) => analysis.taskId === tasks[index].id);
+    if (!identitiesMatch) {
+      context.addIssue({
+        code: "custom",
+        path: ["analysisSnapshot", "response", "analysis", "tasks"],
+        message: "Stored analyses must preserve task order and identity.",
+      });
+    }
+  });
+
 export const frozenAnalyzeSuccessResponseV1Schema =
   createHistoricalSuccessResponseSchema();
 
@@ -342,5 +566,8 @@ export type HistoricalRecentScenarioV4 = z.infer<
 >;
 export type HistoricalRecentScenarioV5 = z.infer<
   typeof historicalRecentScenarioV5Schema
+>;
+export type HistoricalRecentScenarioV6 = z.infer<
+  typeof historicalRecentScenarioV6Schema
 >;
 export type FrozenAnalyzeSuccessResponseV1 = HistoricalRecentScenarioV3["response"];

@@ -154,6 +154,7 @@ function buildFixtureContext(): BestFitPlanExportContext {
     }),
     displayName: "Chat 구독 | 개인",
     ownership: "candidate-new" as const,
+    surface: "chat" as const,
     feeUsd: "0",
     quota: {
       kind: "opaque" as const,
@@ -472,17 +473,17 @@ function collectRouteKeys(document: BestFitPlanExportDocument): Array<
   return keys;
 }
 
-describe("Checkpoint 8 Best-fit v5 export", () => {
-  it("adds a separate v5 result contract without changing historical v3/v4 versions", () => {
+describe("Best-fit v6 export", () => {
+  it("adds a separate v6 result contract without changing historical v3/v4 versions", () => {
     const context = buildFixtureContext();
     const document = createBestFitPlanExportDocument(context, EXPORTED_AT);
     const parsed = JSON.parse(createBestFitPlanJson(context, EXPORTED_AT));
 
     expect(LEGACY_PLAN_JSON_SCHEMA_VERSION).toBe(3);
     expect(PLAN_JSON_SCHEMA_VERSION).toBe(4);
-    expect(BEST_FIT_PLAN_JSON_SCHEMA_VERSION).toBe(5);
+    expect(BEST_FIT_PLAN_JSON_SCHEMA_VERSION).toBe(6);
     expect(document).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       resultKind: "best-fit-route-plan",
       exportedAt: EXPORTED_AT,
       analysis: {
@@ -498,6 +499,39 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
       },
     });
     expect(parsed).toEqual(document);
+  });
+
+  it("neutralizes HTML, entities, links, and Markdown controls in exported task text", () => {
+    const document = createBestFitPlanExportDocument(
+      buildFixtureContext(),
+      EXPORTED_AT,
+    );
+    const unsafeDocument: BestFitPlanExportDocument = {
+      ...document,
+      input: {
+        ...document.input,
+        tasks: document.input.tasks.map((sourceTask, index) =>
+          index === 0
+            ? {
+                ...sourceTask,
+                name: "# [Run](javascript:alert(1)) *now* & <b>",
+                description:
+                  "<script>alert(1)</script>\n![pixel](https://example.invalid/x)",
+              }
+            : sourceTask,
+        ),
+      },
+    };
+    const markdown = createBestFitPlanMarkdownFromDocument(unsafeDocument, "en");
+
+    expect(markdown).toContain(
+      "\\# \\[Run\\]\\(javascript:alert\\(1\\)\\) \\*now\\* &amp; &lt;b&gt;",
+    );
+    expect(markdown).toContain(
+      "&lt;script&gt;alert\\(1\\)&lt;/script&gt;<br>\\!\\[pixel\\]\\(https://example.invalid/x\\)",
+    );
+    expect(markdown).not.toContain("<script>");
+    expect(markdown).not.toContain("[Run](javascript:");
   });
 
   it("uses one canonical projector for task, fallback, resource, ledger, and baseline routes", () => {
@@ -562,7 +596,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     expect(markdown).toContain(
       "`catalog-reference-unresolved` → `quota-opaque`",
     );
-    const auditHeading = markdown.indexOf("### 작업 후보 해결");
+    const auditHeading = markdown.indexOf("### 작업별 후보 확인 결과");
     const firstAuditKey = JSON.stringify(auditAlternatives[0]?.routeKey);
     const secondAuditKey = JSON.stringify(auditAlternatives[1]?.routeKey);
     expect(auditHeading).toBeGreaterThan(-1);
@@ -574,7 +608,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     );
   });
 
-  it("exports exact scenario cash, paid overage, ledgers, and a signed Premium comparison", () => {
+  it("exports exact scenario cash, paid overage, ledgers, and a signed high-performance comparison", () => {
     const document = createBestFitPlanExportDocument(
       buildFixtureContext(),
       EXPORTED_AT,
@@ -627,7 +661,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
       document,
     );
     expect(createBestFitPlanMarkdownFromDocument(document, "en")).toContain(
-      "Display-saturated scenarios: `high`",
+      "Estimates too large to display exactly: `high`",
     );
 
     expect(() =>
@@ -661,6 +695,13 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     expect(bestFitSourceStateSchema.safeParse(document.input.sourceState).success).toBe(
       true,
     );
+    expect(document.input.sourceState).toMatchObject({
+      contractVersion: "best-fit-source-state-v2",
+      availableAiResources: {
+        contractVersion: "available-ai-resource-sources-v2",
+        drafts: [expect.objectContaining({ provisionedBy: "personal" })],
+      },
+    });
     expect(sourceJson).not.toContain("provider-published");
     expect(sourceJson).not.toContain("resolvedResource");
     expect(sourceJson).not.toContain("importAuthority");
@@ -731,6 +772,75 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     ]);
     expect(JSON.stringify(document.audit)).not.toContain("connectorReceipt");
     expect(JSON.stringify(document.audit)).not.toContain("futureSecret");
+  });
+
+  it("exports eight separate accounts on one preset without collapsing identity", () => {
+    const context = buildFixtureContext();
+    const baseDraft = context.sourceState.availableAiResources.drafts[0];
+    const baseObservedAt =
+      context.sourceState.availableAiResources.evidenceObservedAtById[
+        "resource-1"
+      ];
+    if (baseDraft === undefined || baseObservedAt === undefined) {
+      throw new Error("The export fixture requires one complete resource source.");
+    }
+    const resourceDrafts = Array.from({ length: 8 }, (_, index) => ({
+      ...structuredClone(baseDraft),
+      uiId: `resource-${index + 1}`,
+      displayName: `Separate account ${index + 1}`,
+    }));
+    const resourceEvidenceObservedAtById = Object.fromEntries(
+      resourceDrafts.map(({ uiId }) => [uiId, structuredClone(baseObservedAt)]),
+    );
+    const sourceState = createBestFitSourceState({
+      resourceDrafts,
+      resourceEvidenceObservedAtById,
+      apiOverrides: context.sourceState.apiCatalogOverrides.overrides,
+    });
+    if (sourceState === null) {
+      throw new Error("Eight separate account sources must remain exportable.");
+    }
+    const diagnosticPlan = buildBestFitUiPlan({
+      tasks: context.sourceTasks,
+      analyses: context.uiPlan.candidateSets.map(({ analysis }) => analysis),
+      strategy: "cost-saver",
+      incrementalCashBudgetUsd: 50,
+      planningAsOf: PLANNING_AS_OF,
+      pricingAsOf: PRICING_AS_OF,
+      resourceDrafts,
+      resourceEvidenceObservedAtById,
+      apiOverrides: context.sourceState.apiCatalogOverrides.overrides,
+    });
+    const document = createBestFitPlanExportDocument(
+      {
+        ...context,
+        sourceState,
+        uiPlan: {
+          ...context.uiPlan,
+          resourceDiagnostics: diagnosticPlan.resourceDiagnostics,
+        },
+      },
+      EXPORTED_AT,
+    );
+
+    expect(document.input.sourceState.availableAiResources.drafts).toHaveLength(
+      8,
+    );
+    expect(
+      new Set(
+        document.input.sourceState.availableAiResources.drafts.map(
+          ({ uiId }) => uiId,
+        ),
+      ).size,
+    ).toBe(8);
+    expect(
+      new Set(
+        document.input.sourceState.availableAiResources.drafts.map(
+          ({ preset }) => preset.id,
+        ),
+      ),
+    ).toEqual(new Set(["chatgpt-like-variable"]));
+    expect(document.audit.resourceResolutions).toHaveLength(8);
   });
 
   it("exports an unresolved preset as a recoverable conditional source without stale snapshots", () => {
@@ -847,9 +957,9 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
     const en = createBestFitPlanMarkdownFromDocument(document, "en");
     const ja = createBestFitPlanMarkdownFromDocument(document, "ja");
 
-    expect(ko).toContain("## 작업별 경로");
-    expect(en).toContain("## Task routes");
-    expect(ja).toContain("## タスク別ルート");
+    expect(ko).toContain("## 작업별 이용 방법");
+    expect(en).toContain("## Usage method by task");
+    expect(ja).toContain("## 作業別の利用方法");
     [ko, en, ja].forEach((markdown) => {
       expect(markdown).toContain(routeKey);
       expect(markdown).toContain("API \\| 설계\\\\검토");
@@ -880,28 +990,38 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
       {
         locale: "ko" as const,
         apiLabel: "API 작업 가격",
-        subscriptionLabel: "구독 한계 현금 귀속액",
-        marginalNotice: "독립적인 작업 가격이 아니며 계획 총계가 권위값입니다.",
-        upgradeLabel: "상향 조건",
+        subscriptionLabel: "이 작업에 배분된 구독 비용",
+        marginalNotice: "작업 하나의 실제 가격은 아니므로 계획 전체 비용도 확인하세요.",
+        upgradeLabel: "상위 등급을 선택한 이유",
+        premiumChoiceLabel: "고성능 등급 사용 여부",
       },
       {
         locale: "en" as const,
         apiLabel: "API task price",
-        subscriptionLabel: "Subscription marginal cash attribution",
-        marginalNotice: "It is not a standalone task price; plan totals are authoritative.",
-        upgradeLabel: "Upgrade triggers",
+        subscriptionLabel: "Subscription cost assigned to this task",
+        marginalNotice: "It is not the task's standalone price; review the full plan cost too.",
+        upgradeLabel: "Why a higher tier was selected",
+        premiumChoiceLabel: "Use of the high-performance tier",
       },
       {
         locale: "ja" as const,
         apiLabel: "API作業価格",
-        subscriptionLabel: "サブスクリプション限界支出の帰属額",
-        marginalNotice: "独立した作業価格ではなく、計画全体の合計が正式な値です。",
-        upgradeLabel: "アップグレード条件",
+        subscriptionLabel: "この作業に割り当てたサブスクリプション費用",
+        marginalNotice: "作業単体の価格ではないため、計画全体の費用も確認してください。",
+        upgradeLabel: "上位グレードを選んだ理由",
+        premiumChoiceLabel: "高性能グレードの利用有無",
       },
     ];
 
     cases.forEach(
-      ({ locale, apiLabel, subscriptionLabel, marginalNotice, upgradeLabel }) => {
+      ({
+        locale,
+        apiLabel,
+        subscriptionLabel,
+        marginalNotice,
+        upgradeLabel,
+        premiumChoiceLabel,
+      }) => {
         const markdown = createBestFitPlanMarkdownFromDocument(document, locale);
         const firstStart = markdown.indexOf("### 1.");
         const secondStart = markdown.indexOf("### 2.", firstStart);
@@ -917,6 +1037,7 @@ describe("Checkpoint 8 Best-fit v5 export", () => {
         expect(apiSection).toContain(
           uiCopy.enums.whyNotPremium[apiTask.whyNotPremium],
         );
+        expect(apiSection).toContain(`- ${premiumChoiceLabel}:`);
         expect(apiSection).not.toContain(`\`${apiTask.whyEnough}\``);
         expect(apiSection).not.toContain(`\`${apiTask.whyNotPremium}\``);
         expect(apiSection).toContain(`- ${upgradeLabel}:`);

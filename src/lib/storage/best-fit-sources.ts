@@ -1,25 +1,26 @@
 import { z } from "zod";
 
 import { MAX_STANDARD_TEXT_RATE_USD_PER_MILLION } from "@/lib/calculation/micro-usd";
+import { MAX_AVAILABLE_AI_RESOURCES } from "@/config/subscription-presets";
 import { PLANNING_QUALITY_TIERS, WORK_SURFACES } from "@/types/offerings";
 import type { ApiCatalogOverride } from "@/types/pricing";
 import type {
   AvailableAiResourceDraft,
   AvailableAiResourceEvidenceObservedAt,
 } from "@/types/resource-drafts";
+import { AVAILABLE_AI_RESOURCE_PROVISIONING } from "@/types/resource-drafts";
 import {
   SUBSCRIPTION_AVAILABILITY_STATUSES,
   SUBSCRIPTION_CONSUMPTION_BASES,
   SUBSCRIPTION_OWNERSHIPS,
 } from "@/types/subscriptions";
 
-export const BEST_FIT_SOURCE_STATE_VERSION = "best-fit-source-state-v1" as const;
+export const BEST_FIT_SOURCE_STATE_VERSION = "best-fit-source-state-v2" as const;
 export const AVAILABLE_AI_RESOURCE_SOURCE_VERSION =
-  "available-ai-resource-sources-v1" as const;
+  "available-ai-resource-sources-v2" as const;
 export const API_CATALOG_OVERRIDE_SOURCE_VERSION =
   "api-catalog-override-sources-v1" as const;
 
-const MAX_RESOURCE_DRAFTS = 4;
 const MAX_API_OVERRIDES = 9;
 const MAX_SOURCE_STRING_LENGTH = 2_000;
 const UI_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
@@ -74,6 +75,7 @@ export const availableAiResourceDraftSourceSchema = z.strictObject({
     version: z.string().min(1).max(200),
   }),
   displayName: z.string().max(200),
+  provisionedBy: z.enum(AVAILABLE_AI_RESOURCE_PROVISIONING),
   ownership: z.enum(SUBSCRIPTION_OWNERSHIPS),
   availability: z.enum(SUBSCRIPTION_AVAILABILITY_STATUSES),
   surface: z.union([z.enum(WORK_SURFACES), z.literal("")]),
@@ -98,7 +100,7 @@ const resourceEvidenceByIdSchema = z.record(
 export const availableAiResourceSourcesSchema = z
   .strictObject({
     contractVersion: z.literal(AVAILABLE_AI_RESOURCE_SOURCE_VERSION),
-    drafts: z.array(availableAiResourceDraftSourceSchema).max(MAX_RESOURCE_DRAFTS),
+    drafts: z.array(availableAiResourceDraftSourceSchema).max(MAX_AVAILABLE_AI_RESOURCES),
     evidenceObservedAtById: resourceEvidenceByIdSchema,
   })
   .superRefine(({ drafts, evidenceObservedAtById }, context) => {
@@ -108,15 +110,6 @@ export const availableAiResourceSourcesSchema = z
         code: "custom",
         path: ["drafts"],
         message: "Available AI resource source IDs must be unique.",
-      });
-    }
-
-    const presetIds = drafts.map(({ preset }) => preset.id);
-    if (new Set(presetIds).size !== presetIds.length) {
-      context.addIssue({
-        code: "custom",
-        path: ["drafts"],
-        message: "Available AI resource presets must be unique.",
       });
     }
 
@@ -232,11 +225,15 @@ export function createEmptyBestFitSourceState(): BestFitSourceState {
 export function createBestFitSourceState(
   input: BestFitSourceStateInput,
 ): BestFitSourceState | null {
+  const normalizedResourceDrafts = input.resourceDrafts.map((draft) => ({
+    ...draft,
+    provisionedBy: draft.provisionedBy ?? "unspecified",
+  }));
   const parsed = bestFitSourceStateSchema.safeParse({
     contractVersion: BEST_FIT_SOURCE_STATE_VERSION,
     availableAiResources: {
       contractVersion: AVAILABLE_AI_RESOURCE_SOURCE_VERSION,
-      drafts: input.resourceDrafts,
+      drafts: normalizedResourceDrafts,
       evidenceObservedAtById: input.resourceEvidenceObservedAtById,
     },
     apiCatalogOverrides: {

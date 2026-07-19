@@ -70,16 +70,21 @@ describe("offering eligibility", () => {
     ).toEqual(["structured-output"]);
   });
 
-  it("keeps the passive current catalog conditional when access and capabilities lack claims", () => {
+  it("confirms the public API route from exact v3 identity, limit, and capability claims", () => {
     expect(resolve()).toMatchObject({
-      status: "conditional",
-      reasonCodes: [
-        "evidence-authority-invalid",
-        "access-limits-incomplete",
-        "model-capabilities-incomplete",
-        "access-capabilities-incomplete",
+      status: "eligible",
+      effectiveLimits: {
+        maxInputTokens: 922_000,
+        maxOutputTokens: 128_000,
+        maxCombinedTokens: 1_050_000,
+      },
+      effectiveCapabilities: [
+        "vision-input",
+        "file-input",
+        "code-editing",
+        "structured-output",
+        "tool-use",
       ],
-      fallbackRequired: true,
     });
   });
 
@@ -87,14 +92,15 @@ describe("offering eligibility", () => {
     const issued = resolve();
     expect(isResolverIssuedOfferingEligibilityResult(issued)).toBe(true);
     expect(Object.isFrozen(issued)).toBe(true);
-    if (issued.status !== "conditional") {
-      throw new Error("Current catalog fixture must remain conditional.");
+    if (issued.status !== "eligible") {
+      throw new Error("Current catalog fixture must resolve as eligible.");
     }
-    expect(Object.isFrozen(issued.reasonCodes)).toBe(true);
+    expect(Object.isFrozen(issued.effectiveCapabilities)).toBe(true);
+    expect(Object.isFrozen(issued.effectiveLimits)).toBe(true);
 
     const clone = {
       ...issued,
-      reasonCodes: [...issued.reasonCodes],
+      effectiveCapabilities: [...issued.effectiveCapabilities],
     } as typeof issued;
     expect(isResolverIssuedOfferingEligibilityResult(clone)).toBe(false);
     expect(isResolverIssuedOfferingEligibilityResult(null)).toBe(false);
@@ -206,10 +212,7 @@ describe("offering eligibility", () => {
     };
     expect(resolve(reused)).toMatchObject({
       status: "conditional",
-      reasonCodes: [
-        "evidence-authority-invalid",
-        "model-capabilities-incomplete",
-      ],
+      reasonCodes: ["evidence-authority-invalid"],
     });
 
     const boundedReuse: ModelBoundOffering = {

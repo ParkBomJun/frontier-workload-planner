@@ -4,7 +4,7 @@ import type {
   AccessCapabilityPolicyClaimValue,
   AccessLimitPolicyClaimValue,
   ModelIdentityClaimValue,
-  OfferingIdentityClaimValue,
+  SubscriptionOfferingIdentityClaimValue,
   RegistryClaimId,
   RegistryClaimValueById,
   SubscriptionEligibilityProfileClaimValue,
@@ -34,6 +34,7 @@ import {
 
 import {
   isResolverIssuedEvidenceForClaim,
+  isResolverIssuedPlannerApiOfferingIdentity,
   isResolverIssuedPlannerQualityTier,
 } from "./evidence-resolver";
 
@@ -246,27 +247,34 @@ function modelIdentityTrusted(model: ModelDefinition): boolean {
   );
 }
 
-function modelBoundOfferingIdentityValue(
+function subscriptionOfferingIdentityValue(
   offering: ModelBoundOffering,
-): OfferingIdentityClaimValue {
+): SubscriptionOfferingIdentityClaimValue {
   return {
     offeringId: offering.id,
     modelId: offering.modelId,
-    mode: offering.mode,
+    mode: "subscription",
     supportedSurfaces: [...offering.supportedSurfaces],
   };
 }
 
 function modelBoundOfferingIdentityTrusted(offering: ModelBoundOffering): boolean {
   const api = offering.mode === "api";
+  if (api) {
+    return isResolverIssuedPlannerApiOfferingIdentity(
+      offering.evidence,
+      offering.registryReference,
+      offering,
+    );
+  }
   return supportsClaim(
     offering.evidence,
     offering.registryReference,
-    api ? "api-offering-identity" : "subscription-offering-identity",
+    "subscription-offering-identity",
     offering.providerId,
     offering.id,
-    api ? "api.offering-identity" : "subscription.offering-identity",
-    modelBoundOfferingIdentityValue(offering),
+    "subscription.offering-identity",
+    subscriptionOfferingIdentityValue(offering),
   );
 }
 
@@ -312,13 +320,14 @@ function accessLimitKnowledge(
       offering.mode === "api" ? "api-access-limits" : "subscription-access-limits";
     const fieldPath =
       offering.mode === "api" ? "api.access-limits" : "subscription.access-limits";
+    const claimSubjectId = offering.mode === "api" ? offering.modelId : offering.id;
     if (
       !supportsClaim(
         policy.evidence,
         offering.registryReference,
         claimId,
         offering.providerId,
-        offering.id,
+        claimSubjectId,
         fieldPath,
         { kind: "same-as-model" } satisfies AccessLimitPolicyClaimValue,
       )
@@ -345,12 +354,13 @@ function accessLimitKnowledge(
     offering.mode === "api" ? "api-access-limits" : "subscription-access-limits";
   const fieldPath =
     offering.mode === "api" ? "api.access-limits" : "subscription.access-limits";
+  const claimSubjectId = offering.mode === "api" ? offering.modelId : offering.id;
   const trusted = supportsClaim(
     profile.evidence,
     offering.registryReference,
     claimId,
     offering.providerId,
-    offering.id,
+    claimSubjectId,
     fieldPath,
     {
       kind: "bounded",
@@ -415,13 +425,14 @@ function accessCapabilityKnowledge(
       offering.mode === "api"
         ? "api.access-capabilities"
         : "subscription.access-capabilities";
+    const claimSubjectId = offering.mode === "api" ? offering.modelId : offering.id;
     if (
       !supportsClaim(
         policy.evidence,
         offering.registryReference,
         claimId,
         offering.providerId,
-        offering.id,
+        claimSubjectId,
         fieldPath,
         { kind: "same-as-model" } satisfies AccessCapabilityPolicyClaimValue,
       )
@@ -449,12 +460,13 @@ function accessCapabilityKnowledge(
     offering.mode === "api"
       ? "api.access-capabilities"
       : "subscription.access-capabilities";
+  const claimSubjectId = offering.mode === "api" ? offering.modelId : offering.id;
   const trusted = supportsClaim(
     profile.evidence,
     offering.registryReference,
     claimId,
     offering.providerId,
-    offering.id,
+    claimSubjectId,
     fieldPath,
     {
       kind: "bounded",
