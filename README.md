@@ -52,7 +52,10 @@ it to invent prices or select a vendor makes the result difficult to reproduce.
 - Offers a free deterministic sample path and an explicit GPT-5.6 analysis path.
 - Produces Low / Expected / High estimates and separates API cash, subscription use, new commitment,
   and paid overage.
-- Recalculates locally when the budget, strategy, task order, or resource observations change.
+- Reuses a completed workload analysis for local recalculation when a changed budget is reconfirmed,
+  or when the strategy, task priority, task deadline, failure impact, resource observations, or
+  bounded price overrides change. Changing task names, descriptions, or task-list membership
+  requires a new sample or Live analysis.
 - Saves and restores one recent source-only scenario and exports allowlisted JSON plus localized
   Markdown.
 - Provides Korean, English, and Japanese interfaces, including responsive mobile layouts.
@@ -76,8 +79,10 @@ No third-party logo is bundled, and no affiliation, sponsorship, or endorsement 
 5. Integer micro-USD arithmetic calculates Low / Expected / High standard-text estimates.
 6. Deterministic ordering applies quality floors, budget relief, quota reservation, fallback, held,
    and infeasible states.
-7. Any later user change reuses the saved workload analysis and recalculates without another model
-   request.
+7. Planning-only changes reuse the saved workload analysis: a reconfirmed budget, strategy, task
+   priority, task deadline, failure impact, resource observation, or bounded price override
+   recalculates without another model request. Editing task names, descriptions, or task-list
+   membership requires a new sample or Live analysis.
 
 ### GPT-5.6's role
 

@@ -830,9 +830,9 @@ receipt, cache, or authority transfer. Only raw source can seed reconstruction, 
 validated and re-resolved before calculation. Continue the explicit allowlist, localized Markdown,
 secret exclusion, stable identity, escaping, and isolated export-error rules.
 
-### Lock the release story to six truthful demonstrations
+### Lock release evidence to six truthful cases
 
-Demonstrate six distinct outcomes: Chat subscription, coding route, Batch API work surface,
+Maintain six distinct evidence cases: Chat subscription, coding route, Batch API work surface,
 selective Premium upgrade, budget-held work, and avoided spend. Label the fixture-only confirmed
 subscription branch as test evidence and keep it separate from the product UI. The third product
 Mock sample must produce an actual `batch` analysis, and a focused test-only fixture must prove the
@@ -1003,3 +1003,20 @@ personally purchased. Preserve the v6 bytes when migration, target validation, o
 This decision supersedes earlier current-product references to four unique presets and a dedicated
 timed-recovery or rolling-quota preset. It does not weaken the prior evidence-authority, source-only
 persistence, API/subscription separation, or audit-only export rules.
+
+## 2026-07-19 — Visible local recalculation feedback
+
+### Keep budget consent and outcome feedback distinct
+
+After a completed analysis, reuse the workload snapshot only for planning-only changes: confirmed
+budget, strategy, priority, task deadline, failure impact, resource observations, and bounded price
+overrides. Task names, descriptions, additions, and removals invalidate the snapshot and require a
+new sample or Live analysis.
+
+Changing the numeric budget revokes its incremental-cash confirmation and shows a persistent pending
+notice; do not present the new amount as applied until the user confirms it again. After budget
+reconfirmation or a strategy change while the budget remains confirmed, compare the user-visible
+route and cost outcome with the previous fingerprint and state whether it changed or remained the
+same. Completed notices dismiss after eight seconds; the pending notice does not auto-dismiss. Keep
+feedback inside the viewport—top-centered on wider screens and bottom-centered on mobile—with
+sufficient contrast and bounded scrolling in short windowed layouts.

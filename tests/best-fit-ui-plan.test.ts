@@ -10,6 +10,7 @@ import {
   type BuildBestFitUiPlanInput,
 } from "@/lib/planning/best-fit-ui-plan";
 import { bestFitPlanOutcomeFingerprint } from "@/lib/planning/plan-outcome";
+import { serializeSubscriptionUsageDescription } from "@/lib/subscriptions/usage-snapshot";
 import {
   createAvailableAiResourceEvidenceObservedAt,
   createDefaultAvailableAiResourceDraft,
@@ -211,7 +212,10 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         feeUsd: "20",
         quota: {
           kind: "opaque",
-          description: "Usage-dependent private limit",
+          description: serializeSubscriptionUsageDescription({
+            fiveHourRemainingPercent: 80,
+            weeklyRemainingPercent: 60,
+          }, "Usage-dependent private limit"),
         },
       },
     ];
@@ -226,6 +230,10 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         uiId: "resource-1",
         status: "conditional",
         reasonCodes: expect.arrayContaining(["quota-opaque"]),
+        usageSnapshot: {
+          fiveHourRemainingPercent: 80,
+          weeklyRemainingPercent: 60,
+        },
       }),
     ]);
     expect(
@@ -233,6 +241,9 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         ({ routeIdentity }) => routeIdentity.resourceId !== null,
       ),
     ).toBe(true);
+    expect(JSON.stringify(result.resourceDiagnostics)).not.toContain(
+      "FWP_USAGE_SNAPSHOT_V1",
+    );
     expect(result.plan.activeTaskCount).toBe(1);
   });
 

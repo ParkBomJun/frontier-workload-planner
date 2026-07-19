@@ -42,9 +42,11 @@ costs with integer micro-USD arithmetic, reserves confirmed quota, deduplicates 
 commitment, and holds lower-priority work when the confirmed cash budget is insufficient. API cash,
 subscription use, new commitment, and paid overage remain separate.
 
-Changing the budget, strategy, task priority, or resource observation recalculates the plan locally
-without another model call. Results explain why a route was chosen, what remains uncertain, what the
-fallback is, and what the user can change next.
+A changed budget must first be explicitly reconfirmed. Strategy, task priority, task deadline,
+failure impact, and resource-observation changes then recalculate the plan locally without another
+model call. Editing task names, descriptions, or the task list requires a new analysis. Results
+explain why a route was chosen, what remains uncertain, what the fallback is, and what the user can
+change next.
 
 ## The two design decisions that matter most
 

@@ -29,7 +29,7 @@ export function resolvePlanUpdateFeedbackAction(
     : "awaiting-budget-confirmation";
 }
 
-export const PLAN_UPDATE_FEEDBACK_DISMISS_MS = 6_000;
+export const PLAN_UPDATE_FEEDBACK_DISMISS_MS = 8_000;
 
 export function planUpdateFeedbackDismissDelay(
   pending: boolean,

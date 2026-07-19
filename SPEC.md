@@ -390,7 +390,8 @@ UI/clock baseline. Checkpoint 8 replaces its temporary session-only boundary wit
 LocalStorage v6 and Best-fit JSON v5/Markdown projections. The post-checkpoint personal-user pass
 extends that boundary to LocalStorage v7, frozen v1–v6 migration, source state v2, and Best-fit
 JSON v6 without changing the calculation result contract. The approved Checkpoint 8 source is now
-merged into `main`; the post-checkpoint pass remains worktree-only until reviewed. The reviewed
+merged into `main`; the post-checkpoint personal-user pass is an unmerged release candidate on
+`wip/personal-user-ux-20260718` and is not yet the public deployment. The reviewed
 API-only provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
@@ -1489,6 +1490,11 @@ per-use sequential expiry; it is not used to approximate combined five-hour and 
 Selecting an exact or calibrated quota continues to require the complete bounded
 numeric observation set.
 
+The result-side subscription diagnostic repeats every recorded remaining-percentage gauge and its
+lowest value so the user can verify that the input was preserved. Those values remain reference-only
+when quota is opaque: without a supported per-task consumption unit, they cannot activate a route,
+become an exact task count, or enter the subscription usage ledger.
+
 The personal-user landing flow presents task input and compact budget preferences first, then one
 optional subscription selector and one full-width plan action. The action follows the inputs it
 uses; it is not stranded in a taller right sidebar. Internal names such as `Best-fit`, `Mock`, and
@@ -1507,8 +1513,13 @@ Checkpoint 7 requires an explicit confirmation before the legacy `budgetUsd` amo
 total incremental-cash budget. Editing that amount revokes confirmation unless the numeric amount
 is unchanged. Confirmation, strategy, task priority/deadline/failure impact, resource drafts, and
 catalog overrides trigger a local deterministic recalculation; they never call `/api/analyze`.
-Task descriptions still require a new Mock or Live analysis. A restored legacy analysis remains in
-the compatibility view until the user explicitly reanalyzes it.
+Task names, descriptions, and task-list membership still require a new Mock or Live analysis. A
+restored legacy analysis remains in the compatibility view until the user explicitly reanalyzes it.
+With a completed Best-fit analysis, editing the budget shows a persistent confirmation-pending
+status. Reconfirming the budget, or changing strategy while the budget remains confirmed,
+recalculates locally. The UI compares the previous and current user-visible plan fingerprints and
+explicitly reports whether routes or estimated costs changed. Completed notices dismiss after eight
+seconds; pending notices do not auto-dismiss.
 The legacy global `deadlineDays` remains compatibility metadata: changing it alone recalculates the
 legacy view and persists the setting but does not advance Best-fit `planningAsOf` or `pricingAsOf`.
 The UI retains the last valid `{ budgetUsd, strategy }` snapshot across invalid form states. On
@@ -1635,7 +1646,8 @@ restore may use the source section only and must re-resolve it; audit data is ex
 not a receipt, resolver result cache, or authority transfer. Legacy JSON v3/v4 and their Markdown
 meaning remain unchanged.
 
-The release demo matrix fixes six distinct outcomes and their truthfulness boundaries:
+The release regression and evidence matrix fixes six distinct outcomes and their truthfulness
+boundaries:
 
 | Demo | Required visible result | Truthfulness boundary |
 | --- | --- | --- |
@@ -1650,7 +1662,8 @@ The six demonstrations may combine deterministic Mock UI analysis and separately
 normalized allocator fixtures. Any fixture-only confirmed subscription or Batch API branch is
 labeled as test evidence and is never presented as a UI-loaded confirmed scenario. No actual preset, connector, public
 deployment, or external provider account is presented as verified merely because the code path can
-be demonstrated.
+be demonstrated. This six-case matrix combines test, fixture, and UI evidence; it is not a
+requirement to stage all six cases as separate scenes in the public submission video.
 
 ### Phase and checkpoint boundary
 

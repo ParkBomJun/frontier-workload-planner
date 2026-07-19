@@ -30,19 +30,15 @@ export function PlanUpdateFeedback({
       aria-live="polite"
       aria-atomic="true"
       data-plan-update-feedback={pending ? "pending" : "complete"}
-      className={`plan-update-feedback flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm shadow-[0_12px_30px_rgba(28,47,37,0.16)] sm:px-5 ${
+      className={`plan-update-feedback flex items-start gap-3 rounded-2xl border px-4 py-3.5 text-sm text-white shadow-[0_18px_50px_rgba(13,40,30,0.3)] sm:px-5 ${
         pending
-          ? "border-[#c88743]/25 bg-[#fff8ec] text-[#71491f]"
-          : "border-[#2f6c55]/20 bg-[#edf5ef] text-[#274d3d]"
+          ? "border-[#9a632c] bg-[#754317]"
+          : "border-[#0f3025] bg-[#173f31]"
       }`}
     >
       <span
         aria-hidden="true"
-        className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-black ${
-          pending
-            ? "bg-[#f4dfbd] text-[#71491f]"
-            : "bg-[#cfe4d5] text-[#20503d]"
-        }`}
+        className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-white/15 text-xs font-black text-white"
       >
         {pending ? "!" : "✓"}
       </span>
@@ -51,7 +47,7 @@ export function PlanUpdateFeedback({
         type="button"
         aria-label={dismissLabel}
         onClick={onDismiss}
-        className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-lg leading-none opacity-65 transition hover:bg-black/5 hover:opacity-100 focus:outline-none focus-visible:ring-4 focus-visible:ring-current/15"
+        className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-full text-lg leading-none opacity-75 transition hover:bg-white/15 hover:opacity-100 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/35"
       >
         <span aria-hidden="true">×</span>
       </button>

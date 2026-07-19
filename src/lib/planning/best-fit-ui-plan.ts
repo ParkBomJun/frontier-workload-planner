@@ -21,6 +21,11 @@ import {
 import { MAX_AVAILABLE_AI_RESOURCES } from "@/config/subscription-presets";
 import { toOfferingEligibilityRequirement } from "@/lib/planning/workload-requirements";
 import { resolveStoredSubscriptionResource } from "@/lib/subscriptions/resource-resolver";
+import {
+  parseSubscriptionUsageDescription,
+  SUBSCRIPTION_USAGE_PERCENT_KEYS,
+  type SubscriptionUsageSnapshot,
+} from "@/lib/subscriptions/usage-snapshot";
 import type { BestFitAllocationPlan } from "@/types/best-fit";
 import type {
   PlanningSettings,
@@ -37,31 +42,35 @@ import type {
 import type { ConditionalReasonCode } from "@/types/offerings";
 import type { ApiCatalogOverride } from "@/types/pricing";
 
+interface BestFitResourceUsageDiagnostic {
+  usageSnapshot?: SubscriptionUsageSnapshot;
+}
+
 export type BestFitResourceDiagnostic =
-  | {
+  | (BestFitResourceUsageDiagnostic & {
       uiId: string;
       displayName: string;
       status: "invalid";
       routeIdentity: null;
       fieldErrors: AvailableAiResourceDraftFieldErrors;
       reasonCodes: readonly [];
-    }
-  | {
+    })
+  | (BestFitResourceUsageDiagnostic & {
       uiId: string;
       displayName: string;
       status: "conditional";
       routeIdentity: RouteIdentity | null;
       fieldErrors: AvailableAiResourceDraftFieldErrors;
       reasonCodes: readonly ConditionalReasonCode[];
-    }
-  | {
+    })
+  | (BestFitResourceUsageDiagnostic & {
       uiId: string;
       displayName: string;
       status: "resolved";
       routeIdentity: RouteIdentity;
       fieldErrors: Readonly<Record<string, never>>;
       reasonCodes: readonly ConditionalReasonCode[];
-    };
+    });
 
 export interface BestFitUiPlan {
   plan: BestFitAllocationPlan;
@@ -147,6 +156,19 @@ function resourceRouteIdentity(
   } as RouteIdentity;
 }
 
+function resourceUsageSnapshot(
+  draft: AvailableAiResourceDraft,
+): SubscriptionUsageSnapshot | undefined {
+  if (draft.quota.kind !== "opaque") return undefined;
+  const snapshot = parseSubscriptionUsageDescription(
+    draft.quota.description,
+  ).snapshot;
+  const hasPercentage = SUBSCRIPTION_USAGE_PERCENT_KEYS.some(
+    (key) => snapshot[key] !== undefined,
+  );
+  return hasPercentage ? snapshot : undefined;
+}
+
 function resolveResourceDrafts(
   drafts: readonly AvailableAiResourceDraft[],
   resourceEvidenceObservedAtById: Readonly<
@@ -161,6 +183,7 @@ function resolveResourceDrafts(
   const resolved: ResolvedDraftForPlanning[] = [];
 
   for (const draft of drafts) {
+    const usageSnapshot = resourceUsageSnapshot(draft);
     const evidenceObservedAt = resourceEvidenceObservedAtById[draft.uiId];
     if (evidenceObservedAt === undefined) {
       diagnostics.push({
@@ -170,6 +193,7 @@ function resolveResourceDrafts(
         routeIdentity: null,
         fieldErrors: { observedAt: "required" },
         reasonCodes: [],
+        ...(usageSnapshot ? { usageSnapshot } : {}),
       });
       continue;
     }
@@ -186,6 +210,7 @@ function resolveResourceDrafts(
           routeIdentity: null,
           fieldErrors: adapted.fieldErrors,
           reasonCodes: [presetReason],
+          ...(usageSnapshot ? { usageSnapshot } : {}),
         });
       } else {
         diagnostics.push({
@@ -195,6 +220,7 @@ function resolveResourceDrafts(
           routeIdentity: null,
           fieldErrors: adapted.fieldErrors,
           reasonCodes: [],
+          ...(usageSnapshot ? { usageSnapshot } : {}),
         });
       }
       continue;
@@ -212,6 +238,7 @@ function resolveResourceDrafts(
         routeIdentity: null,
         fieldErrors: { draft: "strict-resource-invalid" },
         reasonCodes: [],
+        ...(usageSnapshot ? { usageSnapshot } : {}),
       });
       continue;
     }
@@ -223,6 +250,7 @@ function resolveResourceDrafts(
       routeIdentity: resourceRouteIdentity(adapted.resourceInput),
       fieldErrors: {},
       reasonCodes: [...resolution.reasonCodes],
+      ...(usageSnapshot ? { usageSnapshot } : {}),
     });
     resolved.push({
       uiId: draft.uiId,

@@ -81,20 +81,29 @@ button {
   bottom: max(1rem, env(safe-area-inset-bottom));
   left: 1rem;
   max-width: 36rem;
+  max-height: calc(100dvh - 2rem);
   margin-inline: auto;
+  overflow-y: auto;
   animation: plan-update-feedback-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1)
     both;
 }
 
+@media (min-width: 48rem) {
+  .plan-update-feedback {
+    top: 1rem;
+    bottom: auto;
+  }
+}
+
 @keyframes plan-update-feedback-in {
   from {
-    opacity: 0;
-    transform: translateY(0.5rem);
+    opacity: 0.6;
+    transform: translateY(0.35rem) scale(0.99);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 

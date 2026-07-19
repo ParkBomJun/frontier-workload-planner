@@ -311,6 +311,8 @@ export interface BestFitUiCopy {
     unknownExclusionReason: string;
     resourceDiagnostics: string;
     noSubscriptionUsage: string;
+    recordedUsageTitle: string;
+    recordedUsageReferenceOnly: string;
     tasksUsingRoute: (taskIds: string) => string;
     usageUnit: (unit: string) => string;
     usedRange: (low: string, expected: string, high: string) => string;
@@ -711,7 +713,9 @@ const ko: BestFitUiCopy = {
     excludedRoutes: "추천하지 못한 이용 방법",
     unknownExclusionReason: "자세한 제외 이유를 확인하지 못함",
     resourceDiagnostics: "구독 정보 확인 결과",
-    noSubscriptionUsage: "계획에 반영된 구독 사용량이 없습니다.",
+    noSubscriptionUsage: "확정된 추천 경로에 반영된 구독 사용량이 없습니다.",
+    recordedUsageTitle: "입력한 남은 사용량",
+    recordedUsageReferenceOnly: "이 비율은 입력 당시 계정 상태를 기록한 참고값입니다. 작업 1건당 차감량을 알 수 없어 작업에 자동 배정하지 않았습니다.",
     tasksUsingRoute: (taskIds) => `배정 작업: ${taskIds}`,
     usageUnit: (unit) => `기본 단위: ${unit}`,
     usedRange: (low, expected, high) => `사용량 ${low} / ${expected} / ${high}`,
@@ -733,7 +737,7 @@ const ko: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "사용 · 최소 품질 또는 적용된 상향 조건에 따라 고성능 등급이 필요합니다.", "premium-not-triggered": "사용하지 않음 · 고성능 등급이 필요한 조건이 없습니다.", "lower-tier-sufficient": "사용하지 않음 · 더 낮은 등급이 작업 조건을 충족합니다.", "no-compatible-premium-api": "비교 불가 · 작업 조건을 만족하는 고성능 API 계획이 없습니다." },
     upgradeTrigger: { "minimum-quality-requires-premium": "조건을 만족하는 더 낮은 등급 없음", "high-failure-exposure": "실패했을 때 영향이 큼", "deadline-retry-risk": "마감 전에 다시 시도할 여유가 적음", "deep-reasoning": "여러 단계를 생각해야 하는 작업", "large-code-change": "변경할 코드 범위가 큼" },
     exclusionReason: {
-      "catalog-reference-unresolved": "앱에서 해당 모델 정보를 찾지 못함", "catalog-version-mismatch": "저장된 모델 정보가 현재 버전과 맞지 않음", "catalog-claim-mismatch": "저장된 모델 정보가 현재 공식 정보와 다름", "preset-reference-unresolved": "저장된 구독 종류를 찾지 못함", "preset-version-mismatch": "저장된 구독 종류가 현재 버전과 맞지 않음", "connector-unverified": "계정 연결 상태를 확인하지 못함", "connector-binding-mismatch": "연결된 계정 정보가 맞지 않음", "connector-snapshot-stale": "저장된 사용량 정보가 너무 오래됨", "connector-snapshot-replayed": "같은 사용량 정보가 다시 들어옴", "connector-receipt-invalid": "계정 연결 확인 정보가 올바르지 않음", "evidence-authority-invalid": "공식 확인 자료가 없음", "profile-unverified": "이 작업에 맞는 기능인지 확인되지 않음", "model-limits-incomplete": "모델 한도 정보가 부족함", "access-limits-incomplete": "이용 방법의 한도 정보가 부족함", "model-capabilities-incomplete": "모델 기능 정보가 부족함", "access-capabilities-incomplete": "이용 방법의 기능 정보가 부족함", "availability-uncertain": "현재 사용할 수 있는지 확실하지 않음", "consumption-user-observed": "사용량이 사용자 입력값임", "quota-calibrated": "한도가 사용자가 확인한 값으로 입력됨", "quota-opaque": "정확한 한도가 공개되지 않음", "quota-insufficient-observed": "입력한 남은 한도가 부족함", "initial-capacity-unpublished": "새 구독의 시작 한도가 공개되지 않음",
+      "catalog-reference-unresolved": "앱에서 해당 모델 정보를 찾지 못함", "catalog-version-mismatch": "저장된 모델 정보가 현재 버전과 맞지 않음", "catalog-claim-mismatch": "저장된 모델 정보가 현재 공식 정보와 다름", "preset-reference-unresolved": "저장된 구독 종류를 찾지 못함", "preset-version-mismatch": "저장된 구독 종류가 현재 버전과 맞지 않음", "connector-unverified": "계정 연결 상태를 확인하지 못함", "connector-binding-mismatch": "연결된 계정 정보가 맞지 않음", "connector-snapshot-stale": "저장된 사용량 정보가 너무 오래됨", "connector-snapshot-replayed": "같은 사용량 정보가 다시 들어옴", "connector-receipt-invalid": "계정 연결 확인 정보가 올바르지 않음", "evidence-authority-invalid": "공식 확인 자료가 없음", "profile-unverified": "이 작업에 맞는 기능인지 확인되지 않음", "model-limits-incomplete": "모델 한도 정보가 부족함", "access-limits-incomplete": "이용 방법의 한도 정보가 부족함", "model-capabilities-incomplete": "모델 기능 정보가 부족함", "access-capabilities-incomplete": "이용 방법의 기능 정보가 부족함", "availability-uncertain": "현재 사용할 수 있는지 확실하지 않음", "consumption-user-observed": "사용량이 사용자 입력값임", "quota-calibrated": "한도가 사용자가 확인한 값으로 입력됨", "quota-opaque": "작업별 차감량과 정확한 사용 가능량을 확인할 수 없음", "quota-insufficient-observed": "입력한 남은 한도가 부족함", "initial-capacity-unpublished": "새 구독의 시작 한도가 공개되지 않음",
       "model-reference-missing": "연결할 모델 정보가 없음",
       "surface-incompatible": "필요한 사용 환경(채팅, IDE·CLI 등)을 지원하지 않음",
       "below-minimum-quality": "필요한 품질 기준보다 낮음",
@@ -1105,7 +1109,9 @@ const en: BestFitUiCopy = {
     excludedRoutes: "Usage methods not recommended",
     unknownExclusionReason: "Detailed exclusion reason unavailable",
     resourceDiagnostics: "Subscription information check",
-    noSubscriptionUsage: "No subscription usage was included in this plan.",
+    noSubscriptionUsage: "No subscription usage was included in a confirmed recommended route.",
+    recordedUsageTitle: "Remaining usage you entered",
+    recordedUsageReferenceOnly: "These percentages record the account state when entered. They are reference-only and are not assigned to tasks automatically because per-task consumption is unknown.",
     tasksUsingRoute: (taskIds) => `Assigned tasks: ${taskIds}`,
     usageUnit: (unit) => `Native unit: ${unit}`,
     usedRange: (low, expected, high) => `Used ${low} / ${expected} / ${high}`,
@@ -1128,7 +1134,7 @@ const en: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "Used · Minimum quality or an upgrade condition requires the high-performance tier.", "premium-not-triggered": "Not used · No condition requires the high-performance tier.", "lower-tier-sufficient": "Not used · A lower tier meets the task conditions.", "no-compatible-premium-api": "Not comparable · No high-performance API plan meets the task conditions." },
     upgradeTrigger: { "minimum-quality-requires-premium": "No lower tier meets the conditions", "high-failure-exposure": "Failure would have a large impact", "deadline-retry-risk": "Little time to retry before the deadline", "deep-reasoning": "Work requires several reasoning steps", "large-code-change": "A large amount of code must change" },
     exclusionReason: {
-      "catalog-reference-unresolved": "The app cannot find this model", "catalog-version-mismatch": "The saved model information does not match this version", "catalog-claim-mismatch": "The saved model information differs from the current official information", "preset-reference-unresolved": "The saved subscription type cannot be found", "preset-version-mismatch": "The saved subscription type does not match this version", "connector-unverified": "The account connection could not be checked", "connector-binding-mismatch": "The connected account details do not match", "connector-snapshot-stale": "The saved usage information is too old", "connector-snapshot-replayed": "The same usage information was received again", "connector-receipt-invalid": "The account-connection check is invalid", "evidence-authority-invalid": "No official verification information is available", "profile-unverified": "The app cannot verify that this option fits the task", "model-limits-incomplete": "Model limit information is incomplete", "access-limits-incomplete": "Limit information for this usage method is incomplete", "model-capabilities-incomplete": "Model feature information is incomplete", "access-capabilities-incomplete": "Feature information for this usage method is incomplete", "availability-uncertain": "Current availability is uncertain", "consumption-user-observed": "Usage comes from a value entered by the user", "quota-calibrated": "The limit comes from a value checked by the user", "quota-opaque": "The exact limit is not published", "quota-insufficient-observed": "The entered remaining limit is insufficient", "initial-capacity-unpublished": "The starting limit for a new subscription is not published",
+      "catalog-reference-unresolved": "The app cannot find this model", "catalog-version-mismatch": "The saved model information does not match this version", "catalog-claim-mismatch": "The saved model information differs from the current official information", "preset-reference-unresolved": "The saved subscription type cannot be found", "preset-version-mismatch": "The saved subscription type does not match this version", "connector-unverified": "The account connection could not be checked", "connector-binding-mismatch": "The connected account details do not match", "connector-snapshot-stale": "The saved usage information is too old", "connector-snapshot-replayed": "The same usage information was received again", "connector-receipt-invalid": "The account-connection check is invalid", "evidence-authority-invalid": "No official verification information is available", "profile-unverified": "The app cannot verify that this option fits the task", "model-limits-incomplete": "Model limit information is incomplete", "access-limits-incomplete": "Limit information for this usage method is incomplete", "model-capabilities-incomplete": "Model feature information is incomplete", "access-capabilities-incomplete": "Feature information for this usage method is incomplete", "availability-uncertain": "Current availability is uncertain", "consumption-user-observed": "Usage comes from a value entered by the user", "quota-calibrated": "The limit comes from a value checked by the user", "quota-opaque": "Per-task consumption and exact usable capacity cannot be verified", "quota-insufficient-observed": "The entered remaining limit is insufficient", "initial-capacity-unpublished": "The starting limit for a new subscription is not published",
       "model-reference-missing": "No model information is available to connect",
       "surface-incompatible": "Does not support the required environment, such as chat or IDE/CLI",
       "below-minimum-quality": "Below the required quality level",
@@ -1500,7 +1506,9 @@ const ja: BestFitUiCopy = {
     excludedRoutes: "推奨できなかった利用方法",
     unknownExclusionReason: "詳しい除外理由を確認できません",
     resourceDiagnostics: "サブスクリプション情報の確認結果",
-    noSubscriptionUsage: "この計画に反映されたサブスクリプション使用量はありません。",
+    noSubscriptionUsage: "確定した推奨経路に反映されたサブスクリプション使用量はありません。",
+    recordedUsageTitle: "入力した残りの使用量",
+    recordedUsageReferenceOnly: "この割合は入力時点のアカウント状態を記録した参考値です。作業ごとの消費量が不明なため、作業には自動割り当てしていません。",
     tasksUsingRoute: (taskIds) => `割り当て作業：${taskIds}`,
     usageUnit: (unit) => `基本単位：${unit}`,
     usedRange: (low, expected, high) => `使用量 ${low} / ${expected} / ${high}`,
@@ -1523,7 +1531,7 @@ const ja: BestFitUiCopy = {
     whyNotPremium: { "premium-selected": "使用・最低品質または適用条件により高性能グレードが必要です。", "premium-not-triggered": "未使用・高性能グレードが必要となる条件はありません。", "lower-tier-sufficient": "未使用・下位グレードで作業条件を満たします。", "no-compatible-premium-api": "比較不可・作業条件を満たす高性能API計画がありません。" },
     upgradeTrigger: { "minimum-quality-requires-premium": "条件を満たす下位グレードなし", "high-failure-exposure": "失敗した場合の影響が大きい", "deadline-retry-risk": "期限前にやり直す余裕が少ない", "deep-reasoning": "複数段階の検討が必要", "large-code-change": "変更するコードの範囲が大きい" },
     exclusionReason: {
-      "catalog-reference-unresolved": "アプリで該当モデルの情報を見つけられない", "catalog-version-mismatch": "保存されたモデル情報が現在のバージョンと一致しない", "catalog-claim-mismatch": "保存されたモデル情報が現在の公式情報と異なる", "preset-reference-unresolved": "保存されたサブスクリプション種類を見つけられない", "preset-version-mismatch": "保存されたサブスクリプション種類が現在のバージョンと一致しない", "connector-unverified": "アカウント接続を確認できない", "connector-binding-mismatch": "接続されたアカウント情報が一致しない", "connector-snapshot-stale": "保存された使用量情報が古い", "connector-snapshot-replayed": "同じ使用量情報が再び送られた", "connector-receipt-invalid": "アカウント接続の確認情報が正しくない", "evidence-authority-invalid": "公式の確認資料がない", "profile-unverified": "この作業に合う機能か確認できない", "model-limits-incomplete": "モデルの上限情報が不足", "access-limits-incomplete": "この利用方法の上限情報が不足", "model-capabilities-incomplete": "モデルの機能情報が不足", "access-capabilities-incomplete": "この利用方法の機能情報が不足", "availability-uncertain": "現在利用できるか不明", "consumption-user-observed": "使用量はユーザーが入力した値", "quota-calibrated": "上限はユーザーが確認して入力した値", "quota-opaque": "正確な上限が公開されていない", "quota-insufficient-observed": "入力した残り上限が不足", "initial-capacity-unpublished": "新規契約の開始上限が公開されていない",
+      "catalog-reference-unresolved": "アプリで該当モデルの情報を見つけられない", "catalog-version-mismatch": "保存されたモデル情報が現在のバージョンと一致しない", "catalog-claim-mismatch": "保存されたモデル情報が現在の公式情報と異なる", "preset-reference-unresolved": "保存されたサブスクリプション種類を見つけられない", "preset-version-mismatch": "保存されたサブスクリプション種類が現在のバージョンと一致しない", "connector-unverified": "アカウント接続を確認できない", "connector-binding-mismatch": "接続されたアカウント情報が一致しない", "connector-snapshot-stale": "保存された使用量情報が古い", "connector-snapshot-replayed": "同じ使用量情報が再び送られた", "connector-receipt-invalid": "アカウント接続の確認情報が正しくない", "evidence-authority-invalid": "公式の確認資料がない", "profile-unverified": "この作業に合う機能か確認できない", "model-limits-incomplete": "モデルの上限情報が不足", "access-limits-incomplete": "この利用方法の上限情報が不足", "model-capabilities-incomplete": "モデルの機能情報が不足", "access-capabilities-incomplete": "この利用方法の機能情報が不足", "availability-uncertain": "現在利用できるか不明", "consumption-user-observed": "使用量はユーザーが入力した値", "quota-calibrated": "上限はユーザーが確認して入力した値", "quota-opaque": "作業ごとの消費量と正確な利用可能量を確認できない", "quota-insufficient-observed": "入力した残り上限が不足", "initial-capacity-unpublished": "新規契約の開始上限が公開されていない",
       "model-reference-missing": "接続するモデル情報がない",
       "surface-incompatible": "チャットやIDE・CLIなど必要な利用環境に対応していない",
       "below-minimum-quality": "必要な品質基準より低い",

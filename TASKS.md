@@ -305,7 +305,9 @@ storage and route/resource export contract below.
 - [x] Export commitment, capacity snapshot, reset, overage applicability, and evidence metadata
 - [x] Test task/plan/Markdown/JSON route-key and conditional-order parity, and ensure audit snapshots cannot escalate restored authority
 - [x] Verify deterministic allocation, quota accounting, migration, export, accessibility, mobile, and full build
-- [x] Demonstrate chat subscription, coding route, actual Mock Batch analysis plus focused Batch API execution fixture, selective premium, held work, and avoided spend
+- [x] Lock and verify the six-case release evidence matrix: chat subscription, coding route, actual
+      Mock Batch analysis plus a focused Batch API execution fixture, selective Premium, held work,
+      and avoided spend
 - [x] Align README, SPEC, DECISIONS, Devpost, and video copy with the implemented product boundary
 
 ### Post-checkpoint-8 personal-user usability pass
@@ -329,12 +331,14 @@ storage and route/resource export contract below.
 - [x] Explain Codex and Antigravity five-hour plus weekly limits without modeling them as one rolling quota
 - [x] Store one account's product-specific remaining gauges in one opaque usage snapshot and restore them independently
 - [x] Keep the lowest recorded percentage display-only instead of promoting it to capacity or an exact task count
+- [x] Repeat recorded remaining gauges in result diagnostics without promoting them to allocatable quota
 - [x] Warn when Gemini Apps and Antigravity candidate cards may duplicate one new Google plan fee
 - [x] Add a per-resource personal/company-school provisioner choice without implying organization API access
 - [x] Treat organization-provided seats as US$0 in the personal budget while retaining availability, surface, and conditional quota checks
 - [x] Allow up to eight independent resources and repeated presets for separate accounts, but warn against splitting one account's concurrent limits
 - [x] Freeze scenario v6 and migrate to LocalStorage v7, source state v2, preset v2, and Best-fit JSON v6
 - [x] Add a frozen v6 fixture and preserve missing provisioner as `unspecified`
+- [x] Distinguish budget-confirmation pending, recalculated-result changed, and recalculated-result unchanged feedback
 
 ## Provider-comparison P2 backlog — compatibility-view follow-up
 
@@ -348,7 +352,9 @@ storage and route/resource export contract below.
 
 - Personal and organization-managed API access selection; add it only with a versioned source,
   candidate-set binding, restore migration, and export contract rather than a UI-only switch
-- Arbitrary API providers or custom model catalog entries; `Custom subscription` metadata remains planned
+- Arbitrary API providers or custom model catalog entries; the implemented **Other AI subscription**
+  records non-authoritative subscription metadata only and does not add an API provider, model, or
+  verified execution route
 - Direct Claude or Gemini API analysis
 - Cross-provider quality benchmarks or automatic “best model” selection
 - Multiple scenario management

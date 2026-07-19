@@ -308,6 +308,62 @@ describe("Best-fit results renderer", () => {
     }
   });
 
+  it("shows user-entered limit percentages while keeping opaque quota out of automatic assignment", () => {
+    const base = rendererProps();
+    const result: BestFitUiPlan = {
+      ...base.result,
+      resourceDiagnostics: [{
+        uiId: "resource-1",
+        displayName: "Owned subscription",
+        status: "conditional",
+        routeIdentity: subscriptionRoute,
+        fieldErrors: {},
+        reasonCodes: ["quota-opaque"],
+        usageSnapshot: {
+          fiveHourRemainingPercent: 80,
+          weeklyRemainingPercent: 60,
+          modelWeeklyRemainingPercent: 40,
+          modelLabel: "Claude Sonnet",
+        },
+      }],
+    };
+
+    for (const locale of ["ko", "en", "ja"] as readonly UiLocale[]) {
+      languageState.locale = locale;
+      const copy = BEST_FIT_UI_COPY[locale];
+      const markup = renderToStaticMarkup(
+        createElement(BestFitResults, {
+          ...base,
+          result,
+          exportContext: {
+            ...base.exportContext,
+            uiPlan: result,
+          },
+        }),
+      );
+
+      expect(markup).toContain(copy.results.recordedUsageTitle);
+      expect(markup).toContain(
+        copy.resources.usageSnapshot.metricLabels.fiveHourRemainingPercent,
+      );
+      expect(markup).toContain(
+        copy.resources.usageSnapshot.metricLabels.weeklyRemainingPercent,
+      );
+      expect(markup).toContain(
+        copy.resources.usageSnapshot.metricLabels.modelWeeklyRemainingPercent,
+      );
+      expect(markup).toContain(copy.resources.usageSnapshot.remaining(80));
+      expect(markup).toContain(copy.resources.usageSnapshot.remaining(60));
+      expect(markup).toContain(copy.resources.usageSnapshot.remaining(40));
+      expect(markup).toContain("Claude Sonnet");
+      expect(markup).toContain(copy.resources.usageSnapshot.bottleneck(40));
+      expect(markup).toContain(copy.results.recordedUsageReferenceOnly);
+      expect(markup).toContain(copy.enums.exclusionReason["quota-opaque"]);
+      expect(markup).not.toContain("FWP_USAGE_SNAPSHOT_V1");
+      expect(markup).not.toContain("modelWeeklyRemainingPercent");
+    }
+  });
+
   it("renders localized closed exclusion reasons and never leaks raw internal codes", () => {
     for (const locale of ["ko", "en", "ja"] as const) {
       languageState.locale = locale;

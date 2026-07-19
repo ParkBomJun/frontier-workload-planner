@@ -15,6 +15,10 @@ import {
   resourceDraftFieldLabel,
   resourceDraftFieldTargetId,
 } from "@/lib/i18n/resource-draft-field-label";
+import {
+  SUBSCRIPTION_USAGE_PERCENT_KEYS,
+  subscriptionUsageBottleneckPercent,
+} from "@/lib/subscriptions/usage-snapshot";
 import type {
   BestFitResourceDiagnostic,
   BestFitUiPlan,
@@ -839,6 +843,16 @@ export function BestFitResults({
                     ),
                   ]
                 : [];
+              const usageSnapshot = diagnostic.usageSnapshot;
+              const observedUsage = usageSnapshot
+                ? SUBSCRIPTION_USAGE_PERCENT_KEYS.flatMap((metric) => {
+                    const percent = usageSnapshot[metric];
+                    return percent === undefined ? [] : [{ metric, percent }];
+                  })
+                : [];
+              const usageBottleneck = usageSnapshot
+                ? subscriptionUsageBottleneckPercent(usageSnapshot)
+                : null;
               return (
               <li key={diagnostic.uiId} className="rounded-xl bg-white/75 px-3.5 py-3 text-xs leading-5 text-[#6c5437]">
                 <span className="font-bold">{diagnostic.displayName}</span>
@@ -864,6 +878,38 @@ export function BestFitResults({
                       copy.resources.conditionalNotice}
                   </span>
                 )}
+                {observedUsage.length > 0 && usageSnapshot ? (
+                  <div className="mt-3 rounded-xl border border-[#2f6c55]/15 bg-[#edf5ef] p-3 text-[#365649]">
+                    <p className="font-bold text-[#294638]">
+                      {copy.results.recordedUsageTitle}
+                    </p>
+                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                      {observedUsage.map(({ metric, percent }) => {
+                        const model = metric === "modelWeeklyRemainingPercent" &&
+                          usageSnapshot.modelLabel
+                          ? ` (${usageSnapshot.modelLabel})`
+                          : "";
+                        return (
+                          <li
+                            key={metric}
+                            className="min-w-0 max-w-full rounded-full bg-white px-2.5 py-1 font-bold text-[#365649] [overflow-wrap:anywhere]"
+                          >
+                            {copy.resources.usageSnapshot.metricLabels[metric]}
+                            {model}: {copy.resources.usageSnapshot.remaining(percent)}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {usageBottleneck !== null ? (
+                      <p className="mt-2 font-bold text-[#294638]">
+                        {copy.resources.usageSnapshot.bottleneck(usageBottleneck)}
+                      </p>
+                    ) : null}
+                    <p className="mt-1.5 leading-5">
+                      {copy.results.recordedUsageReferenceOnly}
+                    </p>
+                  </div>
+                ) : null}
               </li>
               );
             })}

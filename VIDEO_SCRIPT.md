@@ -1,7 +1,8 @@
 # Frontier Workload Planner — 2:49 English demo script
 
 Target: **2 minutes 49 seconds maximum**. Use English UI and English voiceover for the entire
-recording. Record only after every release prerequisite in `SUBMISSION_CHECKLIST.md` is complete.
+recording. Record after the release SHA is frozen, deployed, and has passed the non-video technical
+and manual gates. Complete the recording, upload, and submission-form gates afterward.
 
 ## Recording safety and truthfulness
 
@@ -21,6 +22,8 @@ recording. Record only after every release prerequisite in `SUBMISSION_CHECKLIST
   server-only key and private URL must never appear. The public sample path must be shown separately.
 - Keep the final upload below three minutes, public on YouTube, with captions checked against the
   spoken English.
+- Show one representative UI path in the short video. The six-case release evidence matrix also
+  includes tests and fixtures; never stage a fixture-only route as a real account result.
 
 ## Shot list and voiceover
 
@@ -69,16 +72,18 @@ provider name or logo.
 > prices, estimates Low, Expected, and High cost, and holds lower-priority work when the confirmed
 > budget is insufficient. The visible reference path in this recording is OpenAI only.
 
-### 1:24–1:38 — Recalculate without GPT
+### 1:24–1:42 — Recalculate without GPT
 
-**Shot:** Change the budget or strategy and show the result update immediately.
+**Shot:** Change the strategy and show the completed update. Then edit the budget, show the
+confirmation-pending notice, select **Plan with this amount**, and show the recalculated result.
 
 **Voiceover:**
 
-> Changing the budget or strategy updates the plan without another model call. That separation
-> keeps model judgment bounded and every later allocation reproducible.
+> Strategy changes recalculate immediately. A budget edit first waits for me to confirm its
+> new-cash meaning. After confirmation, the plan recalculates without another model call and tells
+> me whether the recommendation changed.
 
-### 1:38–2:04 — Restore and privacy
+### 1:42–2:04 — Restore and privacy
 
 **Shot:** Show the plaintext-storage notice, restore the recent scenario, and point to delete and
 export controls without opening private payloads.
