@@ -332,7 +332,7 @@ export interface UiCopy {
 
 const ko: UiCopy = {
   common: {
-    productName: "Frontier Workload Planner",
+    productName: "Nothing More",
     language: "언어",
     languageSelectorHelp: "화면에 표시할 언어를 선택합니다.",
     selected: "선택됨",
@@ -360,12 +360,12 @@ const ko: UiCopy = {
     mockDescription: "서버 전송 없이 이 브라우저에서 예시 결과로 체험",
     liveDescription: "입력한 작업을 GPT-5.6으로 분석",
     storageDisclosure:
-      "계획을 만들면 작업명·설명, 계획 설정, 버전이 기록된 작업 분석, 기준 공급자 선택, 입력한 구독·가격 수정 정보가 저장 기록을 삭제할 때까지 이 브라우저에 평문(암호화되지 않은 글)으로 자동 저장됩니다. 계산된 이용 경로와 비용은 저장하지 않고 복원할 때 다시 계산합니다. API 키는 저장하지 않습니다.",
+      "계획을 만들면 작업명·설명, 계획 설정, 버전이 기록된 작업 분석, 기준 공급자 선택, 입력한 구독·가격 수정 정보가 저장 기록을 삭제할 때까지 이 브라우저에 평문(암호화되지 않은 글)으로 자동 저장됩니다. 계산된 이용 경로와 비용은 저장하지 않고 복원할 때 다시 계산합니다. 사용자 API 키를 입력받거나 이 브라우저에 저장하지 않습니다.",
     submitMock: "예시 계획 만들기",
     submitLive: "내 작업으로 계획 만들기",
     submitting: (count) => `${count}개 작업 분석 중…`,
     mockSafety: "예시 분석은 이 브라우저 안에서만 실행되며 작업명과 설명을 사이트 서버나 외부 AI로 보내지 않습니다. 입력 내용은 위 안내대로 브라우저에 저장될 수 있으니 샘플 작업을 이용해 주세요.",
-    liveSafety: "내 작업 분석을 선택하면 작업명과 설명이 OpenAI로 전송됩니다. 요청은 store:false 설정으로 응답 상태 저장을 끄지만, 이 설정이 보안·악용 모니터링 기록까지 없애지는 않습니다. 해당 기록은 기본적으로 최대 30일 보관되며 법적 의무나 위해 방지를 위해 더 길어질 수 있습니다. API 입력은 기본적으로 모델 학습에 사용되지 않습니다. 민감정보는 입력하지 마세요. API 키는 브라우저로 보내지지 않습니다.",
+    liveSafety: "내 작업 분석을 선택하면 작업명과 설명이 OpenAI로 전송됩니다. OpenAI가 분석 결과를 나중에 다시 조회할 수 있는 응답 기록으로 저장하지 않도록 store:false를 사용하지만, 보안·악용 모니터링 기록이나 암호화된 프롬프트 캐시 등 모든 보관을 없애지는 않습니다. 악용 모니터링 기록은 기본적으로 최대 30일 보관되며 법적 의무나 위해 방지를 위해 더 길어질 수 있습니다. API 입력은 기본적으로 모델 학습에 사용되지 않습니다. 민감정보는 입력하지 마세요. API 키는 브라우저로 보내지지 않습니다.",
     statusLoading: (count) => `${count}개 작업을 분석하고 있습니다.`,
     statusSuccess: (count) => `${count}개 작업 분석이 완료되었습니다.`,
     statusError: "분석 요청을 완료하지 못했습니다.",
@@ -396,7 +396,7 @@ const ko: UiCopy = {
     storageWriteFailed: "브라우저 저장소에 최근 계획을 저장하지 못했습니다.",
     storageDeleted: "브라우저의 최근 저장 기록을 삭제했습니다.",
     storageDeleteFailed: "브라우저 저장 기록을 삭제하지 못했습니다.",
-    storagePlaintextReminder: "작업 설명은 저장 기록을 삭제할 때까지 이 브라우저에 평문으로 유지되며 API 키는 저장하지 않습니다.",
+    storagePlaintextReminder: "작업 설명은 저장 기록을 삭제할 때까지 이 브라우저에 평문으로 유지됩니다. 사용자 API 키를 입력받거나 이 브라우저에 저장하지 않습니다.",
     restoreRecent: "최근 저장본 복원",
     clearRecent: "저장 기록 삭제",
     emptyEyebrow: "계획 미리보기",
@@ -647,7 +647,7 @@ const ko: UiCopy = {
 
 const en: UiCopy = {
   common: {
-    productName: "Frontier Workload Planner",
+    productName: "Nothing More",
     language: "Language",
     languageSelectorHelp: "Choose the language used in the interface.",
     selected: "Selected",
@@ -675,12 +675,12 @@ const en: UiCopy = {
     mockDescription: "Create a sample in this browser without sending it to a server",
     liveDescription: "Analyze your tasks with GPT-5.6",
     storageDisclosure:
-      "When you create a plan, task names and descriptions, planning settings, the versioned workload analysis, the reference-provider choice, and your subscription and price-override inputs are automatically saved as unencrypted plaintext in this browser until you delete the saved plan. Calculated routes and costs are not stored; they are recalculated on restore. The API key is never stored.",
+      "When you create a plan, task names and descriptions, planning settings, the versioned workload analysis, the reference-provider choice, and your subscription and price-override inputs are automatically saved as unencrypted plaintext in this browser until you delete the saved plan. Calculated routes and costs are not stored; they are recalculated on restore. The app does not ask for a user's API key or store one in this browser.",
     submitMock: "Create a sample plan",
     submitLive: "Create a plan from my tasks",
     submitting: (count) => `Analyzing ${count} task${count === 1 ? "" : "s"}…`,
     mockSafety: "Sample analysis runs only in this browser and does not send task names or descriptions to the site server or an external AI. Input may still be saved in this browser as disclosed above, so use the sample tasks.",
-    liveSafety: "When you analyze your own tasks, task names and descriptions are sent to OpenAI. The request uses store:false to disable response application-state storage, but this does not disable security and abuse-monitoring logs. Those logs are normally retained for up to 30 days and may be kept longer when legally required or reasonably necessary to prevent harm. API inputs are not used for model training by default. Do not enter sensitive information. The API key is never sent to the browser.",
+    liveSafety: "When you analyze your own tasks, task names and descriptions are sent to OpenAI. The request uses store:false so OpenAI does not keep the result as a response record that can be retrieved later, but this does not eliminate all retention, including security and abuse-monitoring logs or encrypted prompt caching. Abuse-monitoring logs are normally retained for up to 30 days and may be kept longer when legally required or reasonably necessary to prevent harm. API inputs are not used for model training by default. Do not enter sensitive information. The API key is never sent to the browser.",
     statusLoading: (count) => `Analyzing ${count} task${count === 1 ? "" : "s"}.`,
     statusSuccess: (count) => `Analysis complete for ${count} task${count === 1 ? "" : "s"}.`,
     statusError: "The analysis request could not be completed.",
@@ -711,7 +711,7 @@ const en: UiCopy = {
     storageWriteFailed: "Could not save the recent plan in browser storage.",
     storageDeleted: "Deleted the saved plan from this browser.",
     storageDeleteFailed: "Could not delete the browser record.",
-    storagePlaintextReminder: "Task descriptions remain as plaintext in this browser until you delete the saved plan. The API key is not stored.",
+    storagePlaintextReminder: "Task descriptions remain as plaintext in this browser until you delete the saved plan. The app does not ask for a user's API key or store one in this browser.",
     restoreRecent: "Restore recent plan",
     clearRecent: "Delete saved plan",
     emptyEyebrow: "Plan preview",
@@ -963,7 +963,7 @@ const en: UiCopy = {
 
 const ja: UiCopy = {
   common: {
-    productName: "Frontier Workload Planner",
+    productName: "Nothing More",
     language: "言語",
     languageSelectorHelp: "画面に表示する言語を選択します。",
     selected: "選択済み",
@@ -991,12 +991,12 @@ const ja: UiCopy = {
     mockDescription: "サーバーへ送信せず、このブラウザでサンプル結果を試す",
     liveDescription: "入力した作業をGPT-5.6で分析",
     storageDisclosure:
-      "計画を作成すると、タスク名・説明、計画設定、バージョン付きの作業分析、基準プロバイダーの選択、入力したサブスクリプション・料金修正情報が、保存記録を削除するまで暗号化されていない平文でこのブラウザに自動保存されます。計算済みの利用経路と費用は保存せず、復元時に再計算します。APIキーは保存しません。",
+      "計画を作成すると、タスク名・説明、計画設定、バージョン付きの作業分析、基準プロバイダーの選択、入力したサブスクリプション・料金修正情報が、保存記録を削除するまで暗号化されていない平文でこのブラウザに自動保存されます。計算済みの利用経路と費用は保存せず、復元時に再計算します。利用者のAPIキーの入力を求めず、このブラウザにも保存しません。",
     submitMock: "サンプル計画を作成",
     submitLive: "自分の作業から計画を作成",
     submitting: (count) => `${count}件のタスクを分析中…`,
     mockSafety: "サンプル分析はこのブラウザ内だけで実行され、タスク名や説明をサイトのサーバーや外部AIへ送りません。入力内容は上の案内どおりブラウザに保存される場合があるため、サンプルタスクを利用してください。",
-    liveSafety: "自分の作業を分析すると、タスク名と説明がOpenAIへ送信されます。リクエストはstore:falseで応答のアプリケーション状態保存を無効にしますが、セキュリティ・不正利用監視ログまで無効になるわけではありません。これらのログは通常最大30日間保持され、法的義務または危害防止のためにさらに長く保持される場合があります。API入力は初期設定ではモデル学習に使われません。機密情報を入力しないでください。APIキーはブラウザへ送られません。",
+    liveSafety: "自分の作業を分析すると、タスク名と説明がOpenAIへ送信されます。OpenAIが後から取得できる応答記録として結果を保存しないようstore:falseを使いますが、セキュリティ・不正利用監視ログや暗号化されたプロンプトキャッシュなど、すべての保持をなくすものではありません。不正利用監視ログは通常最大30日間保持され、法的義務または危害防止のためにさらに長く保持される場合があります。API入力は初期設定ではモデル学習に使われません。機密情報を入力しないでください。APIキーはブラウザへ送られません。",
     statusLoading: (count) => `${count}件のタスクを分析しています。`,
     statusSuccess: (count) => `${count}件のタスク分析が完了しました。`,
     statusError: "分析リクエストを完了できませんでした。",
@@ -1027,7 +1027,7 @@ const ja: UiCopy = {
     storageWriteFailed: "ブラウザストレージへ最近の計画を保存できませんでした。",
     storageDeleted: "このブラウザの最近の保存データを削除しました。",
     storageDeleteFailed: "ブラウザの保存データを削除できませんでした。",
-    storagePlaintextReminder: "タスク説明は保存記録を削除するまでこのブラウザに平文で残り、APIキーは保存しません。",
+    storagePlaintextReminder: "タスク説明は保存記録を削除するまでこのブラウザに平文で残ります。利用者のAPIキーの入力を求めず、このブラウザにも保存しません。",
     restoreRecent: "最近の計画を復元",
     clearRecent: "保存データを削除",
     emptyEyebrow: "計画プレビュー",

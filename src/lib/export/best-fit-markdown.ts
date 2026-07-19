@@ -86,7 +86,7 @@ interface BestFitMarkdownCopy {
 
 const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
   ko: {
-    title: "Frontier Workload Planner — 맞춤 이용 계획",
+    title: "Nothing More — 맞춤 이용 계획",
     tagline: "> 입력값과 공개 가격을 기준으로 만든 계획입니다. 아래 계산 상세는 검토용이며 복원 입력으로 사용하지 않습니다.",
     exportInformation: "내보내기 정보",
     exportedAt: "내보낸 시각",
@@ -161,7 +161,7 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     statuses: { active: "실행", held: "보류", infeasible: "실행 불가" },
   },
   en: {
-    title: "Frontier Workload Planner — tailored usage plan",
+    title: "Nothing More — tailored usage plan",
     tagline: "> A plan based on your inputs and published prices. The calculation details below are for review and are not restore inputs.",
     exportInformation: "Export information",
     exportedAt: "Exported at",
@@ -236,7 +236,7 @@ const COPY: Record<UiLocale, BestFitMarkdownCopy> = {
     statuses: { active: "Active", held: "Held", infeasible: "Infeasible" },
   },
   ja: {
-    title: "Frontier Workload Planner — 作業別の利用計画",
+    title: "Nothing More — 作業別の利用計画",
     tagline: "> 入力値と公開料金を基に作成した計画です。以下の計算詳細は確認用で、復元入力には使いません。",
     exportInformation: "エクスポート情報",
     exportedAt: "エクスポート日時",

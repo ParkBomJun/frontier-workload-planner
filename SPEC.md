@@ -1,4 +1,4 @@
-# Frontier Workload Planner — MVP Specification
+# Nothing More — MVP Specification
 
 Last updated: 2026-07-19
 
@@ -6,7 +6,7 @@ Internal target: 2026-07-21
 
 ## Product statement
 
-Frontier Workload Planner turns up to eight task descriptions into explainable, budget-aware
+Nothing More turns up to eight task descriptions into explainable, budget-aware
 recommended plans across three published model catalogs. GPT-5.6 is the only analysis engine;
 Claude and Gemini APIs are never called. The cross-provider tier mapping is a budget-planning
 heuristic, not a quality ranking, benchmark, quote, or mathematically optimal allocation.

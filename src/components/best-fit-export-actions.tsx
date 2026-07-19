@@ -42,7 +42,7 @@ async function copyText(value: string): Promise<void> {
 }
 
 function exportFilename(timestamp: string): string {
-  return `frontier-work-plan-${timestamp.replace(/[:.]/g, "-")}.json`;
+  return `nothing-more-work-plan-${timestamp.replace(/[:.]/g, "-")}.json`;
 }
 
 export function BestFitExportActions({ context }: BestFitExportActionsProps) {

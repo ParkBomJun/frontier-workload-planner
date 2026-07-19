@@ -11,7 +11,7 @@ const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value:
-      "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+      "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; connect-src 'self'",
   },
 ] as const;
 

@@ -1020,3 +1020,32 @@ route and cost outcome with the previous fingerprint and state whether it change
 same. Completed notices dismiss after eight seconds; the pending notice does not auto-dismiss. Keep
 feedback inside the viewport—top-centered on wider screens and bottom-centered on mobile—with
 sufficient contrast and bounded scrolling in short windowed layouts.
+
+## 2026-07-19 — User-owned product name
+
+### Use Nothing More as the visible name without breaking technical identifiers
+
+The project owner chose **Nothing More** to express the product rule: use only what is useful and do
+not add another subscription or API expense without a reason. Use `Nothing More` in the interface,
+metadata, result exports, README, submission copy, and demo script. Pair it with the explanatory
+line `Use what works. Skip the rest.` where a first-time reader needs context.
+
+Keep the GitHub repository slug, Vercel URL, preview-image filename, npm package name, and existing
+LocalStorage keys under `frontier-workload-planner`. Those values are technical identifiers already
+used by links, deployment configuration, and saved browser data; changing them for a display-name
+update would break continuity without improving the user-facing product.
+
+## 2026-07-19 — Executable Live privacy evidence
+
+### Test the enabled path without publishing a paid endpoint
+
+Keep public Live disabled, but make the enabled path auditable. Replace the OpenAI SDK in regression
+tests and assert the exact classification allowlist, `store:false`, server-environment key use,
+fail-closed gate, no-store responses, and containment of raw upstream errors. Do not use a real key
+or real network call in this suite.
+
+Add production `connect-src 'self'` so browser code can call only the same-origin application
+boundary. This does not claim that the backend or infrastructure leaves no metadata; it prevents an
+accidental new client-side data destination. Keep the separate final-release requirement for one
+protected local GPT-5.6 call using synthetic content, because a fake SDK proves data minimization but
+not provider availability.

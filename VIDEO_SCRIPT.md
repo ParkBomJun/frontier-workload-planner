@@ -1,4 +1,4 @@
-# Frontier Workload Planner — 2:49 English demo script
+# Nothing More — 2:49 English demo script
 
 Target: **2 minutes 49 seconds maximum**. Use English UI and English voiceover for the entire
 recording. Record after the release SHA is frozen, deployed, and has passed the non-video technical
@@ -34,7 +34,7 @@ and manual gates. Complete the recording, upload, and submission-form gates afte
 **Voiceover:**
 
 > Many people already pay for AI tools, but still cannot tell which access method fits a task or
-> what new cash it may require. Frontier Workload Planner turns that uncertainty into an explainable
+> what new cash it may require. Nothing More turns that uncertainty into an explainable
 > personal plan.
 
 ### 0:17–0:38 — Simple input

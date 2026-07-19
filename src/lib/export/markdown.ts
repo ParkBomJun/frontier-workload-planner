@@ -397,7 +397,7 @@ export function createPlanMarkdown(
   const numberLocale = UI_LOCALE_META[locale].numberLocale;
   const sourceTaskById = new Map(sourceTasks.map((task) => [task.id, task]));
   const lines: string[] = [
-    "# Frontier Workload Planner",
+    "# Nothing More",
     "",
     copy.tagline,
     "",

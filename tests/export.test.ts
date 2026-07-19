@@ -247,7 +247,7 @@ describe("plan JSON export", () => {
     expect(parsed).toMatchObject({
       schemaVersion: PLAN_JSON_SCHEMA_VERSION,
       exportedAt,
-      product: "Frontier Workload Planner",
+      product: "Nothing More",
       analysis: {
         mode: "mock",
         model: "mock-fixture-v2",
