@@ -402,11 +402,22 @@ function sameRoute(left: RouteIdentity, right: RouteIdentity): boolean {
 function routeLabel(
   route: RouteIdentity,
   resources: readonly BestFitResourceDiagnostic[],
+  unknownLabel: string,
 ): string {
   const resource = resources.find(
     (item) => item.routeIdentity !== null && sameRoute(item.routeIdentity, route),
   );
-  if (resource) return `${resource.displayName} · ${route.providerId}`;
+  if (resource) {
+    const providerName =
+      route.providerId in PROVIDER_CATALOG
+        ? PROVIDER_CATALOG[
+            route.providerId as keyof typeof PROVIDER_CATALOG
+          ].displayName
+        : null;
+    return providerName
+      ? `${resource.displayName} · ${providerName}`
+      : resource.displayName;
+  }
   if (route.providerId in PROVIDER_CATALOG) {
     const provider = PROVIDER_CATALOG[
       route.providerId as keyof typeof PROVIDER_CATALOG
@@ -420,7 +431,7 @@ function routeLabel(
       ? `${provider.displayName} API · ${model.displayName}`
       : `${provider.displayName} API`;
   }
-  return `${route.providerId} · ${route.offeringId}`;
+  return unknownLabel;
 }
 
 function scenarioCurrency(
@@ -632,7 +643,11 @@ export function BestFitResults({
                   <dt className="text-xs font-bold text-[#68766e]">{copy.results.accessRoute}</dt>
                   <dd className="mt-1 break-words text-sm font-bold text-[#294638]">
                     {taskResult.status === "active"
-                      ? routeLabel(taskResult.routeIdentity, result.resourceDiagnostics)
+                      ? routeLabel(
+                          taskResult.routeIdentity,
+                          result.resourceDiagnostics,
+                          copy.results.unknownRouteLabel,
+                        )
                       : copy.results.noConfirmedRoute}
                   </dd>
                   {taskResult.status === "active" ? (
@@ -682,7 +697,11 @@ export function BestFitResults({
                       <dt className="text-xs font-bold text-[#68766e]">{copy.results.alternative}</dt>
                       <dd className="mt-1 break-words text-sm leading-6 text-[#46564d]">
                         {taskResult.alternativeRouteIdentity
-                          ? routeLabel(taskResult.alternativeRouteIdentity, result.resourceDiagnostics)
+                          ? routeLabel(
+                              taskResult.alternativeRouteIdentity,
+                              result.resourceDiagnostics,
+                              copy.results.unknownRouteLabel,
+                            )
                           : coreCopy.common.none}
                       </dd>
                     </div>
@@ -725,6 +744,7 @@ export function BestFitResults({
                           {routeLabel(
                             alternative.routeIdentity,
                             result.resourceDiagnostics,
+                            copy.results.unknownRouteLabel,
                           )}
                         </span>
                         <span className="block">
@@ -734,6 +754,7 @@ export function BestFitResults({
                           {copy.results.alternative}: {routeLabel(
                             alternative.fallbackRouteIdentity,
                             result.resourceDiagnostics,
+                            copy.results.unknownRouteLabel,
                           )}
                         </span>
                       </li>
@@ -753,7 +774,13 @@ export function BestFitResults({
                   <ul className="mt-3 space-y-2">
                     {candidateSet.excludedRoutes.map((excluded) => (
                       <li key={JSON.stringify(excluded.routeIdentity)} className="break-words rounded-lg bg-[#f5f7f3] px-3 py-2 text-xs leading-5 text-[#5f6d65]">
-                        <span className="font-bold">{routeLabel(excluded.routeIdentity, result.resourceDiagnostics)}</span>
+                        <span className="font-bold">
+                          {routeLabel(
+                            excluded.routeIdentity,
+                            result.resourceDiagnostics,
+                            copy.results.unknownRouteLabel,
+                          )}
+                        </span>
                         <span className="mt-0.5 block">
                           {excluded.reasonCodes.map(localizedReason).join(" · ")}
                         </span>
@@ -777,7 +804,13 @@ export function BestFitResults({
               const { low, expected, high } = ledger.scenarios;
               return (
                 <li key={JSON.stringify(ledger.routeIdentity)} className="min-w-0 rounded-xl bg-white p-4 text-xs leading-5 text-[#536159]">
-                  <p className="break-words font-bold text-[#294638]">{routeLabel(ledger.routeIdentity, result.resourceDiagnostics)}</p>
+                  <p className="break-words font-bold text-[#294638]">
+                    {routeLabel(
+                      ledger.routeIdentity,
+                      result.resourceDiagnostics,
+                      copy.results.unknownRouteLabel,
+                    )}
+                  </p>
                   <p className="mt-1">{copy.results.usageUnit(copy.enums.quotaUnit[ledger.quotaUnit])}</p>
                   <p>{copy.results.usedRange(formatQuota(low.totalDemandMicrounits), formatQuota(expected.totalDemandMicrounits), formatQuota(high.totalDemandMicrounits))}</p>
                   <p>{copy.results.remainingRange(formatQuota(low.remainingIncludedMicrounits), formatQuota(expected.remainingIncludedMicrounits), formatQuota(high.remainingIncludedMicrounits))}</p>
@@ -824,14 +857,6 @@ export function BestFitResults({
                         <li key={label}>{label}</li>
                       ))}
                     </ul>
-                    <details className="mt-1">
-                      <summary className="min-h-11 cursor-pointer py-2 font-bold">
-                        {copy.resources.technicalDetails}
-                      </summary>
-                      <code className="block break-words rounded-lg bg-[#fff7e8] px-2.5 py-2">
-                        {Object.keys(diagnostic.fieldErrors).join(", ")}
-                      </code>
-                    </details>
                   </div>
                 ) : (
                   <span className="mt-1 block">

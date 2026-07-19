@@ -309,7 +309,7 @@ API provider identity remains separate from extensible access-provider identity.
 including a model-opaque subscription, has an immutable locale-independent access-provider ID.
 Every execution path uses the same structured `(providerId, offeringId, resourceId)` identity: APIs
 use a null resource, while subscriptions use their stable source resource ID. This avoids forcing
-ChatGPT, GitHub, GLM, or Custom subscription values into every current `Record<ProviderId, ...>`
+ChatGPT, GitHub, timed-recovery coding, or Custom subscription values into every current `Record<ProviderId, ...>`
 consumer and closes ties between multiple accounts for one Offering. Registered IDs come from the
 registry; Custom access providers use the exact planner-owned `custom.<stable-id>` namespace. The
 suffix is a stable identifier, not a display label or unvalidated provider name. The existing
@@ -929,3 +929,77 @@ focus there. Keep provider/evidence diagnostics behind progressive disclosure. A
 a blocking state, but it must not end with a generic `OK`, expose internal reason codes, or ask the
 user to repair catalog data owned by the app. Non-blocking account preparation belongs in the result
 content rather than an error dialog.
+
+### Separate plan inclusion from account ownership
+
+Let a user decide whether an entered subscription can be used for the current plan. Keep excluded
+subscriptions as saved source input, but do not use them as recommendation candidates. Phrase this
+as a plan-specific choice instead of the internal `available` / `unavailable` status names.
+
+Treat a company- or school-provided chat or coding-tool account as a subscription resource only. It
+does not prove access to an organization API project, billing account, model allowlist, or budget.
+Do not add a cosmetic `personal API` / `enterprise API` switch: making that choice authoritative
+requires a new versioned selection source carried through candidate issuance, restore, calculation,
+and export. Defer that contract change until after the submission freeze, and never request or store
+API keys, organization IDs, email addresses, or account balances in this browser planner.
+
+## 2026-07-19 — Mixed personal/organization resources and current coding products
+
+### Use one provisioner choice per resource, not a global Enterprise tab
+
+Users can combine a personally paid ChatGPT account, a company Copilot seat, and another personal
+coding tool in one plan. Add `어떻게 제공받았나요?` to each resource with `personal`,
+`organization`, and migration-only `unspecified` values. An organization-provided resource is always
+an already assigned resource, contributes US$0 to the user's personal incremental-cash budget in
+this calculation, and still requires an explicit availability and work-surface choice. Shared
+organization capacity, administrator policy, and overage permission remain unknown unless observed;
+the planner never divides an organization pool among seats or treats it as unlimited.
+
+This provisioner choice describes a chat or coding-tool seat only. It does not prove access to an
+organization API project, model allowlist, billing account, or budget. Company API projects remain a
+future separately versioned source and ledger rather than a cosmetic UI switch.
+
+### Separate products whose entitlements and quota clocks differ
+
+Expose current non-authoritative presets for ChatGPT/Codex, Claude, Gemini Apps chat, Google Antigravity,
+Gemini Code Assist Standard/Enterprise, GitHub Copilot, and a custom subscription. Gemini Apps chat,
+personal Antigravity, organization-managed Code Assist, and Gemini API are separate access products.
+Code Assist defaults to organization-provided; all other named presets default to personal, while
+the user can change the provisioner when their actual arrangement differs.
+
+One Google AI Pro or Ultra payment may expose both Gemini Apps chat and Antigravity. The current
+resource identity and commitment ledger cannot group two access routes under one payment contract,
+so the editor warns when both are marked as candidate-new. It does not silently set one fee to zero
+or deduplicate by vendor, because separate accounts can have separate payments. Until a versioned
+commitment-group source is added, a user considering one new Google plan records only the route they
+intend to use; existing accounts may still record both routes because existing fees are not added to
+incremental cash.
+
+Codex and Antigravity may show both a five-hour baseline and a weekly limit. Preserve this as opaque
+quota text unless the official screen supplies one exact supported numeric shape. The personal-user
+editor may encode one current observation as `FWP_USAGE_SNAPSHOT_V1` inside that opaque description:
+multiple 0–100 integer gauges remain separate, and their minimum is only a UI summary of the lowest
+recorded headroom. It is not quota capacity, provider evidence, or a computed task count. Do not
+describe a five-hour limit as if each use necessarily expires exactly five hours later. Keep a
+rolling reset input only for services whose official UI explicitly describes per-use sequential
+expiry; there is no generic rolling-quota product preset.
+
+### Distinguish separate accounts from multiple limits on one account
+
+Allow up to eight resources and permit repeated preset IDs because two separately authenticated
+accounts are distinct capacity. Keep their `uiId` values unique. Do not instruct users to split a
+single account's five-hour, weekly, model-specific, or shared limits into multiple cards: the
+allocator would incorrectly treat those cards as independent resources.
+
+### Version every changed persistence boundary
+
+Freeze LocalStorage v6, `best-fit-source-state-v1`,
+`available-ai-resource-sources-v1`, subscription presets v1, and Best-fit JSON v5. Publish the
+expanded source as LocalStorage v7, source-state/resource-source v2, subscription presets v2, and
+Best-fit JSON v6. Migrate valid v1–v5 scenarios to an empty v2 source state. Migrate valid v6 source
+facts intact while assigning `provisionedBy: "unspecified"`; never reinterpret a legacy resource as
+personally purchased. Preserve the v6 bytes when migration, target validation, or rewrite fails.
+
+This decision supersedes earlier current-product references to four unique presets and a dedicated
+timed-recovery or rolling-quota preset. It does not weaken the prior evidence-authority, source-only
+persistence, API/subscription separation, or audit-only export rules.

@@ -221,7 +221,7 @@ offerings therefore are not silently promoted to confirmed Best-fit routes.
 - [x] Count a new subscription commitment once and existing included use as `$0` incremental cash
 - [x] Keep subscription consumption and API spend in separate ledgers
 - [x] Reject resolver-issued hard-ineligible routes and require an API fallback for uncertain capacity
-- [x] Add honest ChatGPT-like, GitHub Copilot-like, GLM-like, and Custom subscription presets
+- [x] Add the initial four bounded subscription presets; the post-checkpoint pass supersedes their product list without promoting preset evidence
 - [x] Test exact and fractional quota boundaries, 0/100 percent, NaN/Infinity, unit mismatch, duplicate reservation, and fallback failure
 - [x] Test valid/oversized/unresolved initial capacity without fabricating a provider-published positive source
 - [x] Prove conditional-only routes cannot set active/all-active; fallback budget arithmetic has an exact boundary and missing/unconfirmed fallback is infeasible
@@ -325,6 +325,16 @@ storage and route/resource export contract below.
 - [x] Stop blocking plans on app-owned catalog gaps and keep personal account readiness separate
 - [x] Link active API recommendations to provider setup guides without requesting or storing keys
 - [x] Send blocking form recovery to the first exact field and keep technical route reasons secondary
+- [x] Separate ChatGPT/Codex, Claude, Gemini Apps chat, Google Antigravity, organization Gemini Code Assist, GitHub Copilot, and Custom presets
+- [x] Explain Codex and Antigravity five-hour plus weekly limits without modeling them as one rolling quota
+- [x] Store one account's product-specific remaining gauges in one opaque usage snapshot and restore them independently
+- [x] Keep the lowest recorded percentage display-only instead of promoting it to capacity or an exact task count
+- [x] Warn when Gemini Apps and Antigravity candidate cards may duplicate one new Google plan fee
+- [x] Add a per-resource personal/company-school provisioner choice without implying organization API access
+- [x] Treat organization-provided seats as US$0 in the personal budget while retaining availability, surface, and conditional quota checks
+- [x] Allow up to eight independent resources and repeated presets for separate accounts, but warn against splitting one account's concurrent limits
+- [x] Freeze scenario v6 and migrate to LocalStorage v7, source state v2, preset v2, and Best-fit JSON v6
+- [x] Add a frozen v6 fixture and preserve missing provisioner as `unspecified`
 
 ## Provider-comparison P2 backlog — compatibility-view follow-up
 
@@ -336,6 +346,8 @@ storage and route/resource export contract below.
 
 ## Explicitly deferred
 
+- Personal and organization-managed API access selection; add it only with a versioned source,
+  candidate-set binding, restore migration, and export contract rather than a UI-only switch
 - Arbitrary API providers or custom model catalog entries; `Custom subscription` metadata remains planned
 - Direct Claude or Gemini API analysis
 - Cross-provider quality benchmarks or automatic “best model” selection

@@ -18,6 +18,7 @@ import {
   adaptAvailableAiResourceDraft,
   recoverableAvailableAiResourcePresetReason,
 } from "@/lib/planning/resource-drafts";
+import { MAX_AVAILABLE_AI_RESOURCES } from "@/config/subscription-presets";
 import { toOfferingEligibilityRequirement } from "@/lib/planning/workload-requirements";
 import { resolveStoredSubscriptionResource } from "@/lib/subscriptions/resource-resolver";
 import type { BestFitAllocationPlan } from "@/types/best-fit";
@@ -269,6 +270,9 @@ export function buildBestFitUiPlan(
   }
   if (new Set(input.resourceDrafts.map(({ uiId }) => uiId)).size !== input.resourceDrafts.length) {
     throw new Error("Best-fit UI planning requires unique resource draft identities.");
+  }
+  if (input.resourceDrafts.length > MAX_AVAILABLE_AI_RESOURCES) {
+    throw new Error("Best-fit UI planning received too many resource drafts.");
   }
   if (
     !Number.isFinite(input.incrementalCashBudgetUsd) ||

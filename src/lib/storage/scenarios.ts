@@ -12,14 +12,17 @@ import {
   historicalRecentScenarioV3Schema,
   historicalRecentScenarioV4Schema,
   historicalRecentScenarioV5Schema,
+  historicalRecentScenarioV6Schema,
   type HistoricalRecentScenarioV1,
   type HistoricalRecentScenarioV2,
   type HistoricalRecentScenarioV3,
   type HistoricalRecentScenarioV4,
   type HistoricalRecentScenarioV5,
+  type HistoricalRecentScenarioV6,
 } from "@/lib/storage/historical-schemas";
 import {
   bestFitSourceStateSchema,
+  createBestFitSourceState,
   createEmptyBestFitSourceState,
   type BestFitSourceState,
 } from "@/lib/storage/best-fit-sources";
@@ -30,7 +33,7 @@ import {
 } from "@/types/domain";
 
 export const RECENT_SCENARIO_STORAGE_KEY = "frontier-workload-planner:recent-scenario";
-export const RECENT_SCENARIO_VERSION = 6;
+export const RECENT_SCENARIO_VERSION = 7;
 
 interface KeyValueStorage {
   getItem(key: string): string | null;
@@ -168,7 +171,8 @@ type HistoricalScenario =
   | HistoricalRecentScenarioV2
   | HistoricalRecentScenarioV3
   | HistoricalRecentScenarioV4
-  | HistoricalRecentScenarioV5;
+  | HistoricalRecentScenarioV5
+  | HistoricalRecentScenarioV6;
 
 type HistoricalMigrationResult =
   | { ok: true; scenario: RecentScenario }
@@ -308,7 +312,7 @@ function adaptV4ToV5(
   return parsed.success ? parsed.data : null;
 }
 
-function adaptV5ToV6Candidate(
+function adaptV5ToV7Candidate(
   scenario: HistoricalRecentScenarioV5,
 ): unknown {
   return {
@@ -322,9 +326,44 @@ function adaptV5ToV6Candidate(
   };
 }
 
+function adaptV6ToV7Candidate(
+  scenario: HistoricalRecentScenarioV6,
+): unknown | null {
+  const bestFitSources = createBestFitSourceState({
+    resourceDrafts: scenario.bestFitSources.availableAiResources.drafts.map(
+      (draft) => ({ ...draft, provisionedBy: "unspecified" as const }),
+    ),
+    resourceEvidenceObservedAtById:
+      scenario.bestFitSources.availableAiResources.evidenceObservedAtById,
+    apiOverrides: scenario.bestFitSources.apiCatalogOverrides.overrides,
+  });
+  if (bestFitSources === null) return null;
+
+  return {
+    schemaVersion: RECENT_SCENARIO_VERSION,
+    savedAt: scenario.savedAt,
+    selectedProvider: scenario.selectedProvider,
+    tasks: scenario.tasks,
+    settings: scenario.settings,
+    analysisSnapshot: scenario.analysisSnapshot,
+    bestFitSources,
+  };
+}
+
 export function migrateHistoricalScenarioToCurrent(
   source: HistoricalScenario,
 ): HistoricalMigrationResult {
+  if (source.schemaVersion === 6) {
+    const candidate = adaptV6ToV7Candidate(source);
+    if (candidate === null) {
+      return { ok: false, reason: "adaptation-failed" };
+    }
+    const parsed = recentScenarioSchema.safeParse(candidate);
+    return parsed.success
+      ? { ok: true, scenario: parsed.data }
+      : { ok: false, reason: "target-validation-failed" };
+  }
+
   let v5: HistoricalRecentScenarioV5 | null;
 
   if (source.schemaVersion === 1) {
@@ -347,14 +386,14 @@ export function migrateHistoricalScenarioToCurrent(
   }
 
   if (!v5) return { ok: false, reason: "adaptation-failed" };
-  const parsed = recentScenarioSchema.safeParse(adaptV5ToV6Candidate(v5));
+  const parsed = recentScenarioSchema.safeParse(adaptV5ToV7Candidate(v5));
   return parsed.success
     ? { ok: true, scenario: parsed.data }
     : { ok: false, reason: "target-validation-failed" };
 }
 
 function parseHistoricalScenario(
-  version: 1 | 2 | 3 | 4 | 5,
+  version: 1 | 2 | 3 | 4 | 5 | 6,
   value: unknown,
 ): HistoricalScenario | null {
   const parsed = version === 1
@@ -365,7 +404,9 @@ function parseHistoricalScenario(
         ? historicalRecentScenarioV3Schema.safeParse(value)
         : version === 4
           ? historicalRecentScenarioV4Schema.safeParse(value)
-          : historicalRecentScenarioV5Schema.safeParse(value);
+          : version === 5
+            ? historicalRecentScenarioV5Schema.safeParse(value)
+            : historicalRecentScenarioV6Schema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
 
@@ -416,7 +457,8 @@ export function loadRecentScenario(
     declaredVersion === 2 ||
     declaredVersion === 3 ||
     declaredVersion === 4 ||
-    declaredVersion === 5
+    declaredVersion === 5 ||
+    declaredVersion === 6
   ) {
     const historicalScenario = parseHistoricalScenario(declaredVersion, parsedJson);
     if (!historicalScenario) return discardStoredScenario(resolvedStorage);

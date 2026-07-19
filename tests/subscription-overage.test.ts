@@ -388,7 +388,7 @@ describe("paid overage resolution", () => {
       appliesTo: {
         kind: "offering-list" as const,
         offeringRefs: [
-          { providerId: "z-ai", offeringId: "subscription.z-ai.plan-b" },
+          { providerId: "openai", offeringId: "subscription.openai.plan-b" },
           { providerId: "github", offeringId: "subscription.github.plan-z" },
           { providerId: "github", offeringId: "subscription.github.plan-a" },
         ],
@@ -403,7 +403,7 @@ describe("paid overage resolution", () => {
       offeringRefs: [
         { providerId: "github", offeringId: "subscription.github.plan-a" },
         { providerId: "github", offeringId: "subscription.github.plan-z" },
-        { providerId: "z-ai", offeringId: "subscription.z-ai.plan-b" },
+        { providerId: "openai", offeringId: "subscription.openai.plan-b" },
       ],
     });
     expect(Object.isFrozen(canonical)).toBe(true);

@@ -93,14 +93,13 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("출시 안내문");
     expect(markdown).toContain(plan.tasks[0].modelId);
     expect(markdown).toContain("| 높음 (`high`) | 실행 |");
-    expect(markdown).toContain("Low | Expected | High");
+    expect(markdown).toContain("적게 사용 | 보통 사용 | 많이 사용");
     expect(markdown).toContain("분석 계약: `best-fit-analysis-v2` / `best-fit`");
     expect(markdown).toContain("작업 기한: 2026-07-21");
     expect(markdown).toContain("실패 영향: 높음 (`high`)");
     expect(markdown).toContain("작업 모드: `coding-agent`");
     expect(markdown).toContain("최소 품질: `balanced`");
-    expect(markdown).toContain("작업 모드와 필수 기능은 판정하지 않습니다");
-    expect(markdown).toContain("별도 카탈로그 판정을 따릅니다");
+    expect(markdown).toContain("작업 방식과 필수 기능 충족 여부는 위 맞춤 계획에서 별도로 확인합니다");
     expect(markdown).toContain("확인 범위 내 적합");
     expect(markdown).toContain("## 공급자별 비교");
     expect(markdown).toContain("OpenAI · GPT-5.6");
@@ -110,19 +109,50 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("https://platform.claude.com/docs/en/about-claude/pricing");
     expect(markdown).toContain("https://ai.google.dev/gemini-api/docs/pricing");
     expect(markdown).toContain("2026-08-31까지 현재 가격");
-    expect(markdown).toContain("Preview");
+    expect(markdown).toContain("미리보기");
     const flashLiteLine = markdown
       .split("\n")
       .find((line) => line.includes("`gemini-3.1-flash-lite`"));
     expect(flashLiteLine).toBeDefined();
-    expect(flashLiteLine).not.toContain("Preview");
+    expect(flashLiteLine).not.toContain("미리보기");
     expect(markdown).toContain("prompt 200,000토큰 이하 가격");
     expect(markdown).toContain("캐시 쓰기·적중, Batch 할인, 도구 호출비, 장문 구간 할증");
-    expect(markdown).toContain("객관적 품질 순위가 아닙니다");
-    expect(markdown).toContain("Mock 모드는 저장된 fixture를 사용합니다.");
+    expect(markdown).toContain("객관적인 품질 순위가 아닙니다");
+    expect(markdown).toContain("예시 계획은 저장된 예시 분석을 사용하며 외부 AI를 호출하지 않습니다.");
     expect(markdown).toContain("Claude와 Gemini API는 호출하지 않습니다.");
     expect(createPlanMarkdown(context)).toBe(markdown);
     expect(createPlanMarkdown(context, "ko")).toBe(markdown);
+  });
+
+  it("neutralizes HTML, entities, links, and Markdown controls in user text", () => {
+    const unsafeTasks: TaskInput[] = [
+      {
+        ...tasks[0],
+        name: "# [Run](javascript:alert(1)) *now* & <b>",
+        description: "<script>alert(1)</script>\n![pixel](https://example.invalid/x)",
+      },
+    ];
+    const unsafeAnalyses = createMockAnalysis(unsafeTasks).tasks;
+    const unsafePlanning = compareProviderPlans(unsafeTasks, unsafeAnalyses, {
+      budgetUsd: 5,
+      deadlineDays: 7,
+      strategy: "balanced",
+    });
+    const markdown = createPlanMarkdown({
+      ...context,
+      sourceTasks: unsafeTasks,
+      plan: unsafePlanning.plans.openai,
+      providerComparisons: unsafePlanning.comparisons,
+    });
+
+    expect(markdown).toContain(
+      "\\# \\[Run\\]\\(javascript:alert\\(1\\)\\) \\*now\\* &amp; &lt;b&gt;",
+    );
+    expect(markdown).toContain(
+      "&lt;script&gt;alert\\(1\\)&lt;/script&gt;<br>\\!\\[pixel\\]\\(https://example.invalid/x\\)",
+    );
+    expect(markdown).not.toContain("<script>");
+    expect(markdown).not.toContain("[Run](javascript:");
   });
 
   it("shows held priority and reason without inventing a model or execution cost", () => {
@@ -144,20 +174,19 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## Warnings");
     expect(markdown).toContain("## Pricing and calculation assumptions");
     expect(markdown).toContain("| Low (`low`) | On hold |");
-    expect(markdown).toContain("Reason for hold: The lowest Expected total under the currently checked constraints exceeded the budget");
-    expect(markdown).toContain("does not assess work mode or required capabilities");
-    expect(markdown).toContain("separate catalog check in the plan above");
-    expect(markdown).toContain("A stored Mock fixture provides the structured analysis");
+    expect(markdown).toContain("Reason for hold: The lowest likely-use total under the checked conditions exceeded the budget");
+    expect(markdown).toContain("Work mode and required capabilities are checked separately in the plan above");
+    expect(markdown).toContain("A saved sample provides the task analysis");
     expect(markdown).toContain(
-      "GPT-5.6 is the only Live analysis engine; Claude and Gemini APIs are not called.",
+      "The sample plan uses a saved sample analysis and does not call an external AI.",
     );
-    expect(markdown).toContain("Tier mappings are budget-planning heuristics");
+    expect(markdown).toContain("The economy, balanced, and high-performance groups are a simple rule used for budget planning");
     expect(markdown).toContain("They do not claim objective quality equivalence");
     expect(markdown).toContain("Cache writes and hits, Batch discounts, tool-call fees");
     expect(markdown).toContain("standard-uncached-text");
     expect(markdown).toContain("`cache-discounts-and-writes`");
     expect(markdown).toContain("`claude-sonnet-5`");
-    expect(markdown).toContain("Low | Expected | High");
+    expect(markdown).toContain("Lower use | Likely use | Higher use");
     expect(markdown).toContain("USD");
     expect(markdown).toContain("https://ai.google.dev/gemini-api/docs/pricing");
     expect(markdown).toContain("첫 줄<br>둘째 \\| 줄");
@@ -166,7 +195,7 @@ describe("plan Markdown export", () => {
     expect(createPlanMarkdown(constrainedContext, "en")).toBe(markdown);
   });
 
-  it("localizes Japanese labels and distinguishes Live analysis from Mock", () => {
+  it("localizes Japanese labels and distinguishes own-task analysis from a sample", () => {
     const liveContext: PlanExportContext = {
       ...constrainedContext,
       analysisMode: "live",
@@ -180,17 +209,16 @@ describe("plan Markdown export", () => {
     expect(markdown).toContain("## 警告");
     expect(markdown).toContain("## 料金と計算の前提");
     expect(markdown).toContain("| 低 (`low`) | 保留 |");
-    expect(markdown).toContain("保留理由: 現在確認した条件で全タスクのExpected最小コストが予算を超えたため");
-    expect(markdown).toContain("作業モードと必須機能は判定しません");
-    expect(markdown).toContain("別のカタログ判定に従います");
+    expect(markdown).toContain("保留理由: 現在確認した条件で全作業の標準利用時の最小費用が予算を超えたため");
+    expect(markdown).toContain("作業方法と必須機能への対応は、上の計画で別に確認します");
     expect(markdown).toContain("GPT-5.6がタスクを1回だけ分析し");
-    expect(markdown).toContain("Live分析はGPT-5.6のみが行い、ClaudeとGemini APIは呼び出しません。");
-    expect(markdown).not.toContain("Mockモードは保存済みfixtureを使用します。");
-    expect(markdown).toContain("予算計画用ヒューリスティック");
+    expect(markdown).toContain("自分の作業はGPT-5.6だけが分析し、ClaudeとGemini APIは呼び出しません。");
+    expect(markdown).not.toContain("保存済みfixture");
+    expect(markdown).toContain("予算計画のための簡単なルール");
     expect(markdown).toContain("客観的な品質の同等性、優劣");
     expect(markdown).toContain("キャッシュの書き込み・ヒット、Batch割引");
     expect(markdown).toContain("`gemini-3.1-pro-preview`");
-    expect(markdown).toContain("Low | Expected | High");
+    expect(markdown).toContain("少なめ | 標準 | 多め");
     expect(markdown).toContain("USD");
     expect(markdown).toContain("https://platform.claude.com/docs/en/about-claude/pricing");
     expect(markdown).toContain("첫 줄<br>둘째 \\| 줄");
@@ -471,8 +499,10 @@ describe("plan JSON export", () => {
     expect(parsed.result.warnings.join(" ")).toContain("기존 분석 작업");
     expect(parsed.result.warnings.join(" ")).toContain("호출 한도");
     expect(parsed.result.warnings.join(" ")).not.toContain("최소 품질");
-    expect(markdown).toContain("This legacy analysis has no minimum-quality floor");
-    expect(markdown).toContain("no model supporting all Low / Expected / High invocations");
+    expect(markdown).toContain("This legacy analysis has no minimum-quality threshold");
+    expect(markdown.replaceAll("\\-", "-")).toContain(
+      "no model supporting the lower-, likely-, and higher-use cases",
+    );
     expect(markdown).not.toContain("No tier at or above the minimum quality");
   });
 
@@ -569,11 +599,11 @@ describe("plan JSON export", () => {
       (provider) => provider.providerId === "google",
     );
 
-    expect(markdown).toContain("| High |");
+    expect(markdown).toContain("| Higher use |");
     expect(markdown).toContain("| Infeasible |");
     expect(markdown).toContain("output limit exceeded (96,000 > 65,536)");
     expect(markdown).toContain("No tier at or above the minimum quality");
-    expect(markdown).toContain("does not assess work mode or required capabilities");
+    expect(markdown).toContain("Work mode and required capabilities are checked separately in the plan above");
     expect(parsed.allocationEligibilityBasis).toEqual(
       expect.objectContaining({
         statusMeaning: "cost-projection-not-confirmed-offering-eligibility",

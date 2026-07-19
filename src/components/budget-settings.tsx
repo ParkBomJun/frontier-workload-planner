@@ -44,6 +44,10 @@ export function BudgetSettings({
     showValidation || value.deadlineDays !== ""
       ? !Number.isInteger(deadline) || deadline < 1 || deadline > 90
       : false;
+  const requiredFieldLabelClassName =
+    locale === "ko"
+      ? "mb-2 flex flex-col items-start gap-1 text-sm font-bold text-[#34443b]"
+      : "mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]";
 
   return (
     <section className="rounded-[1.5rem] border border-[#173f31]/12 bg-white/90 p-5 shadow-[0_18px_50px_rgba(28,47,37,0.08)] sm:p-6">
@@ -52,7 +56,7 @@ export function BudgetSettings({
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
         <label htmlFor="budget-usd" className="block">
-          <span className="mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]">
+          <span className={requiredFieldLabelClassName}>
             <span>{bestFitCopy.label}</span>
             <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
               {copy.common.required}
@@ -89,7 +93,7 @@ export function BudgetSettings({
         </label>
 
         <label htmlFor="deadline-days" className="block">
-          <span className="mb-2 flex flex-wrap items-center gap-1.5 text-sm font-bold text-[#34443b]">
+          <span className={requiredFieldLabelClassName}>
             <span>{budgetCopy.deadlineLabel}</span>
             <span className={FIELD_STATUS_BADGE_CLASS_NAME}>
               {copy.common.required}
@@ -149,6 +153,7 @@ export function BudgetSettings({
         </p>
         <button
           type="button"
+          id="confirm-incremental-cash-budget"
           disabled={disabled}
           onClick={
             incrementalCashBudget?.status === "confirmed"

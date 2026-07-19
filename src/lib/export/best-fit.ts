@@ -51,7 +51,7 @@ import type {
   SubscriptionQuota,
 } from "@/types/subscriptions";
 
-export const BEST_FIT_PLAN_JSON_SCHEMA_VERSION = 5 as const;
+export const BEST_FIT_PLAN_JSON_SCHEMA_VERSION = 6 as const;
 export const BEST_FIT_PLAN_RESULT_KIND = "best-fit-route-plan" as const;
 
 export interface BestFitPlanExportContext {

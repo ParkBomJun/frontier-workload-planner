@@ -13,6 +13,7 @@ import {
 } from "@/lib/planning/resource-drafts";
 import { parseStoredSubscriptionResourceInput } from "@/lib/subscriptions/resource-schema";
 import { resolveStoredSubscriptionResource } from "@/lib/subscriptions/resource-resolver";
+import { serializeSubscriptionUsageDescription } from "@/lib/subscriptions/usage-snapshot";
 import type { AvailableAiResourceDraft } from "@/types/resource-drafts";
 
 const OBSERVED_AT = "2026-07-18T03:00:00.000Z";
@@ -104,13 +105,18 @@ describe("Available AI resource draft factory", () => {
       uiId: "account-0002",
       presetId: "github-copilot-like-credits",
     });
-    const rolling = createDefaultAvailableAiResourceDraft({
+    const claude = createDefaultAvailableAiResourceDraft({
       uiId: "account-0003",
-      presetId: "glm-like-rolling",
+      presetId: "claude-subscription",
+    });
+    const codeAssist = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0004",
+      presetId: "gemini-code-assist",
     });
 
     expect(chat).toMatchObject({
       uiId: "account-0001",
+      provisionedBy: "personal",
       availability: "uncertain",
       surface: "",
       feeUsd: "",
@@ -123,7 +129,16 @@ describe("Available AI resource draft factory", () => {
       quota: { kind: "opaque", description: "" },
       reset: { kind: "unknown" },
     });
-    expect(rolling).toMatchObject({
+    expect(claude).toMatchObject({
+      quota: { kind: "opaque", description: "" },
+      reset: { kind: "unknown" },
+    });
+    expect(codeAssist).toMatchObject({
+      provisionedBy: "organization",
+      ownership: "owned",
+      availability: "uncertain",
+      surface: "",
+      feeUsd: "0",
       quota: { kind: "opaque", description: "" },
       reset: { kind: "unknown" },
     });
@@ -243,6 +258,98 @@ describe("Available AI resource draft adapter", () => {
     });
   });
 
+  it("treats a company-provided seat as owned personal-cash zero and keeps it conditional", () => {
+    const draft: AvailableAiResourceDraft = {
+      ...createDefaultAvailableAiResourceDraft({
+        uiId: "account-0006",
+        presetId: "claude-subscription",
+      }),
+      provisionedBy: "organization",
+      availability: "available",
+      surface: "ide-cli",
+      feeUsd: "0",
+      quota: {
+        kind: "opaque",
+        description: "Shared organization capacity is not visible to this member.",
+      },
+    };
+
+    const result = adaptAvailableAiResourceDraft(draft, CONTEXT);
+    expect(result.success).toBe(true);
+    if (!result.success || result.resourceInput.ownership !== "owned") return;
+    expect(result.resourceInput.commitment).toMatchObject({
+      kind: "existing",
+      currentFeeUsd: 0,
+      evidence: expect.objectContaining({ kind: "user-observed" }),
+    });
+    expect(resolveStoredSubscriptionResource(result.resourceInput, OBSERVED_AT))
+      .toMatchObject({
+        status: "conditional",
+        reasonCodes: expect.arrayContaining(["quota-opaque"]),
+      });
+  });
+
+  it("requires a migrated user to choose who provides the resource", () => {
+    const draft: AvailableAiResourceDraft = {
+      ...createDefaultAvailableAiResourceDraft({
+        uiId: "account-0007",
+        presetId: "chatgpt-like-variable",
+      }),
+      provisionedBy: "unspecified",
+      surface: "chat",
+      feeUsd: "20",
+    };
+
+    expect(adaptAvailableAiResourceDraft(draft, CONTEXT)).toEqual({
+      success: false,
+      fieldErrors: expect.objectContaining({ provisionedBy: "required" }),
+    });
+  });
+
+  it("rejects forged company resources that claim a new paid subscription", () => {
+    const draft: AvailableAiResourceDraft = {
+      ...candidateOpaqueDraft("custom-subscription"),
+      provisionedBy: "organization",
+      feeUsd: "20",
+    };
+
+    expect(adaptAvailableAiResourceDraft(draft, CONTEXT)).toEqual({
+      success: false,
+      fieldErrors: expect.objectContaining({
+        ownership: "invalid-value",
+        feeUsd: "invalid-value",
+      }),
+    });
+  });
+
+  it("refreshes every evidence timestamp when the provisioning owner changes", () => {
+    const personal = ownedMeteredDraft();
+    const organization: AvailableAiResourceDraft = {
+      ...personal,
+      provisionedBy: "organization",
+      ownership: "owned",
+      availability: "uncertain",
+      surface: "",
+      feeUsd: "0",
+      quota: { kind: "opaque", description: "" },
+      reset: { kind: "unknown" },
+    };
+    const previous = createAvailableAiResourceEvidenceObservedAt(OBSERVED_AT);
+    const changedAt = "2026-07-18T05:00:00.000Z";
+
+    expect(
+      updateAvailableAiResourceEvidenceObservedAt(
+        personal,
+        organization,
+        previous,
+        changedAt,
+      ),
+    ).toEqual({
+      evidenceChanged: true,
+      observedAt: createAvailableAiResourceEvidenceObservedAt(changedAt),
+    });
+  });
+
   it("preserves exact six-decimal fee and quota source values", () => {
     const result = adaptAvailableAiResourceDraft(ownedMeteredDraft(), CONTEXT);
     expect(result.success).toBe(true);
@@ -316,7 +423,7 @@ describe("Available AI resource draft adapter", () => {
         ...ownedMeteredDraft(),
         preset: {
           id: "chatgpt-like-variable",
-          version: "subscription-presets-v1",
+          version: "subscription-presets-v2",
         },
       },
       CONTEXT,
@@ -342,26 +449,83 @@ describe("Available AI resource draft adapter", () => {
       }),
     });
 
-    const rolling = createDefaultAvailableAiResourceDraft({
+    const custom = createDefaultAvailableAiResourceDraft({
       uiId: "account-0004",
-      presetId: "glm-like-rolling",
+      presetId: "custom-subscription",
     });
-    const unknownRolling = adaptAvailableAiResourceDraft(
-      { ...rolling, surface: "chat", feeUsd: "0" },
+    const rolling = adaptAvailableAiResourceDraft(
+      {
+        ...custom,
+        surface: "chat",
+        feeUsd: "0",
+        reset: { kind: "rolling", windowHours: "5" },
+      },
       CONTEXT,
     );
-    expect(unknownRolling.success).toBe(true);
+    expect(rolling.success).toBe(true);
+    if (!rolling.success) return;
+    expect(rolling.resourceInput).toMatchObject({
+      id: "resource.custom.account-0004",
+      offeringRef: {
+        providerId: "custom.account-0004",
+        offeringId: "subscription.custom.account-0004",
+      },
+      reset: { kind: "rolling", windowHours: 5 },
+    });
+  });
 
-    expect(
-      adaptAvailableAiResourceDraft(
-        { ...rolling, surface: "chat", feeUsd: "0", reset: { kind: "none" } },
-        CONTEXT,
-      ),
-    ).toEqual({
+  it("does not promote a Gemini chat subscription into CLI access", () => {
+    const geminiChat = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0010",
+      presetId: "gemini-subscription",
+    });
+    const result = adaptAvailableAiResourceDraft(
+      {
+        ...geminiChat,
+        surface: "ide-cli",
+        feeUsd: "20",
+      },
+      CONTEXT,
+    );
+
+    expect(result).toEqual({
       success: false,
-      fieldErrors: expect.objectContaining({
-        "reset.kind": "preset-reset-mismatch",
-      }),
+      fieldErrors: expect.objectContaining({ surface: "invalid-value" }),
+    });
+  });
+
+  it("keeps multi-window percentages as an opaque user observation", () => {
+    const draft = createDefaultAvailableAiResourceDraft({
+      uiId: "account-0011",
+      presetId: "claude-subscription",
+    });
+    const result = adaptAvailableAiResourceDraft(
+      {
+        ...draft,
+        surface: "chat",
+        feeUsd: "20",
+        quota: {
+          kind: "opaque",
+          description: serializeSubscriptionUsageDescription(
+            {
+              fiveHourRemainingPercent: 64,
+              weeklyRemainingPercent: 31,
+              modelWeeklyRemainingPercent: 12,
+              modelLabel: "Model shown in Usage",
+            },
+            "Observed just now.",
+          ),
+        },
+      },
+      CONTEXT,
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.resourceInput.quota).toEqual({
+      kind: "opaque",
+      description:
+        "User-observed limit snapshot: 5-hour remaining 64%, weekly remaining 31%, model-specific weekly (Model shown in Usage) remaining 12%. Note: Observed just now.",
     });
   });
 
@@ -409,7 +573,7 @@ describe("Available AI resource draft adapter", () => {
     expect(result.resourceInput.quota.included.evidence).toEqual({
       kind: "preset-ref",
       presetId: "github-copilot-like-credits",
-      presetVersion: "subscription-presets-v1",
+      presetVersion: "subscription-presets-v2",
       claimId: "included-capacity",
     });
     expect(JSON.stringify(result)).not.toContain("provider-published");
@@ -489,7 +653,7 @@ describe("Available AI resource draft adapter", () => {
     };
     const relinked = relinkAvailableAiResourceDraftPreset(
       retired,
-      "glm-like-rolling",
+      "claude-subscription",
     );
 
     expect(recoverableAvailableAiResourcePresetReason(retired)).toBe(
@@ -498,8 +662,8 @@ describe("Available AI resource draft adapter", () => {
     expect(relinked).toMatchObject({
       uiId: retired.uiId,
       preset: {
-        id: "glm-like-rolling",
-        version: "subscription-presets-v1",
+        id: "claude-subscription",
+        version: "subscription-presets-v2",
       },
       displayName: "My preserved account name",
       ownership: "owned",

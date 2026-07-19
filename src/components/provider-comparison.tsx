@@ -196,17 +196,17 @@ export function ProviderComparison({
                   <span className="mt-4 grid min-w-0 grid-cols-3 gap-px overflow-hidden rounded-xl bg-white/10">
                     {(
                       [
-                        ["Low", comparison.totals.lowUsd],
-                        ["Expected", comparison.totals.expectedUsd],
-                        ["High", comparison.totals.highUsd],
+                        [copy.analysisResults.lowUsageLabel, comparison.totals.lowUsd, false],
+                        [copy.analysisResults.expectedUsageLabel, comparison.totals.expectedUsd, false],
+                        [copy.analysisResults.highUsageLabel, comparison.totals.highUsd, true],
                       ] as const
-                    ).map(([label, value]) => (
+                    ).map(([label, value, isHigherUse]) => (
                       <span key={label} className="min-w-0 bg-[#1b4a39] px-2 py-2.5">
                         <span className="block truncate text-[0.65rem] text-white/60">{label}</span>
                         <span className="mt-1 block break-all font-mono text-[0.72rem] font-bold text-white">
                           {formatCurrency(value)}
                         </span>
-                        {label === "High" && comparison.highExceedsBudget ? (
+                        {isHigherUse && comparison.highExceedsBudget ? (
                           <span className="mt-1 block text-[0.62rem] font-bold text-[#ffd2c4]">
                             {copy.providerComparison.highExceeds}
                           </span>

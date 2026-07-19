@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     return errorResponse(
       403,
       "LIVE_ANALYSIS_DISABLED",
-      "Live 분석이 서버 설정에서 비활성화되어 있습니다. Mock 분석은 계속 사용할 수 있습니다.",
+      "내 작업 분석이 서버 설정에서 비활성화되어 있습니다. 예시 계획은 계속 사용할 수 있습니다.",
     );
   }
 
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
     return errorResponse(
       503,
       "OPENAI_API_KEY_MISSING",
-      "서버에 OpenAI API 키가 설정되지 않았습니다. Mock 분석은 계속 사용할 수 있습니다.",
+      "서버에 OpenAI API 키가 설정되지 않았습니다. 예시 계획은 계속 사용할 수 있습니다.",
     );
   }
 
@@ -170,8 +170,8 @@ export async function POST(request: Request) {
       isRefusal ? 422 : 502,
       isRefusal ? "MODEL_REFUSAL" : "LIVE_ANALYSIS_FAILED",
       isRefusal
-        ? "모델이 이 작업 분석을 거부했습니다. 입력을 조정하거나 Mock 분석을 사용해 주세요."
-        : "Live 분석에 실패했습니다. 잠시 후 다시 시도하거나 Mock 분석을 사용해 주세요.",
+        ? "모델이 이 작업 분석을 거부했습니다. 입력을 조정하거나 예시 계획을 사용해 주세요."
+        : "내 작업 분석에 실패했습니다. 잠시 후 다시 시도하거나 예시 계획을 사용해 주세요.",
     );
   }
 }

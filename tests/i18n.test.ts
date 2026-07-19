@@ -63,26 +63,26 @@ describe("UI locale contract", () => {
       copy.enums.invocationFailure["output-limit-exceeded"],
     )).toContain(copy.enums.invocationFailure["output-limit-exceeded"]);
     expect(copy.analysisResults.eligibilityVerificationPending).toMatch(
-      /separate catalog check|별도 카탈로그 판정|別のカタログ判定/,
+      /plan above|tailored plan|맞춤 계획|上の計画/,
     );
     expect(copy.providerComparison.eligibilityScopeNotice).toMatch(
-      /assessed separately|별도로 판정|別に判定/,
+      /tailored plan|맞춤 계획|上の計画/,
     );
     expect(copy.providerComparison.previewModels(3)).toContain("3");
-    expect(copy.providerComparison.analysisExplanation.mock).toContain("Mock");
+    expect(copy.providerComparison.analysisExplanation.mock).not.toMatch(/Mock|fixture/i);
     expect(copy.providerComparison.analysisExplanation.live).toContain("GPT-5.6");
     expect(copy.providerPricing.priceFrom("2026-09-01", 3, 15)).toContain("2026-09-01");
   });
 
   it("states the bounded GPT workload contract and deterministic program boundary", () => {
     expect(getUiCopy("ko").page.heroDescription).toBe(
-      "GPT-5.6은 난이도·크기·작업 모드·최소 품질·필수 기능·실패 위험 등 범위가 제한된 작업 요구사항을 구조화합니다. 프로그램은 공개된 고정 규칙으로 호출 한도를 검증하고 토큰·비용·공급자별 예산 계획을 계산하며, GPT는 가격·공급자·최종 경로를 선택하지 않습니다.",
+      "GPT-5.6은 작업 설명에서 난이도·규모·필요 기능 등을 정리합니다. 가격, 공급자, 최종 이용 방법은 GPT가 고르지 않습니다. 프로그램이 공개된 규칙과 가격표로 호출 한도, 토큰, 비용과 예산 계획을 계산합니다.",
     );
     expect(getUiCopy("en").page.heroDescription).toBe(
-      "GPT-5.6 structures bounded workload requirements such as complexity, size, work mode, minimum quality, required capabilities, and failure risk. Published program rules validate invocation limits and calculate tokens, costs, and per-provider budget plans; GPT does not choose prices, providers, or a final route.",
+      "GPT-5.6 organizes details such as difficulty, size, and required features from your task descriptions. GPT does not choose prices, providers, or the final way to use a model. The program calculates limits, tokens, costs, and budget plans from published rules and price lists.",
     );
     expect(getUiCopy("ja").page.heroDescription).toBe(
-      "GPT-5.6は、複雑さ・サイズ・作業モード・最低品質・必須機能・失敗リスクなど、範囲を限定したワークロード要件を構造化します。プログラムは公開された固定ルールで呼び出し上限を検証し、トークン・コスト・プロバイダー別の予算計画を計算します。GPTは料金・プロバイダー・最終ルートを選びません。",
+      "GPT-5.6は作業説明から、難しさ・規模・必要な機能などを整理します。料金、プロバイダー、最終的な利用方法をGPTが選ぶことはありません。プログラムが公開ルールと料金表から、上限・トークン・費用・予算計画を計算します。",
     );
   });
 
@@ -125,14 +125,78 @@ describe("UI locale contract", () => {
   });
 
   it("discloses automatic plaintext task storage before submission in every locale", () => {
-    expect(getUiCopy("ko").page.storageDisclosure).toContain("작업명·설명");
-    expect(getUiCopy("ko").page.storageDisclosure).toContain("평문");
-    expect(getUiCopy("ko").page.storageDisclosure).toContain("자동 저장");
-    expect(getUiCopy("en").page.storageDisclosure).toContain("task names, descriptions");
-    expect(getUiCopy("en").page.storageDisclosure).toContain("unencrypted plaintext");
-    expect(getUiCopy("en").page.storageDisclosure).toContain("automatically saved");
-    expect(getUiCopy("ja").page.storageDisclosure).toContain("タスク名・説明");
-    expect(getUiCopy("ja").page.storageDisclosure).toContain("平文");
-    expect(getUiCopy("ja").page.storageDisclosure).toContain("自動保存");
+    const koDisclosure = getUiCopy("ko").page.storageDisclosure;
+    expect(koDisclosure).toContain("작업명·설명");
+    expect(koDisclosure).toContain("계획 설정");
+    expect(koDisclosure).toContain("작업 분석");
+    expect(koDisclosure).toContain("구독·가격 수정 정보");
+    expect(koDisclosure).toContain("계산된 이용 경로와 비용은 저장하지 않고");
+    expect(koDisclosure).toContain("평문");
+    expect(koDisclosure).toContain("자동 저장");
+    expect(koDisclosure).toContain("삭제할 때까지");
+    expect(getUiCopy("ko").page.storagePlaintextReminder).toContain("삭제할 때까지");
+    const enDisclosure = getUiCopy("en").page.storageDisclosure;
+    expect(enDisclosure).toContain("task names and descriptions");
+    expect(enDisclosure).toContain("planning settings");
+    expect(enDisclosure).toContain("versioned workload analysis");
+    expect(enDisclosure).toContain("subscription and price-override inputs");
+    expect(enDisclosure).toContain("Calculated routes and costs are not stored");
+    expect(enDisclosure).toContain("unencrypted plaintext");
+    expect(enDisclosure).toContain("automatically saved");
+    expect(enDisclosure).toContain("until you delete");
+    expect(getUiCopy("en").page.storagePlaintextReminder).toContain("until you delete");
+    const jaDisclosure = getUiCopy("ja").page.storageDisclosure;
+    expect(jaDisclosure).toContain("タスク名・説明");
+    expect(jaDisclosure).toContain("計画設定");
+    expect(jaDisclosure).toContain("作業分析");
+    expect(jaDisclosure).toContain("サブスクリプション・料金修正情報");
+    expect(jaDisclosure).toContain("計算済みの利用経路と費用は保存せず");
+    expect(jaDisclosure).toContain("平文");
+    expect(jaDisclosure).toContain("自動保存");
+    expect(jaDisclosure).toContain("削除するまで");
+    expect(getUiCopy("ja").page.storagePlaintextReminder).toContain("削除するまで");
+  });
+
+  it("explains data transfer using the same sample and own-task labels shown in the UI", () => {
+    expect(getUiCopy("ko").page.liveSafety).toMatch(
+      /작업명과 설명[\s\S]*OpenAI[\s\S]*store:false[\s\S]*없애지는 않습니다[\s\S]*최대 30일[\s\S]*더 길어질 수 있습니다[\s\S]*민감정보/,
+    );
+    expect(getUiCopy("ko").page.mockSafety).toMatch(
+      /브라우저 안에서만[\s\S]*사이트 서버나 외부 AI로 보내지 않/,
+    );
+    expect(getUiCopy("en").page.liveSafety).toMatch(
+      /task names and descriptions[\s\S]*OpenAI[\s\S]*store:false[\s\S]*does not disable[\s\S]*up to 30 days[\s\S]*kept longer[\s\S]*sensitive information/,
+    );
+    expect(getUiCopy("en").page.mockSafety).toMatch(
+      /only in this browser[\s\S]*does not send[\s\S]*site server or an external AI/,
+    );
+    expect(getUiCopy("ja").page.liveSafety).toMatch(
+      /タスク名と説明[\s\S]*OpenAI[\s\S]*store:false[\s\S]*無効になるわけではありません[\s\S]*最大30日間[\s\S]*さらに長く保持[\s\S]*機密情報/,
+    );
+    expect(getUiCopy("ja").page.mockSafety).toMatch(
+      /ブラウザ内だけ[\s\S]*サイトのサーバーや外部AIへ送りません/,
+    );
+    for (const locale of UI_LOCALES) {
+      expect(getUiCopy(locale).page.liveSafety).not.toMatch(/Mock|Live/);
+      expect(getUiCopy(locale).page.mockSafety).not.toMatch(/Mock|Live/);
+    }
+  });
+
+  it("localizes the three usage estimates without exposing scenario codes", () => {
+    expect(getUiCopy("ko").analysisResults).toMatchObject({
+      lowUsageLabel: "적게 사용",
+      expectedUsageLabel: "보통 사용",
+      highUsageLabel: "많이 사용",
+    });
+    expect(getUiCopy("en").analysisResults).toMatchObject({
+      lowUsageLabel: "Lower use",
+      expectedUsageLabel: "Likely use",
+      highUsageLabel: "Higher use",
+    });
+    expect(getUiCopy("ja").analysisResults).toMatchObject({
+      lowUsageLabel: "少なめ",
+      expectedUsageLabel: "標準",
+      highUsageLabel: "多め",
+    });
   });
 });

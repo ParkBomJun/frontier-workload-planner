@@ -148,9 +148,13 @@ export function AnalysisResults({
             value={formatCurrency(plan.settings.budgetUsd)}
             detail={`${copy.enums.strategy[plan.settings.strategy]} · ${plan.settings.deadlineDays} ${copy.budgetSettings.deadlineUnit}`}
           />
-          <SummaryCard label="Low" value={formatCurrency(plan.totals.lowUsd)} detail={copy.analysisResults.lowDetail} />
           <SummaryCard
-            label="Expected"
+            label={copy.analysisResults.lowUsageLabel}
+            value={formatCurrency(plan.totals.lowUsd)}
+            detail={copy.analysisResults.lowDetail}
+          />
+          <SummaryCard
+            label={copy.analysisResults.expectedUsageLabel}
             value={formatCurrency(plan.totals.expectedUsd)}
             detail={copy.analysisResults.expectedDetail(
               percentFormatter.format(utilization),
@@ -161,7 +165,7 @@ export function AnalysisResults({
             emphasized
           />
           <SummaryCard
-            label="High"
+            label={copy.analysisResults.highUsageLabel}
             value={formatCurrency(plan.totals.highUsd)}
             detail={
               plan.highExceedsBudget
@@ -365,9 +369,9 @@ export function AnalysisResults({
 
                       <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-white/10">
                         {([
-                          ["Low", task.cost.low.costUsd],
-                          ["Expected", task.cost.expected.costUsd],
-                          ["High", task.cost.high.costUsd],
+                          [copy.analysisResults.lowUsageLabel, task.cost.low.costUsd],
+                          [copy.analysisResults.expectedUsageLabel, task.cost.expected.costUsd],
+                          [copy.analysisResults.highUsageLabel, task.cost.high.costUsd],
                         ] as const).map(([label, value]) => (
                           <div key={label} className="min-w-0 bg-[#20513f] p-3">
                             <dt className="truncate text-xs text-white/65">{label}</dt>

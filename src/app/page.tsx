@@ -22,8 +22,12 @@ import { useLanguage } from "@/components/language-provider";
 import { ReferenceApiPlanSummary } from "@/components/reference-api-plan-summary";
 import { TaskEditor } from "@/components/task-editor";
 import { PROVIDER_CATALOG } from "@/config/provider-catalog";
-import type { SubscriptionPresetId } from "@/config/subscription-presets";
+import {
+  MAX_AVAILABLE_AI_RESOURCES,
+  type SubscriptionPresetId,
+} from "@/config/subscription-presets";
 import { SAMPLE_TASKS_BY_LOCALE } from "@/data/examples";
+import { createMockAnalysis } from "@/lib/ai/mock-response";
 import { MAX_TASKS } from "@/lib/ai/schema";
 import { compareProviderPlans } from "@/lib/calculation/compare-providers";
 import type { BestFitPlanExportContext } from "@/lib/export/best-fit";
@@ -63,6 +67,7 @@ import {
 import type {
   AnalysisMode,
   AnalyzeApiResponse,
+  AnalyzeSuccessResponse,
   PlanningSettings,
   PlanningStrategy,
   ProviderId,
@@ -367,6 +372,8 @@ function planningFormState(settings: PlanningSettings): PlanningFormState {
 
 export default function Home() {
   const { locale, copy, localeMeta } = useLanguage();
+  const liveAnalysisEnabled =
+    process.env.NEXT_PUBLIC_LIVE_ANALYSIS_ENABLED === "true";
   const bestFitCopy = BEST_FIT_UI_COPY[locale];
   const [tasks, setTasks] = useState<TaskInput[]>(INITIAL_TASKS);
   const [settings, setSettings] = useState<PlanningFormState>(INITIAL_SETTINGS);
@@ -949,8 +956,7 @@ export default function Home() {
 
   function addResource(presetId: SubscriptionPresetId) {
     if (
-      resourceDrafts.length >= 4 ||
-      resourceDrafts.some((draft) => draft.preset.id === presetId)
+      resourceDrafts.length >= MAX_AVAILABLE_AI_RESOURCES
     ) {
       return;
     }
@@ -1172,12 +1178,57 @@ export default function Home() {
       return;
     }
 
+    if (incrementalCashBudget?.status !== "confirmed") {
+      setCompleted(null);
+      setStatus("error");
+      setVisibleError({ kind: "invalid-form" });
+      setBlockingDialog({
+        description: bestFitCopy.results.budgetRequiredDescription,
+        issues: [bestFitCopy.validation.confirmBudgetIssue],
+        focusAfterClose: "#confirm-incremental-cash-budget",
+      });
+      setAllocationNotice(null);
+      return;
+    }
+
     setTasks(normalizedTasks);
     setStatus("loading");
     setShowValidation(false);
     setVisibleError(null);
     setCompleted(null);
     setAllocationNotice(null);
+
+    const acceptSuccessfulAnalysis = (payload: AnalyzeSuccessResponse) => {
+      const completedSnapshot: CompletedAnalysis = {
+        analysisSnapshot: {
+          contractVersion: "best-fit-analysis-v2",
+          compatibility: "best-fit",
+          response: payload,
+        },
+        tasks: normalizedTasks.map((task) => ({ ...task })),
+      };
+      setCompleted(completedSnapshot);
+      setStatus("success");
+      markPlanningRevision(payload.generatedAt);
+      persistCompletedScenario(
+        completedSnapshot,
+        planningSettings,
+        selectedProvider,
+        true,
+        incrementalCashBudget,
+      );
+    };
+
+    if (mode === "mock") {
+      acceptSuccessfulAnalysis({
+        ok: true,
+        mode: "mock",
+        model: "mock-fixture-v2",
+        generatedAt: new Date().toISOString(),
+        analysis: createMockAnalysis(normalizedTasks),
+      });
+      return;
+    }
 
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 75_000);
@@ -1211,24 +1262,7 @@ export default function Home() {
         return;
       }
 
-      const completedSnapshot: CompletedAnalysis = {
-        analysisSnapshot: {
-          contractVersion: "best-fit-analysis-v2",
-          compatibility: "best-fit",
-          response: payload,
-        },
-        tasks: normalizedTasks.map((task) => ({ ...task })),
-      };
-      setCompleted(completedSnapshot);
-      setStatus("success");
-      markPlanningRevision(payload.generatedAt);
-      persistCompletedScenario(
-        completedSnapshot,
-        planningSettings,
-        selectedProvider,
-        true,
-        incrementalCashBudget,
-      );
+      acceptSuccessfulAnalysis(payload);
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === "AbortError";
       setStatus("error");
@@ -1337,6 +1371,7 @@ export default function Home() {
 
           <div className="min-w-0 xl:col-span-2">
             <AvailableAiResources
+              key={scenarioRestoreEpoch}
               drafts={resourceDrafts}
               evidenceObservedAtById={resourceEvidenceObservedAtById}
               disabled={status === "loading"}
@@ -1355,24 +1390,36 @@ export default function Home() {
                   </legend>
                   <div className="mt-2 grid grid-cols-2 gap-2 rounded-2xl bg-[#edf0eb] p-1.5 sm:max-w-xl">
                     {(["mock", "live"] as const).map((item) => (
-                      <label key={item} className="cursor-pointer">
+                      <label
+                        key={item}
+                        className={
+                          item === "live" && !liveAnalysisEnabled
+                            ? "cursor-not-allowed opacity-55"
+                            : "cursor-pointer"
+                        }
+                      >
                         <input
                           type="radio"
                           name="analysis-mode"
                           value={item}
                           checked={mode === item}
                           onChange={() => updateMode(item)}
-                          disabled={status === "loading"}
+                          disabled={
+                            status === "loading" ||
+                            (item === "live" && !liveAnalysisEnabled)
+                          }
                           className="peer sr-only"
                         />
-                        <span className="block rounded-xl px-3 py-2.5 text-[#647169] transition peer-checked:bg-white peer-checked:text-[#173f31] peer-checked:shadow-[0_4px_16px_rgba(26,48,37,0.1)] peer-focus-visible:ring-4 peer-focus-visible:ring-[#2f6c55]/20">
+                        <span className="block h-full rounded-xl px-3 py-2.5 text-[#647169] transition peer-checked:bg-white peer-checked:text-[#173f31] peer-checked:shadow-[0_4px_16px_rgba(26,48,37,0.1)] peer-focus-visible:ring-4 peer-focus-visible:ring-[#2f6c55]/20">
                           <span className="block text-sm font-bold">
                             {copy.enums.analysisMode[item]}
                           </span>
                           <span className="mt-0.5 block text-xs leading-5 opacity-80">
                             {item === "mock"
                               ? copy.page.mockDescription
-                              : copy.page.liveDescription}
+                              : liveAnalysisEnabled
+                                ? copy.page.liveDescription
+                                : copy.page.liveDisabled}
                           </span>
                         </span>
                       </label>
@@ -1403,11 +1450,9 @@ export default function Home() {
                     </>
                   )}
                 </button>
-                {mode === "live" ? (
-                  <p className="mx-auto mt-2 max-w-lg whitespace-pre-line break-keep text-center text-xs leading-5 text-[#66736b]">
-                    {copy.page.liveSafety}
-                  </p>
-                ) : null}
+                <p className="mx-auto mt-3 max-w-lg whitespace-pre-line break-keep text-center text-xs leading-5 text-[#66736b]">
+                  {mode === "live" ? copy.page.liveSafety : copy.page.mockSafety}
+                </p>
               </div>
             </div>
           </section>
@@ -1508,9 +1553,6 @@ export default function Home() {
                 <p className="mt-1 text-sm leading-6 text-[#91452d]">
                   {visibleErrorMessage(visibleError, copy)}
                 </p>
-                {visibleError.code ? (
-                  <p className="mt-2 font-mono text-xs text-[#a45b43]">{visibleError.code}</p>
-                ) : null}
               </div>
             </div>
           </div>

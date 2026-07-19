@@ -9,7 +9,9 @@ export function resourceDraftFieldTargetId(
     return `resource-relink-${uiId}`;
   }
   if (field === "displayName") return `resource-name-${uiId}`;
-  if (field === "ownership") return `resource-ownership-${uiId}`;
+  if (field === "provisionedBy" || field === "ownership") {
+    return `resource-access-arrangement-${uiId}`;
+  }
   if (field === "availability") return `resource-availability-${uiId}`;
   if (field === "surface") return `resource-surface-${uiId}`;
   if (field === "feeUsd") return `resource-fee-${uiId}`;
@@ -50,7 +52,9 @@ export function resourceDraftFieldLabel(
   copy: BestFitUiCopy,
 ): string {
   if (field === "displayName") return copy.resources.nameLabel;
-  if (field === "ownership") return copy.resources.ownershipLabel;
+  if (field === "provisionedBy" || field === "ownership") {
+    return copy.resources.accessArrangementLabel;
+  }
   if (field === "availability") return copy.resources.availabilityLabel;
   if (field === "surface") return copy.resources.surfaceLabel;
   if (field === "feeUsd") return copy.resources.feeLabel;

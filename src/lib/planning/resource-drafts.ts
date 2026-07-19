@@ -14,6 +14,7 @@ import {
   toSourceSubscriptionMicrounits,
 } from "@/lib/subscriptions/fixed-decimal";
 import { parseStoredSubscriptionResourceInput } from "@/lib/subscriptions/resource-schema";
+import { humanizeSubscriptionUsageDescription } from "@/lib/subscriptions/usage-snapshot";
 import type {
   ModelOpaqueSubscriptionOffering,
   StoredPresetEvidenceInput,
@@ -32,6 +33,7 @@ import type {
   AvailableAiResourceResetDraft,
   CreateDefaultAvailableAiResourceDraftOptions,
 } from "@/types/resource-drafts";
+import { AVAILABLE_AI_RESOURCE_PROVISIONING } from "@/types/resource-drafts";
 import {
   SUBSCRIPTION_AVAILABILITY_STATUSES,
   SUBSCRIPTION_CONSUMPTION_BASES,
@@ -171,20 +173,31 @@ export function updateAvailableAiResourceEvidenceObservedAt(
   observedAt: AvailableAiResourceEvidenceObservedAt;
 } {
   const presetChanged = !sameDraftValue(previousDraft.preset, nextDraft.preset);
+  const provisioningChanged =
+    (previousDraft.provisionedBy ?? "unspecified") !==
+    (nextDraft.provisionedBy ?? "unspecified");
   const availabilityChanged =
-    presetChanged || previousDraft.availability !== nextDraft.availability;
+    presetChanged ||
+    provisioningChanged ||
+    previousDraft.availability !== nextDraft.availability;
   const commitmentChanged =
     presetChanged ||
+    provisioningChanged ||
     previousDraft.ownership !== nextDraft.ownership ||
     previousDraft.feeUsd !== nextDraft.feeUsd;
   const quotaChanged =
     presetChanged ||
+    provisioningChanged ||
     previousDraft.ownership !== nextDraft.ownership ||
     !sameDraftValue(previousDraft.quota, nextDraft.quota);
   const resetChanged =
-    presetChanged || !sameDraftValue(previousDraft.reset, nextDraft.reset);
+    presetChanged ||
+    provisioningChanged ||
+    !sameDraftValue(previousDraft.reset, nextDraft.reset);
   const offeringChanged =
-    presetChanged || previousDraft.surface !== nextDraft.surface;
+    presetChanged ||
+    provisioningChanged ||
+    previousDraft.surface !== nextDraft.surface;
 
   return {
     evidenceChanged:
@@ -237,10 +250,11 @@ export function createDefaultAvailableAiResourceDraft({
     uiId,
     preset: { id: preset.id, version: preset.version },
     displayName: preset.displayName,
+    provisionedBy: preset.defaultProvisioning,
     ownership: "owned",
     availability: "uncertain",
     surface: "",
-    feeUsd: "",
+    feeUsd: preset.defaultProvisioning === "organization" ? "0" : "",
     quota: defaultQuota(),
     reset: defaultReset(),
   };
@@ -286,6 +300,13 @@ function validatePresetShape(
   errors: AvailableAiResourceDraftFieldErrors,
 ): void {
   if (
+    draft.surface !== "" &&
+    preset.suggestedSurfaces.length > 0 &&
+    !preset.suggestedSurfaces.includes(draft.surface)
+  ) {
+    addError(errors, "surface", "invalid-value");
+  }
+  if (
     draft.ownership === "owned" &&
     preset.quotaInput.kind === "opaque" &&
     draft.quota.kind !== "opaque"
@@ -299,13 +320,6 @@ function validatePresetShape(
     draft.quota.unit !== preset.quotaInput.unit
   ) {
     addError(errors, "quota.unit", "preset-unit-mismatch");
-  }
-  if (
-    preset.quotaInput.kind === "user-supplied-rolling" &&
-    draft.reset.kind !== "unknown" &&
-    draft.reset.kind !== "rolling"
-  ) {
-    addError(errors, "reset.kind", "preset-reset-mismatch");
   }
 }
 
@@ -397,7 +411,9 @@ function adaptQuota(
 
   if (draft.quota.kind === "opaque") {
     const suppliedDescription = draft.quota.description.trim();
-    const description = suppliedDescription || UNKNOWN_QUOTA_DESCRIPTION;
+    const description = suppliedDescription
+      ? humanizeSubscriptionUsageDescription(suppliedDescription)
+      : UNKNOWN_QUOTA_DESCRIPTION;
     if (description.length > 500) {
       addError(errors, "quota.description", "out-of-range");
       return null;
@@ -598,8 +614,28 @@ export function adaptAvailableAiResourceDraft(
   } else if (displayName.length > DISPLAY_NAME_MAX_LENGTH) {
     addError(errors, "displayName", "out-of-range");
   }
+  if (
+    draft.provisionedBy === undefined ||
+    draft.provisionedBy === "unspecified"
+  ) {
+    addError(errors, "provisionedBy", "required");
+  } else if (!AVAILABLE_AI_RESOURCE_PROVISIONING.includes(draft.provisionedBy)) {
+    addError(errors, "provisionedBy", "invalid-value");
+  }
   if (!SUBSCRIPTION_OWNERSHIPS.includes(draft.ownership)) {
     addError(errors, "ownership", "invalid-value");
+  }
+  if (
+    draft.provisionedBy === "organization" &&
+    draft.ownership !== "owned"
+  ) {
+    addError(errors, "ownership", "invalid-value");
+  }
+  if (
+    draft.provisionedBy === "organization" &&
+    draft.feeUsd.trim() !== "0"
+  ) {
+    addError(errors, "feeUsd", "invalid-value");
   }
   if (!SUBSCRIPTION_AVAILABILITY_STATUSES.includes(draft.availability)) {
     addError(errors, "availability", "invalid-value");
@@ -680,7 +716,9 @@ export function adaptAvailableAiResourceDraft(
         billingBasis: "current-plan-period",
         evidence: observedEvidence(
           evidenceObservedAt.commitment,
-          "User entered the existing subscription fee.",
+          draft.provisionedBy === "organization"
+            ? "User identified organization-provided access; organization costs are outside the personal incremental-cash budget."
+            : "User entered the existing subscription fee.",
         ),
       },
       quota: quota as StoredOwnedSubscriptionQuotaInput,

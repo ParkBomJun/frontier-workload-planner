@@ -185,6 +185,41 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
     expect(result.plan.activeTaskCount).toBe(1);
   });
 
+  it("keeps a saved subscription out of recommendations when excluded from this plan", () => {
+    const draft = createDefaultAvailableAiResourceDraft({
+      uiId: "resource-1",
+      presetId: "chatgpt-like-variable",
+    });
+    const input = planInput();
+    input.resourceDrafts = [
+      {
+        ...draft,
+        availability: "unavailable",
+        surface: "chat",
+        feeUsd: "20",
+        quota: { kind: "opaque", description: "Private capacity" },
+      },
+    ];
+    input.resourceEvidenceObservedAtById = {
+      "resource-1": createAvailableAiResourceEvidenceObservedAt(PLANNING_AS_OF),
+    };
+
+    const result = buildBestFitUiPlan(input);
+    const resourceExclusion = result.candidateSets[0]?.excludedRoutes.find(
+      ({ routeIdentity }) => routeIdentity.resourceId !== null,
+    );
+
+    expect(resourceExclusion).toMatchObject({
+      status: "ineligible",
+      reasonCodes: ["resource-unavailable"],
+    });
+    expect(
+      result.candidateSets[0]?.confirmedRoutes.every(
+        ({ routeIdentity }) => routeIdentity.resourceId === null,
+      ),
+    ).toBe(true);
+  });
+
   it("reports invalid resource drafts without dropping the rest of the plan", () => {
     const input = planInput();
     input.resourceDrafts = [
@@ -353,5 +388,82 @@ describe("Checkpoint 7 Best-fit UI planning coordinator", () => {
         },
       }),
     ).toThrow(/unique resource draft/);
+  });
+
+  it("keeps two independent accounts on the same preset as separate routes", () => {
+    const drafts = ["resource-1", "resource-2"].map((uiId, index) => ({
+      ...createDefaultAvailableAiResourceDraft({
+        uiId,
+        presetId: "chatgpt-like-variable",
+      }),
+      displayName: `ChatGPT account ${index + 1}`,
+      surface: "ide-cli" as const,
+      feeUsd: "20",
+      quota: {
+        kind: "opaque" as const,
+        description: "This is a separate account with a private limit.",
+      },
+    }));
+    const evidence = Object.fromEntries(
+      drafts.map(({ uiId }) => [
+        uiId,
+        createAvailableAiResourceEvidenceObservedAt(PLANNING_AS_OF),
+      ]),
+    );
+    const forward = buildBestFitUiPlan({
+      ...planInput(),
+      resourceDrafts: drafts,
+      resourceEvidenceObservedAtById: evidence,
+    });
+    const reverse = buildBestFitUiPlan({
+      ...planInput(),
+      resourceDrafts: [...drafts].reverse(),
+      resourceEvidenceObservedAtById: evidence,
+    });
+
+    expect(forward.resourceDiagnostics).toHaveLength(2);
+    expect(
+      forward.resourceDiagnostics.every(
+        ({ status }) => status === "conditional",
+      ),
+    ).toBe(true);
+    const subscriptionRoutes = forward.candidateSets[0]!.excludedRoutes
+      .map(({ routeIdentity }) => routeIdentity)
+      .filter(({ resourceId }) => resourceId !== null);
+    expect(subscriptionRoutes).toHaveLength(2);
+    expect(subscriptionRoutes.map(({ providerId }) => providerId)).toEqual([
+      "openai",
+      "openai",
+    ]);
+    expect(new Set(subscriptionRoutes.map(({ resourceId }) => resourceId)).size)
+      .toBe(2);
+    expect(
+      reverse.candidateSets[0]!.excludedRoutes
+        .map(({ routeIdentity }) => routeIdentity)
+        .filter(({ resourceId }) => resourceId !== null),
+    ).toEqual(subscriptionRoutes);
+  });
+
+  it("rejects more than eight resource drafts at the planning boundary", () => {
+    const drafts = Array.from({ length: 9 }, (_, index) =>
+      createDefaultAvailableAiResourceDraft({
+        uiId: `resource-${index + 1}`,
+        presetId: "chatgpt-like-variable",
+      }),
+    );
+    const evidence = Object.fromEntries(
+      drafts.map(({ uiId }) => [
+        uiId,
+        createAvailableAiResourceEvidenceObservedAt(PLANNING_AS_OF),
+      ]),
+    );
+
+    expect(() =>
+      buildBestFitUiPlan({
+        ...planInput(),
+        resourceDrafts: drafts,
+        resourceEvidenceObservedAtById: evidence,
+      }),
+    ).toThrow(/too many resource drafts/);
   });
 });

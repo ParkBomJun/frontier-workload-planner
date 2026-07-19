@@ -266,7 +266,7 @@ describe("stored subscription resource resolution", () => {
     const claim = (claimId: string) => ({
       kind: "preset-ref" as const,
       presetId: "chatgpt-like-variable",
-      presetVersion: "subscription-presets-v1",
+      presetVersion: "subscription-presets-v2",
       claimId,
     });
     const initial = {

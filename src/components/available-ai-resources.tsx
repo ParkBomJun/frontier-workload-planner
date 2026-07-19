@@ -4,40 +4,78 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   getSubscriptionPreset,
+  MAX_AVAILABLE_AI_RESOURCES,
   SUBSCRIPTION_PRESETS,
   type SubscriptionPresetId,
 } from "@/config/subscription-presets";
 import { useLanguage } from "@/components/language-provider";
 import { BEST_FIT_UI_COPY } from "@/lib/i18n/best-fit-ui-copy";
+import type { BestFitUiCopy } from "@/lib/i18n/best-fit-ui-copy";
 import { resourceDraftFieldLabel } from "@/lib/i18n/resource-draft-field-label";
 import {
   adaptAvailableAiResourceDraft,
   recoverableAvailableAiResourcePresetReason,
   relinkAvailableAiResourceDraftPreset,
 } from "@/lib/planning/resource-drafts";
+import {
+  parseSubscriptionUsageDescription,
+  parseSubscriptionUsagePercentInput,
+  serializeSubscriptionUsageDescription,
+  subscriptionUsageBottleneckPercent,
+  type SubscriptionUsagePercentKey,
+  type SubscriptionUsageSnapshot,
+} from "@/lib/subscriptions/usage-snapshot";
 import type {
   AvailableAiResourceDraft,
   AvailableAiResourceDraftField,
   AvailableAiResourceEvidenceObservedAt,
   AvailableAiResourceQuotaDraft,
   AvailableAiResourceResetDraft,
+  SubscriptionAccessArrangement,
 } from "@/types/resource-drafts";
 import {
   SUBSCRIPTION_AVAILABILITY_STATUSES,
   SUBSCRIPTION_CONSUMPTION_BASES,
-  SUBSCRIPTION_OWNERSHIPS,
 } from "@/types/subscriptions";
 import { WORK_SURFACES } from "@/types/offerings";
 
-const MAX_RESOURCES = 4;
 const QUOTA_GUIDE_DIALOG_ID = "subscription-quota-guide";
 const QUOTA_GUIDE_URLS: Partial<Record<SubscriptionPresetId, string>> = {
-  "chatgpt-like-variable": "https://chatgpt.com/",
+  "chatgpt-like-variable":
+    "https://learn.chatgpt.com/docs/pricing#what-are-the-usage-limits-for-my-plan",
+  "claude-subscription": "https://claude.ai/settings/usage",
+  "gemini-subscription":
+    "https://support.google.com/gemini/answer/16275805?hl=ko",
+  "google-antigravity": "https://antigravity.google/docs/plans?app=cli",
+  "gemini-code-assist":
+    "https://developers.google.com/gemini-code-assist/resources/quotas",
   "github-copilot-like-credits": "https://github.com/settings/billing",
-  "glm-like-rolling": "https://zcode.z.ai/en/docs/usage-stats",
+};
+const QUICK_USAGE_PROFILES: Partial<
+  Record<SubscriptionPresetId, readonly SubscriptionUsagePercentKey[]>
+> = {
+  "chatgpt-like-variable": [
+    "fiveHourRemainingPercent",
+    "weeklyRemainingPercent",
+  ],
+  "claude-subscription": [
+    "fiveHourRemainingPercent",
+    "weeklyRemainingPercent",
+    "modelWeeklyRemainingPercent",
+  ],
+  "gemini-subscription": [
+    "fiveHourRemainingPercent",
+    "weeklyRemainingPercent",
+  ],
+  "google-antigravity": [
+    "fiveHourRemainingPercent",
+    "weeklyRemainingPercent",
+  ],
+  "gemini-code-assist": ["dailyRemainingPercent"],
+  "github-copilot-like-credits": ["creditRemainingPercent"],
 };
 const inputClass =
-  "min-h-11 w-full rounded-xl border border-[#173f31]/15 bg-[#fbfcf9] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:opacity-55";
+  "min-h-11 min-w-0 w-full max-w-full rounded-xl border border-[#173f31]/15 bg-[#fbfcf9] px-3.5 py-2.5 text-sm outline-none transition focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:opacity-55";
 
 function ResourceFieldLabel({
   label,
@@ -51,10 +89,10 @@ function ResourceFieldLabel({
   optionalText: string;
 }) {
   return (
-    <span className="mb-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-bold text-[#46564d]">
-      <span>{label}</span>
+    <span className="mb-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-1.5 text-xs font-bold leading-5 text-[#46564d] sm:min-h-10">
+      <span className="min-w-0 break-words">{label}</span>
       <span
-        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+        className={`shrink-0 self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold leading-4 ${
           required
             ? "bg-[#fff0e9] text-[#944429]"
             : "bg-[#edf2ee] text-[#68766e]"
@@ -70,6 +108,229 @@ type RangedQuotaDraft = Exclude<
   AvailableAiResourceQuotaDraft,
   { kind: "opaque" }
 >;
+
+function accessArrangementForDraft(
+  draft: AvailableAiResourceDraft,
+): SubscriptionAccessArrangement | "" {
+  if (
+    draft.provisionedBy === undefined ||
+    draft.provisionedBy === "unspecified"
+  ) {
+    return "";
+  }
+  if (draft.provisionedBy === "organization") {
+    return draft.ownership === "owned" && draft.feeUsd.trim() === "0"
+      ? "organization-provided"
+      : "";
+  }
+  return draft.ownership === "candidate-new"
+    ? "personal-new"
+    : "personal-existing";
+}
+
+function draftForAccessArrangement(
+  draft: AvailableAiResourceDraft,
+  arrangement: SubscriptionAccessArrangement,
+): AvailableAiResourceDraft {
+  return {
+    ...draft,
+    provisionedBy:
+      arrangement === "organization-provided" ? "organization" : "personal",
+    ownership: arrangement === "personal-new" ? "candidate-new" : "owned",
+    availability: "uncertain",
+    surface: "",
+    feeUsd: arrangement === "organization-provided" ? "0" : "",
+    quota: quotaForKind("opaque"),
+    reset: resetForKind("unknown"),
+  };
+}
+
+function UsagePercentSlider({
+  id,
+  label,
+  value,
+  disabled,
+  copy,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number | undefined;
+  disabled: boolean;
+  copy: BestFitUiCopy["resources"]["usageSnapshot"];
+  onChange: (value: number | undefined) => void;
+}) {
+  const [draftValue, setDraftValue] = useState<string | null>(null);
+  const numberInputRef = useRef<HTMLInputElement>(null);
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const focusActionAfterEditRef = useRef(false);
+  const editing = draftValue !== null;
+  const parsedDraftValue = editing
+    ? parseSubscriptionUsagePercentInput(draftValue)
+    : null;
+  const displayedValue = parsedDraftValue ?? value ?? 100;
+  const invalidDraft = editing && parsedDraftValue === null;
+
+  useEffect(() => {
+    if (disabled) return;
+    if (editing) {
+      numberInputRef.current?.focus();
+      numberInputRef.current?.select();
+      return;
+    }
+    if (focusActionAfterEditRef.current) {
+      focusActionAfterEditRef.current = false;
+      actionButtonRef.current?.focus();
+    }
+  }, [disabled, editing, value]);
+
+  function finishEditing() {
+    focusActionAfterEditRef.current = true;
+    setDraftValue(null);
+  }
+
+  function saveDraftValue() {
+    if (parsedDraftValue === null) return;
+    onChange(parsedDraftValue);
+    finishEditing();
+  }
+
+  return (
+    <div className="rounded-xl border border-[#173f31]/10 bg-white/80 p-3.5">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <label
+          htmlFor={editing || value !== undefined ? id : undefined}
+          className="text-xs font-bold text-[#3f5549]"
+        >
+          {label}
+        </label>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {editing ? (
+            <>
+              <button
+                type="button"
+                disabled={disabled || invalidDraft}
+                aria-label={`${label}: ${copy.save}`}
+                onClick={saveDraftValue}
+                className="min-h-11 rounded-lg bg-[#2f6c55] px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-[#255a47] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+              >
+                {copy.save}
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`${label}: ${copy.cancel}`}
+                onClick={finishEditing}
+                className="min-h-11 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#6a776f] underline decoration-[#6a776f]/30 underline-offset-4 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+              >
+                {copy.cancel}
+              </button>
+            </>
+          ) : value === undefined ? (
+            <button
+              ref={actionButtonRef}
+              type="button"
+              disabled={disabled}
+              aria-label={`${label}: ${copy.record}`}
+              onClick={() => setDraftValue("100")}
+              className="min-h-11 rounded-lg border border-[#2f6c55]/20 px-3 py-1.5 text-[11px] font-bold text-[#2f6c55] transition hover:bg-[#edf5ef] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+            >
+              {copy.record}
+            </button>
+          ) : (
+            <>
+              <button
+                ref={actionButtonRef}
+                type="button"
+                disabled={disabled}
+                aria-label={`${label}: ${copy.edit}`}
+                onClick={() => setDraftValue(String(value))}
+                className="min-h-11 rounded-lg border border-[#2f6c55]/20 px-3 py-1.5 text-[11px] font-bold text-[#2f6c55] transition hover:bg-[#edf5ef] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+              >
+                {copy.edit}
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`${label}: ${copy.clear}`}
+                onClick={() => {
+                  focusActionAfterEditRef.current = true;
+                  onChange(undefined);
+                }}
+                className="min-h-11 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#7b6655] underline decoration-[#7b6655]/30 underline-offset-4 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15 disabled:opacity-45"
+              >
+                {copy.clear}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      {value === undefined && !editing ? (
+        <p className="mt-2 text-xs text-[#7a877f]">{copy.unrecorded}</p>
+      ) : (
+        <>
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_4.75rem] items-center gap-2 text-xs">
+            <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
+              <output
+                htmlFor={id}
+                aria-live="polite"
+                className={`font-bold ${invalidDraft ? "text-[#944429]" : "text-[#1f553f]"}`}
+              >
+                {invalidDraft
+                  ? copy.invalid
+                  : copy.remaining(displayedValue)}
+              </output>
+              {!invalidDraft ? (
+                <span className="text-[#718078]">
+                  {copy.used(100 - displayedValue)}
+                </span>
+              ) : null}
+            </div>
+            <input
+              ref={numberInputRef}
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={editing ? draftValue : String(value)}
+              disabled={disabled || !editing}
+              aria-label={`${label}: ${copy.remaining(displayedValue)}`}
+              aria-invalid={invalidDraft}
+              onChange={(event) => {
+                setDraftValue(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  saveDraftValue();
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishEditing();
+                }
+              }}
+              className="min-h-11 w-full rounded-lg border border-[#173f31]/15 bg-[#fbfcf9] px-2.5 py-2 text-center text-sm font-bold text-[#1f553f] outline-none focus:border-[#2f6c55] focus:ring-4 focus:ring-[#2f6c55]/10 disabled:opacity-55"
+            />
+          </div>
+          <input
+            id={id}
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={displayedValue}
+            disabled={disabled || !editing}
+            aria-valuetext={`${copy.remaining(displayedValue)}, ${copy.used(100 - displayedValue)}`}
+            onChange={(event) => {
+              const nextValue = Number(event.target.value);
+              setDraftValue(String(nextValue));
+            }}
+            className="mt-2 h-11 w-full cursor-pointer accent-[#2f6c55] disabled:cursor-not-allowed disabled:opacity-55"
+          />
+        </>
+      )}
+    </div>
+  );
+}
 
 interface AvailableAiResourcesProps {
   drafts: readonly AvailableAiResourceDraft[];
@@ -143,14 +404,23 @@ export function AvailableAiResources({
 }: AvailableAiResourcesProps) {
   const { locale } = useLanguage();
   const copy = BEST_FIT_UI_COPY[locale];
-  const usedPresets = new Set(drafts.map(({ preset }) => preset.id));
   const [selectedPreset, setSelectedPreset] = useState<SubscriptionPresetId | "">("");
   const [quotaGuidePresetId, setQuotaGuidePresetId] =
     useState<SubscriptionPresetId | null>(null);
   const quotaGuideDialogRef = useRef<HTMLDialogElement>(null);
   const quotaGuideTriggerRef = useRef<HTMLButtonElement>(null);
-  const selectedPresetUnavailable =
-    selectedPreset !== "" && usedPresets.has(selectedPreset);
+  const hasNewGeminiAppsPlan = drafts.some(
+    (draft) =>
+      draft.preset.id === "gemini-subscription" &&
+      draft.ownership === "candidate-new",
+  );
+  const hasNewAntigravityPlan = drafts.some(
+    (draft) =>
+      draft.preset.id === "google-antigravity" &&
+      draft.ownership === "candidate-new",
+  );
+  const hasPotentialSharedGooglePlan =
+    hasNewGeminiAppsPlan && hasNewAntigravityPlan;
   const fallbackQuotaGuidePresetId =
     (drafts[0] && getSubscriptionPreset(drafts[0].preset.id)?.id) ||
     "custom-subscription";
@@ -177,7 +447,7 @@ export function AvailableAiResources({
   }
 
   function addSelectedPreset() {
-    if (!selectedPreset || selectedPresetUnavailable || drafts.length >= MAX_RESOURCES) {
+    if (!selectedPreset || drafts.length >= MAX_AVAILABLE_AI_RESOURCES) {
       return;
     }
     onAdd(selectedPreset);
@@ -212,7 +482,7 @@ export function AvailableAiResources({
             <select
               id="add-resource-select"
               value={selectedPreset}
-              disabled={disabled || drafts.length >= MAX_RESOURCES}
+              disabled={disabled || drafts.length >= MAX_AVAILABLE_AI_RESOURCES}
               onChange={(event) =>
                 setSelectedPreset(event.target.value as SubscriptionPresetId | "")
               }
@@ -220,11 +490,7 @@ export function AvailableAiResources({
             >
               <option value="">{copy.resources.presetSelectPlaceholder}</option>
               {SUBSCRIPTION_PRESETS.map((preset) => (
-                <option
-                  key={preset.id}
-                  value={preset.id}
-                  disabled={usedPresets.has(preset.id)}
-                >
+                <option key={preset.id} value={preset.id}>
                   {copy.resources.presets[preset.id].name}
                 </option>
               ))}
@@ -235,8 +501,7 @@ export function AvailableAiResources({
             disabled={
               disabled ||
               !selectedPreset ||
-              selectedPresetUnavailable ||
-              drafts.length >= MAX_RESOURCES
+              drafts.length >= MAX_AVAILABLE_AI_RESOURCES
             }
             onClick={addSelectedPreset}
             className="min-h-11 rounded-xl bg-[#173f31] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#205541] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/20 disabled:cursor-not-allowed disabled:opacity-45"
@@ -244,15 +509,30 @@ export function AvailableAiResources({
             {copy.resources.addSelected}
           </button>
         </div>
-        {drafts.length >= MAX_RESOURCES ? (
+        {drafts.length >= MAX_AVAILABLE_AI_RESOURCES ? (
           <p className="mt-2 text-xs text-[#7a5b36]">{copy.resources.maximumReached}</p>
         ) : null}
       </fieldset>
+
+      {hasPotentialSharedGooglePlan ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-[#c88743]/25 bg-[#fff7e8] p-4 text-xs leading-5 text-[#76552f]"
+        >
+          <p className="font-bold text-[#71491f]">
+            {copy.resources.sharedGooglePlanWarningTitle}
+          </p>
+          <p className="mt-1">
+            {copy.resources.sharedGooglePlanWarningDescription}
+          </p>
+        </div>
+      ) : null}
 
       {drafts.length > 0 ? (
         <div className="mt-4 space-y-3">
           {drafts.map((draft, index) => {
             const preset = getSubscriptionPreset(draft.preset.id);
+            const accessArrangement = accessArrangementForDraft(draft);
             const adapted = adaptAvailableAiResourceDraft(draft, {
               evidenceObservedAt:
                 evidenceObservedAtById[draft.uiId] ?? {
@@ -268,17 +548,18 @@ export function AvailableAiResources({
             const forceOpaque =
               draft.ownership === "candidate-new" || preset?.quotaInput.kind === "opaque";
             const meteredPreset = preset?.quotaInput.kind === "user-supplied-metered";
-            const forceRolling = preset?.quotaInput.kind === "user-supplied-rolling";
             const quotaKinds: AvailableAiResourceQuotaDraft["kind"][] = forceOpaque
               ? ["opaque"]
               : ["opaque", "calibrated", "metered"];
-            const resetKinds: AvailableAiResourceResetDraft["kind"][] = forceRolling
-              ? ["unknown", "rolling"]
-              : ["unknown", "none", "fixed", "rolling"];
+            const resetKinds: AvailableAiResourceResetDraft["kind"][] = [
+              "unknown",
+              "none",
+              "fixed",
+              "rolling",
+            ];
             const fieldErrorFields = Object.keys(
               adapted.success ? {} : adapted.fieldErrors,
             ) as AvailableAiResourceDraftField[];
-            const fieldErrorIds = fieldErrorFields.join(", ");
             const fieldErrorLabels = [
               ...new Set(
                 fieldErrorFields.map((field) =>
@@ -287,6 +568,19 @@ export function AvailableAiResources({
               ),
             ];
             const opaqueQuota = draft.quota.kind === "opaque" ? draft.quota : null;
+            const usageProfile = preset
+              ? QUICK_USAGE_PROFILES[preset.id]
+              : undefined;
+            const parsedUsage = opaqueQuota
+              ? parseSubscriptionUsageDescription(opaqueQuota.description)
+              : null;
+            const usageBottleneck = parsedUsage
+              ? subscriptionUsageBottleneckPercent(parsedUsage.snapshot)
+              : null;
+            const surfaceOptions =
+              preset && preset.suggestedSurfaces.length > 0
+                ? preset.suggestedSurfaces
+                : WORK_SURFACES;
             const meteredQuota = draft.quota.kind === "metered" ? draft.quota : null;
             const calibratedQuota =
               draft.quota.kind === "calibrated" ? draft.quota : null;
@@ -304,12 +598,17 @@ export function AvailableAiResources({
                 <legend className="sr-only">{copy.resources.resourceLegend(index + 1)}</legend>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#294638]">
+                    <p className="break-words text-sm font-bold text-[#294638] [overflow-wrap:anywhere]">
                       {copy.resources.resourceLegend(index + 1)} ·{" "}
                       {preset
                         ? copy.resources.presets[preset.id].name
                         : draft.preset.id}
                     </p>
+                    {preset ? (
+                      <p className="mt-1 max-w-3xl text-xs leading-5 text-[#6a7a71]">
+                        {copy.resources.presets[preset.id].description}
+                      </p>
+                    ) : null}
                     <span
                       className={`mt-1.5 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
                         adapted.success || presetRecoveryReason !== null
@@ -361,16 +660,10 @@ export function AvailableAiResources({
                       >
                         <option value="">{copy.resources.relinkPlaceholder}</option>
                         {SUBSCRIPTION_PRESETS.map((candidatePreset) => {
-                          const usedBySibling = drafts.some(
-                            (candidateDraft) =>
-                              candidateDraft.uiId !== draft.uiId &&
-                              candidateDraft.preset.id === candidatePreset.id,
-                          );
                           return (
                             <option
                               key={candidatePreset.id}
                               value={candidatePreset.id}
-                              disabled={usedBySibling}
                             >
                               {copy.resources.presets[candidatePreset.id].name}
                             </option>
@@ -400,37 +693,46 @@ export function AvailableAiResources({
                       className={inputClass}
                     />
                   </label>
-                  <label className="block">
+                  <label className="block sm:col-span-2">
                     <ResourceFieldLabel
-                      label={copy.resources.ownershipLabel}
+                      label={copy.resources.accessArrangementLabel}
                       required
                       requiredText={copy.resources.requiredField}
                       optionalText={copy.resources.optionalField}
                     />
                     <select
-                      id={`resource-ownership-${draft.uiId}`}
+                      id={`resource-access-arrangement-${draft.uiId}`}
                       required
-                      value={draft.ownership}
+                      value={accessArrangement}
                       disabled={disabled}
                       onChange={(event) => {
-                        const ownership = event.target.value as AvailableAiResourceDraft["ownership"];
-                        onChange(draft.uiId, {
-                          ...draft,
-                          ownership,
-                          quota:
-                            ownership === "candidate-new"
-                              ? quotaForKind("opaque")
-                              : forceOpaque
-                                ? quotaForKind("opaque")
-                                : draft.quota,
-                        });
+                        const arrangement = event.target
+                          .value as SubscriptionAccessArrangement;
+                        onChange(
+                          draft.uiId,
+                          draftForAccessArrangement(draft, arrangement),
+                        );
                       }}
                       className={inputClass}
                     >
-                      {SUBSCRIPTION_OWNERSHIPS.map((value) => (
-                        <option key={value} value={value}>{copy.enums.ownership[value]}</option>
+                      <option value="" disabled>
+                        {copy.resources.accessArrangement.unresolved}
+                      </option>
+                      {(
+                        [
+                          "personal-existing",
+                          "personal-new",
+                          "organization-provided",
+                        ] as const
+                      ).map((value) => (
+                        <option key={value} value={value}>
+                          {copy.resources.accessArrangement[value]}
+                        </option>
                       ))}
                     </select>
+                    <span className="mt-1.5 block text-xs leading-5 text-[#718078]">
+                      {copy.resources.accessArrangementHelp}
+                    </span>
                   </label>
                   <label className="block">
                     <ResourceFieldLabel
@@ -456,6 +758,9 @@ export function AvailableAiResources({
                         <option key={value} value={value}>{copy.enums.availability[value]}</option>
                       ))}
                     </select>
+                    <span className="mt-1.5 block text-xs leading-5 text-[#718078]">
+                      {copy.resources.availabilityHelp}
+                    </span>
                   </label>
                   <label className="block">
                     <ResourceFieldLabel
@@ -478,14 +783,31 @@ export function AvailableAiResources({
                       className={inputClass}
                     >
                       <option value="">—</option>
-                      {WORK_SURFACES.map((value) => (
+                      {surfaceOptions.map((value) => (
                         <option key={value} value={value}>{copy.enums.surface[value]}</option>
                       ))}
                     </select>
+                    <span className="mt-1.5 block text-xs leading-5 text-[#718078]">
+                      {copy.resources.surfaceHelp}
+                    </span>
                   </label>
+                  {accessArrangement === "organization-provided" ? (
+                    <div className="block rounded-xl border border-[#2f6c55]/15 bg-[#edf5ef] px-3.5 py-3 text-xs leading-5 text-[#365649]">
+                      <p className="font-bold text-[#294638]">
+                        {copy.resources.organizationCostTitle}
+                      </p>
+                      <p className="mt-1">
+                        {copy.resources.organizationCostHelp}
+                      </p>
+                    </div>
+                  ) : (
                   <label className="block">
                     <ResourceFieldLabel
-                      label={copy.resources.feeLabel}
+                      label={
+                        accessArrangement === "personal-new"
+                          ? copy.resources.newSubscriptionFeeLabel
+                          : copy.resources.currentFeeLabel
+                      }
                       required
                       requiredText={copy.resources.requiredField}
                       optionalText={copy.resources.optionalField}
@@ -510,11 +832,14 @@ export function AvailableAiResources({
                         : copy.resources.newFeeHelp}
                     </span>
                   </label>
+                  )}
+                  {!(usageProfile && opaqueQuota && draft.reset.kind === "unknown") ? (
+                  <>
                   <div className="block">
-                    <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center justify-between gap-2">
                       <label
                         htmlFor={`resource-quota-kind-${draft.uiId}`}
-                        className="min-w-0"
+                        className="min-w-0 flex-1"
                       >
                         <ResourceFieldLabel
                           label={copy.resources.quotaKindLabel}
@@ -557,6 +882,9 @@ export function AvailableAiResources({
                         <option key={value} value={value}>{copy.enums.quotaKind[value]}</option>
                       ))}
                     </select>
+                    <span className="mt-1.5 block text-xs leading-5 text-[#718078]">
+                      {copy.resources.quotaComplexityHelp}
+                    </span>
                   </div>
                   <label className="block">
                     <ResourceFieldLabel
@@ -675,7 +1003,122 @@ export function AvailableAiResources({
                       </span>
                     </label>
                   ) : null}
+                  </>
+                  ) : null}
                 </div>
+
+                {opaqueQuota && usageProfile && parsedUsage ? (
+                  <div className="mt-4 rounded-2xl border border-[#2f6c55]/15 bg-[#edf5ef] p-4">
+                    <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[#294638]">
+                          {copy.resources.usageSnapshot.title}
+                        </p>
+                        <p className="mt-1 max-w-3xl text-xs leading-5 text-[#5f7167]">
+                          {copy.resources.usageSnapshot.description}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {usageBottleneck !== null ? (
+                          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#1f553f] shadow-sm">
+                            {copy.resources.usageSnapshot.bottleneck(
+                              usageBottleneck,
+                            )}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          aria-haspopup="dialog"
+                          aria-controls={QUOTA_GUIDE_DIALOG_ID}
+                          onClick={(event) => {
+                            quotaGuideTriggerRef.current = event.currentTarget;
+                            setQuotaGuidePresetId(
+                              preset?.id ?? "custom-subscription",
+                            );
+                          }}
+                          className="inline-flex min-h-9 items-center rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-[#2f6c55] underline decoration-[#2f6c55]/35 underline-offset-4 shadow-sm transition hover:bg-[#f8fbf9] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#2f6c55]/15"
+                        >
+                          {quotaGuideCopy.open}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {usageProfile.map((metric) => {
+                        const value = parsedUsage.snapshot[metric];
+                        return (
+                          <div key={metric} className="min-w-0">
+                            <UsagePercentSlider
+                              id={`resource-usage-${metric}-${draft.uiId}`}
+                              label={
+                                copy.resources.usageSnapshot.metricLabels[metric]
+                              }
+                              value={value}
+                              disabled={disabled}
+                              copy={copy.resources.usageSnapshot}
+                              onChange={(nextValue) => {
+                                const nextSnapshot: SubscriptionUsageSnapshot = {
+                                  ...parsedUsage.snapshot,
+                                };
+                                if (nextValue === undefined) {
+                                  delete nextSnapshot[metric];
+                                } else {
+                                  nextSnapshot[metric] = nextValue;
+                                }
+                                onChange(draft.uiId, {
+                                  ...draft,
+                                  quota: {
+                                    ...opaqueQuota,
+                                    description:
+                                      serializeSubscriptionUsageDescription(
+                                        nextSnapshot,
+                                        parsedUsage.note,
+                                      ),
+                                  },
+                                });
+                              }}
+                            />
+                            {metric === "modelWeeklyRemainingPercent" &&
+                            value !== undefined ? (
+                              <label className="mt-2 block">
+                                <span className="mb-1 block text-[11px] font-bold text-[#51675b]">
+                                  {copy.resources.usageSnapshot.modelLabel}
+                                </span>
+                                <input
+                                  value={parsedUsage.snapshot.modelLabel ?? ""}
+                                  maxLength={80}
+                                  placeholder={
+                                    copy.resources.usageSnapshot.modelPlaceholder
+                                  }
+                                  disabled={disabled}
+                                  onChange={(event) =>
+                                    onChange(draft.uiId, {
+                                      ...draft,
+                                      quota: {
+                                        ...opaqueQuota,
+                                        description:
+                                          serializeSubscriptionUsageDescription(
+                                            {
+                                              ...parsedUsage.snapshot,
+                                              modelLabel: event.target.value,
+                                            },
+                                            parsedUsage.note,
+                                          ),
+                                      },
+                                    })
+                                  }
+                                  className={inputClass}
+                                />
+                              </label>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-[11px] leading-5 text-[#5f7167]">
+                      {copy.resources.usageSnapshot.bottleneckHelp}
+                    </p>
+                  </div>
+                ) : null}
 
                 {opaqueQuota ? (
                   <label className="mt-3 block">
@@ -687,14 +1130,25 @@ export function AvailableAiResources({
                     />
                     <input
                       id={`resource-quota-description-${draft.uiId}`}
-                      value={opaqueQuota.description}
+                      value={
+                        usageProfile && parsedUsage
+                          ? parsedUsage.note
+                          : opaqueQuota.description
+                      }
+                      maxLength={usageProfile ? 240 : 500}
                       disabled={disabled}
                       onChange={(event) =>
                         onChange(draft.uiId, {
                           ...draft,
                           quota: {
                             ...opaqueQuota,
-                            description: event.target.value,
+                            description:
+                              usageProfile && parsedUsage
+                                ? serializeSubscriptionUsageDescription(
+                                    parsedUsage.snapshot,
+                                    event.target.value,
+                                  )
+                                : event.target.value,
                           },
                         })
                       }
@@ -919,16 +1373,6 @@ export function AvailableAiResources({
                           <li key={label}>{label}</li>
                         ))}
                       </ul>
-                    ) : null}
-                    {fieldErrorIds ? (
-                      <details className="mt-1.5">
-                        <summary className="min-h-11 cursor-pointer py-2 font-bold">
-                          {copy.resources.technicalDetails}
-                        </summary>
-                        <code className="block break-words rounded-lg bg-white/55 px-2.5 py-2">
-                          {fieldErrorIds}
-                        </code>
-                      </details>
                     ) : null}
                   </div>
                 ) : null}

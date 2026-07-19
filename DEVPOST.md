@@ -1,107 +1,127 @@
-# Devpost draft
+# Devpost submission draft
 
 ## Title
 
 Frontier Workload Planner
 
-## Problem
+## Track
 
-Teams can describe AI work, but choosing an access route and planning incremental cash across APIs
-and subscriptions is difficult. Asking a model to invent token counts, subscription quota, prices,
-or an “optimal” answer makes the result hard to trust. Manual comparison is slow, and it often
-mixes money already committed, new cash, native quota, and hypothetical savings into one misleading
-number.
+Apps for Your Life
 
-## Solution
+## Tagline
 
-Frontier Workload Planner analyzes up to eight tasks in one versioned structured GPT-5.6 request.
-GPT returns bounded workload requirements—complexity, reasoning depth, size bands, work mode,
-minimum planning quality, closed capability and upgrade codes, and failure risk—while users own
-priority, date-only deadlines, failure impact, available-resource observations, and budget meaning.
-GPT-5.6 is the only analysis engine. The app does not call Claude or Gemini APIs and never asks GPT
-to select a provider, price, subscription, or final route.
+Turn personal AI work, subscriptions, and API choices into an explainable budget plan.
 
-A deterministic Best-fit planner evaluates eligible API and subscription candidates, checks every
-Low / Expected / High invocation against provider-native limits, enforces the minimum-quality floor,
-reserves native quota, deduplicates subscription commitment, calculates paid overage, and holds
-lower-priority feasible work when incremental cash exceeds the confirmed budget. It leads with the
-access route and keeps Expected API spend, subscription usage, new commitment, paid overage, and
-avoided spend visibly separate. A structured fallback explains what happens when a preferred route
-is conditional or unavailable.
+## The problem
 
-The Economy / Balanced / Premium alignment is a planning heuristic, not an objective quality
-ranking, capability equivalence claim, benchmark, quote, or “best model” recommendation. The
-standard-text comparison excludes caching, discounted provider Batch processing, tool-call fees,
-and long-context surcharges. A task whose `workMode` is `batch` can still use a compatible standard
-API surface; that does not mean discounted Batch pricing was applied. Time-sensitive price windows,
-Preview status, prompt tiers, and invocation limits stay visible in the catalog evidence.
+I may already pay for an AI subscription and still need an API for some work. Before starting a
+project, it is hard to answer basic questions: Can the access method handle this task? Does my
+existing plan help? What new cash might I spend? Which work should wait if my budget is limited?
 
-## Honest evidence and override boundaries
+Most comparisons mix money already committed, estimated API use, subscription quota, and
+hypothetical savings. Asking a model to invent token counts, prices, or an "optimal" provider makes
+the result even harder to trust.
 
-The real ChatGPT-like, coding-plan, rolling-quota, and Custom presets are editable source hints, not
-proof of access, capability, eligibility, quota, or consumption. They stay conditional or excluded
-unless exact allowlisted evidence resolves. A test-only normalized allocator fixture can exercise a
-confirmed subscription branch, but the video separates that code-path evidence from the product UI
-and never presents it as a verified real account.
+## What I built
 
-Official catalog defaults and user API overrides remain separate. An override can change only the
-Best-fit planning tier and standard uncached text price for an exact existing catalog entry. It is
-visibly user-supplied, affects only Best-fit candidates, cannot grant access or capability, and is
-removed by “restore default.” The historical API-family compatibility comparison always uses the
-official default.
-Future scheduling is not supported: mutation and persistence reject it, restore discards an
-injected scheduled source, and the price resolver rejects it independently.
+Frontier Workload Planner accepts up to eight tasks, their priority and risk, a total
+incremental-cash budget, and optional observations about personal or organization-provided AI
+subscriptions. Exact subscription credits are not required. Separate accounts can be recorded
+independently, while concurrent limits on one account stay together so capacity is not double
+counted. A user can first try a deterministic sample or explicitly analyze their own tasks with
+GPT-5.6.
 
-## Reproducible without trusting a stale answer
+GPT-5.6 converts the task descriptions into one versioned structured workload document. It returns
+bounded fields such as complexity, size band, work mode, minimum quality, required capabilities,
+upgrade conditions, and failure risk. It never selects a provider, price, subscription, budget
+action, or final route.
 
-One recent source-only scenario is stored in browser LocalStorage v6. It saves bounded raw resource
-drafts, independent per-fact observation times, and exact user override source—not resolved
-evidence, routes, ledgers, or savings. Frozen v1–v5 records migrate sequentially into v6 with an
-empty Best-fit source state. On automatic or manual restore, the app re-resolves the source against
-current preset, resource, and exact-version catalog resolvers and recalculates routes, quota, cash,
-commitment, overage, and baseline. The restore instant, analysis time, confirmed-budget time,
-resource observation times, and override recording times keep the planning/pricing clock monotonic;
-the storage write time is not treated as calculation time.
-An unknown or retired resource preset remains a conditional exclusion with a visible relink to a
-current preset; relinking resets preset-bound fields instead of treating stale facts as current.
+A deterministic TypeScript planner takes over from there. It resolves versioned catalog evidence,
+checks invocation limits and minimum-quality floors, estimates Low / Expected / High standard-text
+costs with integer micro-USD arithmetic, reserves confirmed quota, deduplicates a new subscription
+commitment, and holds lower-priority work when the confirmed cash budget is insufficient. API cash,
+subscription use, new commitment, and paid overage remain separate.
 
-Historical JSON v3/v4 comparison exports remain unchanged. Best-fit results use a separate
-allowlisted JSON v5 document and parallel Korean, English, or Japanese Markdown. They include
-structured primary/fallback/baseline routes, stable route keys, source state, planning/pricing
-dates, and separated ledgers. Resolved resource and official-catalog snapshots are included only as
-audit evidence with `purpose: "audit-only"` and `importAuthority: false`. Export audit is never
-restore authority; source must be validated, re-resolved, and recalculated.
+Changing the budget, strategy, task priority, or resource observation recalculates the plan locally
+without another model call. Results explain why a route was chosen, what remains uncertain, what the
+fallback is, and what the user can change next.
 
-## Six demo outcomes
+## The two design decisions that matter most
 
-| Demo | What the viewer sees | Boundary kept visible |
-| --- | --- | --- |
-| Chat subscription | A separately shown test-only allocator fixture consumes native quota before avoidable API cash | It is not loaded into the UI; real presets remain conditional/excluded. |
-| Coding route | A coding-agent task selects a compatible coding surface and shows a fallback | A product name never proves tool or access capability. |
-| Batch API | The third Mock sample produces an actual Batch analysis; a focused test-only fixture verifies catalog surface, standard pricing, allocation, and export | The confirmed branch is test evidence, and no discounted provider Batch price is applied. |
-| Selective Premium | Only the tasks whose floor/closed trigger requires it upgrade | This is policy, not a model leaderboard. |
-| Held work | Feasible lower-priority work is held at the cash boundary | Held and infeasible are different states. |
-| Avoided spend | The selected plan is compared with a compatible all-Premium API baseline | It is a disclosed counterfactual, not cash received. |
+### Store source, not stale results
 
-The interface switches between Korean, English, and Japanese without another analysis request.
-Human-readable Markdown follows the selected language, distinguishes API task price from
-subscription marginal cash attribution, warns that the latter is not a standalone task price, and
-localizes decision reasons and upgrade triggers. Model names, technical identifiers, user text,
-GPT rationale, and locale-neutral JSON values remain unchanged.
+The browser stores one recent source-only scenario: user input, a versioned GPT analysis snapshot,
+raw resource observations, and exact user override sources. It does not restore old routes, ledgers,
+or savings as truth. Every restore validates those sources, re-resolves current versioned evidence,
+and recalculates the plan.
 
-## Project links
+Here, source includes the versioned workload analysis used as deterministic-planner input; it does
+not mean only the original task text.
 
-- Current public demo (pre-Ver3 build): <https://frontier-workload-planner.vercel.app>
-- Source code: <https://github.com/ParkBomJun/frontier-workload-planner>
+This decision also led to a memorable P1 fix. A restore sequence could move the calculation date
+backward and apply an older price window. The final clock path merges every relevant analysis,
+confirmation, observation, and restore time monotonically, including under React batching and a
+delayed response.
 
-## Release and demo note
+### Let GPT classify; keep money in code
 
-The public deployment intentionally keeps unauthenticated Live analysis disabled and contains no
-OpenAI API key. A previous API-only contract validation completed through the server-side
-`gpt-5.6` alias, but the Ver3 `best-fit-analysis-v2` contract still requires its own release
-revalidation.
+Natural-language workload analysis benefits from GPT-5.6. Financial meaning and route eligibility
+need reproducible rules. Keeping provider, price, quota, and final-route decisions out of the model
+makes plan changes instant, testable, and reviewable.
 
-The Ver3 source and its LocalStorage v6 / Best-fit JSON v5 contracts are now merged into `main`.
-The public URL still serves the pre-Ver3 stable deployment. Ver3 must not be described as available
-on the public demo until release revalidation, explicit redeployment, and production verification
-are complete.
+The app also refuses to turn a user's subscription guess into official proof. Unknown access or
+quota stays conditional, and personal account billing, region, and permissions remain a separate
+readiness check.
+
+## How I used Codex
+
+Codex was a continuing engineering collaborator throughout the build:
+
+- It helped translate the written requirements into versioned Zod Structured Output, storage, and
+  export contracts.
+- It helped implement fixed-decimal estimation, deterministic allocation, stable tie-breaking,
+  source-authority boundaries, and migration tests.
+- It helped reproduce and fix the restore-clock P1 instead of hiding it behind a new saved result.
+- I reviewed the app as an individual user, supplied screenshots and concrete UX objections, and
+  used Codex to iterate on page length, plain-language labels, optional expert controls, blocking
+  issue recovery, multilingual copy, and mobile layouts.
+- Review findings became focused regression tests, followed by full unit, lint, TypeScript, build,
+  and diff checks before each accepted checkpoint.
+
+I made the final product decisions: the target audience, product name, source-only persistence,
+bounded GPT role, strict evidence policy, UX direction, and what counted as an acceptable release.
+
+## GPT-5.6 integration
+
+The Live path calls GPT-5.6 through the server-side OpenAI Responses API with a versioned Zod
+Structured Output contract, low reasoning, a bounded output budget, and at most one retry. The API
+key never enters client code or browser storage. The free sample path uses a deterministic fixture
+with the same contract shape, so judges can test planning without a key or usage cost.
+
+## Privacy and honest boundaries
+
+- The app discloses that one recent task scenario is saved in plaintext LocalStorage and lets the
+  user delete it.
+- The public sample creates its checked-in deterministic analysis entirely in the browser and does
+  not send task text to the app server or an external AI.
+- A private operator can explicitly enable Live analysis, which sends disclosed task text to OpenAI
+  with Responses API `store: false`. API inputs are not used for training by default. Separate
+  abuse-monitoring logs normally retain customer content for up to 30 days and may be kept longer
+  when legally required or reasonably necessary to prevent harm; users are told not to enter
+  sensitive content.
+- Exports can contain task descriptions and must be reviewed before sharing.
+- Public deployment keeps unauthenticated Live analysis disabled; the sample path remains free.
+- Estimates use disclosed standard-text assumptions and are not quotes, benchmarks, objective model
+  rankings, or mathematical optimization claims.
+- Unverified subscription inputs remain conditional rather than becoming fabricated execution
+  routes.
+
+## Project links and release status
+
+- Source: <https://github.com/ParkBomJun/frontier-workload-planner>
+- Existing stable demo: <https://frontier-workload-planner.vercel.app>
+
+The current release candidate is **not yet represented by the public URL**. This draft must not be
+submitted until the exact candidate commit is public, that same commit is deployed, the production
+sample flow is verified, one protected local GPT-5.6 call passes, and the remaining human gates in
+`SUBMISSION_CHECKLIST.md` are complete.
