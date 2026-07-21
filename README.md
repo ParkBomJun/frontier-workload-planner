@@ -7,6 +7,7 @@ explainable access and incremental-cash plan. GPT-5.6 structures the workload on
 TypeScript rules—not the model—check limits, calculate estimates, and choose the displayed route.
 
 [Open the public demo](https://frontier-workload-planner.vercel.app) ·
+[Watch the 2:40 demo](https://youtu.be/iI3lDYjBCUc) ·
 [Review the release gates](./SUBMISSION_CHECKLIST.md)
 
 ## Try it in 60 seconds
@@ -50,11 +51,20 @@ The repository slug, public URL, preview-image filename, and existing browser st
 
 ## Submission status
 
-The public sample release is deployed and has passed the same-commit GitHub/Vercel metadata check,
-production sample-flow verification, and public disabled-Live check. This does **not** mean the
-submission is complete: the protected local GPT-5.6 call, final video, Devpost form, identity, and
-other human-owned gates in `SUBMISSION_CHECKLIST.md` remain open. See the
-[production QA report](./docs/submission/PRODUCTION_QA_REPORT_KO.md) for the verified boundary.
+The captured application release is
+`97c30de29a520e15b6439bb514179418736b9180`. At capture time the clean local checkout, GitHub
+`main`, and the verified deployment metadata matched that SHA. From that exact release, one
+locally enabled Live request returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the
+`best-fit-analysis-v2` contract, and the requested task identity. The public deployment remains
+sample-first: a fresh public Live request on 2026-07-21 returned the documented sanitized
+`403 LIVE_ANALYSIS_DISABLED` response with `Cache-Control: no-store`.
+
+The [final public video](https://youtu.be/iI3lDYjBCUc) is 2:40.37 with English narration and
+published English captions. Later commits may update submission documentation only; they do not
+change the captured application release above. Devpost registration, eligibility, the primary
+Codex `/feedback` Session ID, terms, final preview, and the Submit action remain human-owned gates
+in `SUBMISSION_CHECKLIST.md`. See the [locally enabled Live record](./docs/submission/LIVE_VALIDATION.md)
+and [production QA report](./docs/submission/PRODUCTION_QA_REPORT_KO.md).
 
 ## The problem
 
@@ -183,7 +193,7 @@ npm run dev
 Open <http://localhost:3000>, select **English**, load the three sample tasks, keep **Try a sample**
 selected, and create a sample plan. This path requires no API key and makes no Live analysis call.
 
-### Protected local GPT-5.6 check
+### Locally enabled GPT-5.6 check
 
 Only use a private local environment for the Live check:
 
@@ -210,11 +220,12 @@ the sample path remains available.
 - Stored data can include task names, task descriptions, settings, resource observations, and user
   catalog override sources.
 - The UI discloses this before submission and provides a delete action.
-- When a private operator explicitly enables Live analysis, the app server forwards task names and
-  descriptions to OpenAI with Responses API `store: false`; this app has no database or request-body
-  logging path. OpenAI does not use API inputs for training by default. Separate abuse-monitoring
-  logs normally retain customer content for up to 30 days and may be kept longer when legally
-  required or reasonably necessary to prevent harm. See [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data).
+- When a private operator explicitly enables Live analysis, the app server forwards task IDs,
+  names, and descriptions to OpenAI with Responses API `store: false`; this app has no database or
+  request-body logging path. OpenAI does not use API inputs for training by default. Separate
+  abuse-monitoring logs normally retain customer content for up to 30 days and may be kept longer
+  when legally required or reasonably necessary to prevent harm. See
+  [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data).
 - API keys, other secret server configuration, hidden prompts, raw provider errors, and connector
   receipts are not stored in the browser.
 - Markdown and JSON exports include task content. Inspect them before copying or sharing.
@@ -231,16 +242,18 @@ npm run build
 git diff --check
 ```
 
-The sample UI, disabled-Live response, protected Live call, mobile viewport, and final deployed commit
-must also be checked manually before submission. See `SUBMISSION_CHECKLIST.md`.
+The sample UI, disabled-Live response, locally enabled Live call, mobile viewport, and captured
+application release were also checked manually. Devpost-specific human gates remain in
+`SUBMISSION_CHECKLIST.md`.
 
 ## Project documents
 
 - [SPEC.md](./SPEC.md): product, calculation, evidence, persistence, and export contracts
 - [DECISIONS.md](./DECISIONS.md): reviewed engineering decisions
 - [TASKS.md](./TASKS.md): implementation checkpoints and remaining follow-ups
-- [DEVPOST.md](./DEVPOST.md): English submission draft
-- [VIDEO_SCRIPT.md](./VIDEO_SCRIPT.md): sub-three-minute English demo plan
+- [DEVPOST.md](./DEVPOST.md): final English submission copy
+- [VIDEO_SCRIPT.md](./VIDEO_SCRIPT.md): historical recording plan for the
+  [final 2:40 demo](https://youtu.be/iI3lDYjBCUc)
 - [SUBMISSION_CHECKLIST.md](./SUBMISSION_CHECKLIST.md): human-only release and eligibility gates
 
 ## License

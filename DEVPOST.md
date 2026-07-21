@@ -1,4 +1,4 @@
-# Devpost submission draft
+# Devpost submission copy
 
 ## Title
 
@@ -106,11 +106,11 @@ with the same contract shape, so judges can test planning without a key or usage
   user delete it.
 - The public sample creates its checked-in deterministic analysis entirely in the browser and does
   not send task text to the app server or an external AI.
-- A private operator can explicitly enable Live analysis, which sends disclosed task text to OpenAI
-  with Responses API `store: false`. API inputs are not used for training by default. Separate
-  abuse-monitoring logs normally retain customer content for up to 30 days and may be kept longer
-  when legally required or reasonably necessary to prevent harm; users are told not to enter
-  sensitive content.
+- A private operator can explicitly enable Live analysis, which sends disclosed task IDs, names,
+  and descriptions to OpenAI with Responses API `store: false`. API inputs are not used for
+  training by default. Separate abuse-monitoring logs normally retain customer content for up to
+  30 days and may be kept longer when legally required or reasonably necessary to prevent harm;
+  users are told not to enter sensitive content.
 - Exports can contain task descriptions and must be reviewed before sharing.
 - Public deployment keeps unauthenticated Live analysis disabled; the sample path remains free.
 - Estimates use disclosed standard-text assumptions and are not quotes, benchmarks, objective model
@@ -122,8 +122,13 @@ with the same contract shape, so judges can test planning without a key or usage
 
 - Source: <https://github.com/ParkBomJun/frontier-workload-planner>
 - Public demo: <https://frontier-workload-planner.vercel.app>
+- Public video: <https://youtu.be/iI3lDYjBCUc> (2:40.37, English narration and captions)
 
-The public sample release has passed the same-commit GitHub/Vercel metadata check, production sample
-flow, and public disabled-Live verification. The protected local GPT-5.6 call, final video, Devpost
-form, identity, and remaining human-owned gates in `SUBMISSION_CHECKLIST.md` must still be completed
-before submission.
+The captured application release is
+`97c30de29a520e15b6439bb514179418736b9180`. At capture time the clean local checkout, GitHub
+`main`, and verified deployment metadata matched that SHA. The production sample flow passed, and
+a fresh public Live request remained fail-closed with HTTP `403`, `LIVE_ANALYSIS_DISABLED`, and
+`Cache-Control: no-store`. From the same application release, one locally enabled Live request
+returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the `best-fit-analysis-v2` contract, and the
+requested task identity. Later repository commits may update submission documentation only; they do
+not change the captured application release.

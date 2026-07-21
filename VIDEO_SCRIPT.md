@@ -1,5 +1,9 @@
 # Nothing More — 2:49 English demo script
 
+> Status: recording completed. The [final public video](https://youtu.be/iI3lDYjBCUc) is 2:40.37.
+> Its finalized narration, captions, and QA record supersede the planned timings below; this file is
+> retained as the historical recording plan.
+
 Target: **2 minutes 49 seconds maximum**. Use English UI and English voiceover for the entire
 recording. Record after the release SHA is frozen, deployed, and has passed the non-video technical
 and manual gates. Complete the recording, upload, and submission-form gates afterward.

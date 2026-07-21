@@ -16,20 +16,26 @@ the final Devpost preview has been reviewed once more.**
 - [ ] Verify the repository history shows the project was created during the submission period, or
       add an accurate English disclosure of pre-existing work if that fact changes.
 
-## Freeze one release commit
+## Freeze the application release and submission documentation
 
 - [ ] Run the full local verification suite on a clean working tree.
-- [ ] Record the final release SHA here: `________________________________________`.
-- [ ] Confirm the intended public GitHub branch resolves to that exact SHA.
+- [ ] Confirm the captured application release SHA:
+      `97c30de29a520e15b6439bb514179418736b9180`.
+- [ ] After pushing, record the later submission-documentation SHA in the private submission
+      handoff record rather than in this versioned file.
+- [ ] Confirm the captured application SHA remains reachable from the public GitHub history and
+      that the later submission commit changes documentation only.
 - [ ] Confirm the repository is publicly accessible and includes the MIT license, or complete the
       official private-repository sharing requirements instead.
-- [ ] Confirm README, Devpost text, video, screenshots, and test instructions all describe that SHA,
-      not an earlier stable build or a later local edit.
+- [ ] Confirm README, Devpost text, video, screenshots, and test instructions distinguish the
+      captured application SHA from the later documentation-only commit.
 
-## Deploy the same SHA
+## Deploy the captured application SHA
 
-- [ ] Deploy the recorded release SHA without rebuilding from an uncommitted working tree.
-- [ ] Confirm the hosting provider's deployment metadata resolves to the recorded SHA.
+- [ ] Deploy the captured application release SHA without rebuilding from an uncommitted working
+      tree.
+- [ ] Confirm the hosting provider's deployment metadata resolves to the captured application
+      release SHA.
 - [ ] Open the public URL in a clean browser profile and verify the current English personal-user UI
       appears, not the earlier stable interface.
 - [ ] Verify the public demo is free and will remain available through the complete judging period.
@@ -41,14 +47,14 @@ the final Devpost preview has been reviewed once more.**
       break the sample path.
 - [ ] Verify desktop and mobile flows in clean browser sessions, including at least 390px width.
 
-## Protected GPT-5.6 validation
+## Locally enabled GPT-5.6 validation
 
-- [ ] From the exact recorded release SHA, run one protected local Live request with a server-only
-      key and non-sensitive task text.
-- [ ] Confirm the request uses the `gpt-5.6` alias and returns the current
-      `best-fit-analysis-v2` Structured Output contract.
+- [ ] From the captured application release SHA, run one private local Live request with a
+      server-only key and non-sensitive task text.
+- [ ] Confirm the release configuration defaults to the `gpt-5.6` alias. The captured evidence
+      proves the returned model and contract but does not separately log the exact outbound alias.
 - [ ] Record the validation date and non-secret outcome here:
-      `________________________________________________________________________`.
+      `2026-07-21 UTC; HTTP 200; mode live; model gpt-5.6-sol; best-fit-analysis-v2; task-1 matched`.
 - [ ] Confirm no API key, environment value, raw provider error, private URL, or confidential task
       text appears in Git history, build output, browser storage, screenshots, or video.
 - [ ] Remove or secure the local key after validation according to the owner's normal key-management
@@ -56,17 +62,25 @@ the final Devpost preview has been reviewed once more.**
 
 ## English submission materials
 
+Recorded URLs:
+
+- Public demo: <https://frontier-workload-planner.vercel.app>
+- Public repository: <https://github.com/ParkBomJun/frontier-workload-planner>
+- Public video: <https://youtu.be/iI3lDYjBCUc>
+
 - [ ] Re-read README.md as the judge's setup and testing guide; confirm it is accurate and complete in
       English.
 - [ ] Copy the final English DEVPOST.md text into Devpost and compare the rendered version line by
       line.
 - [ ] Confirm the chosen track, title, tagline, feature claims, privacy wording, and release status are
       consistent across README, Devpost, and video.
-- [ ] Replace every temporary “release candidate not deployed” note only after the same-SHA public
-      deployment is actually verified.
+- [ ] Confirm no current submission document describes the captured application release as
+      undeployed or pending.
 - [ ] Add the final public demo, repository, and YouTube URLs to the submission form.
 
 ## Video hard gates
+
+Recorded exported duration: **2:40.37**.
 
 - [ ] Record the exact release UI in English with an English voiceover.
 - [ ] Keep the finished video at or below **2:49** and verify the exported file duration, not only the
@@ -107,7 +121,7 @@ the final Devpost preview has been reviewed once more.**
 - [ ] `git diff --check`
 - [ ] Confirm the final commit contains no secret, `.env.local`, generated private export, or
       accidental recording asset.
-- [ ] Confirm the public GitHub tree and deployed SHA still match after documentation and video-link
-      updates.
+- [ ] Confirm the pushed submission commit changes documentation only, the captured application SHA
+      remains reachable, and the public application behavior is unchanged.
 - [ ] Complete a final signed-out Devpost preview, verify every required field, and submit before the
       official deadline with a safe time margin.

@@ -37,12 +37,14 @@ an objective order between vendors.
 | `balanced` | GPT-5.6 Terra | Claude Sonnet 5 | Gemini 3 Flash |
 | `frontier` | GPT-5.6 Sol | Claude Fable 5 | Gemini 3.1 Pro |
 
-## Release candidate — not deployed yet
+## Captured application release
 
-This candidate extends the reviewed Ver3 source. The public URL at
-<https://frontier-workload-planner.vercel.app> may still serve an earlier stable deployment. The
-following experience must not be described as publicly deployed until the exact candidate SHA is
-published, deployed, and verified:
+The personal-user experience below is publicly deployed at
+<https://frontier-workload-planner.vercel.app>. Its captured application release is
+`97c30de29a520e15b6439bb514179418736b9180`; the clean local checkout, GitHub `main`, and verified
+deployment metadata matched that SHA during release capture. Later submission-documentation
+commits do not change this application behavior. The public deployment keeps unauthenticated Live
+analysis disabled while the browser-only sample path remains available:
 
 1. One to eight task names, descriptions, user priorities, optional date-only deadlines, and bounded failure impacts in a single-page UI.
 2. Budget, reference deadline, and planning-strategy controls.
@@ -389,9 +391,9 @@ clock while this work was developed on `feature/best-fit-offerings`. Checkpoint 
 UI/clock baseline. Checkpoint 8 replaces its temporary session-only boundary with source-only
 LocalStorage v6 and Best-fit JSON v5/Markdown projections. The post-checkpoint personal-user pass
 extends that boundary to LocalStorage v7, frozen v1–v6 migration, source state v2, and Best-fit
-JSON v6 without changing the calculation result contract. The approved Checkpoint 8 source is now
-merged into `main`; the post-checkpoint personal-user pass is an unmerged release candidate on
-`wip/personal-user-ux-20260718` and is not yet the public deployment. The reviewed
+JSON v6 without changing the calculation result contract. The approved Checkpoint 8 source and the
+post-checkpoint personal-user pass are merged into `main` and included in captured application
+release `97c30de29a520e15b6439bb514179418736b9180`. The reviewed
 API-only provider comparison remains frozen at tag `provider-comparison-stable` (`d3edd98`).
 
 > GPT-5.6 analyzes task requirements. A deterministic planner then allocates the least-waste route
