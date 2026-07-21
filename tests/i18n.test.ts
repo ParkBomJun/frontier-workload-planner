@@ -10,9 +10,9 @@ import {
 } from "@/lib/i18n/ui-copy";
 
 describe("UI locale contract", () => {
-  it("supports Korean, English, and Japanese with Korean as the SSR default", () => {
+  it("supports Korean, English, and Japanese with English as the SSR default", () => {
     expect(UI_LOCALES).toEqual(["ko", "en", "ja"]);
-    expect(DEFAULT_UI_LOCALE).toBe("ko");
+    expect(DEFAULT_UI_LOCALE).toBe("en");
     expect(UI_LOCALE_META).toMatchObject({
       ko: { htmlLang: "ko", dateLocale: "ko-KR", nativeName: "한국어" },
       en: { htmlLang: "en", dateLocale: "en-US", nativeName: "English" },

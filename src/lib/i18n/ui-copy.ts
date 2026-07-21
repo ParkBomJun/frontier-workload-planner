@@ -16,7 +16,7 @@ import type { FailureImpact } from "@/types/workload";
 export const UI_LOCALES = ["ko", "en", "ja"] as const;
 export type UiLocale = (typeof UI_LOCALES)[number];
 
-export const DEFAULT_UI_LOCALE: UiLocale = "ko";
+export const DEFAULT_UI_LOCALE: UiLocale = "en";
 export const UI_LOCALE_STORAGE_KEY = "frontier-workload-planner:locale";
 
 export interface UiLocaleMeta {

@@ -28,7 +28,7 @@ describe("Personal-user budget settings", () => {
         }),
       ),
     );
-    const common = UI_COPY.ko.common;
+    const common = UI_COPY.en.common;
     const budgetLabel = markup.match(
       /<label for="budget-usd"[\s\S]*?<\/label>/,
     )?.[0] ?? "";
@@ -75,7 +75,7 @@ describe("Personal-user budget settings", () => {
     );
 
     expect(markup).toContain('id="planning-strategy"');
-    expect(markup).toContain(UI_COPY.ko.budgetSettings.strategyLegend);
+    expect(markup).toContain(UI_COPY.en.budgetSettings.strategyLegend);
     expect(markup).toContain('option value="balanced" selected=""');
     expect(markup).not.toContain('name="planning-strategy"');
   });
@@ -104,8 +104,8 @@ describe("Personal-user budget settings", () => {
 
     expect(buttonTag).toBeDefined();
     expect(buttonTag).not.toMatch(/\sdisabled(?:=|\s|>)/);
-    expect(markup).toContain(UI_COPY.ko.budgetSettings.budgetError);
-    expect(markup).toContain(UI_COPY.ko.budgetSettings.deadlineError);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.budget.confirm);
+    expect(markup).toContain(UI_COPY.en.budgetSettings.budgetError);
+    expect(markup).toContain(UI_COPY.en.budgetSettings.deadlineError);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.budget.confirm);
   });
 });

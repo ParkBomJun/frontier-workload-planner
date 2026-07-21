@@ -218,10 +218,10 @@ describe("Checkpoint 8 catalog override editor policy", () => {
       ),
     );
 
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.unresolvedSource);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.removeUnresolved);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.savedSources);
-    expect(markup).not.toContain(BEST_FIT_UI_COPY.ko.overrides.active);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.overrides.unresolvedSource);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.overrides.removeUnresolved);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.overrides.savedSources);
+    expect(markup).not.toContain(BEST_FIT_UI_COPY.en.overrides.active);
     expect(markup).toContain("min-h-11");
     expect(markup.startsWith("<details")).toBe(true);
     expect(markup).not.toContain("<details open=");
@@ -241,12 +241,12 @@ describe("Checkpoint 8 catalog override editor policy", () => {
       ),
     );
 
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.overrides.futureSource);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.overrides.futureSource);
     expect(markup).not.toContain(
-      `>${BEST_FIT_UI_COPY.ko.overrides.userSupplied}<`,
+      `>${BEST_FIT_UI_COPY.en.overrides.userSupplied}<`,
     );
     expect(markup.split("</summary>")[0]).not.toContain(
-      `${BEST_FIT_UI_COPY.ko.overrides.active}: 1`,
+      `${BEST_FIT_UI_COPY.en.overrides.active}: 1`,
     );
   });
 
@@ -265,7 +265,7 @@ describe("Checkpoint 8 catalog override editor policy", () => {
     );
 
     expect(markup.split("</summary>")[0]).toContain(
-      `${BEST_FIT_UI_COPY.ko.overrides.active}: 1`,
+      `${BEST_FIT_UI_COPY.en.overrides.active}: 1`,
     );
   });
 });

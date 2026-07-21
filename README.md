@@ -14,7 +14,8 @@ TypeScript rules—not the model—check limits, calculate estimates, and choose
 
 No sign-in or API key is needed for the sample path.
 
-1. Open the public demo and choose **English**.
+1. Open the public demo. A fresh browser starts in **English**; if this site already has another
+   saved locale, choose **English**.
 2. Select **Load 3 sample tasks**.
 3. In Step 2, select **Plan with this amount** to confirm what the sample budget includes.
 4. Keep **Try a sample** selected, then select **Create a sample plan**.
@@ -190,8 +191,9 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:3000>, select **English**, load the three sample tasks, keep **Try a sample**
-selected, and create a sample plan. This path requires no API key and makes no Live analysis call.
+Open <http://localhost:3000>, confirm **English** is selected, load the three sample tasks, keep
+**Try a sample** selected, and create a sample plan. This path requires no API key and makes no Live
+analysis call.
 
 ### Locally enabled GPT-5.6 check
 

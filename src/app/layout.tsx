@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { LanguageProvider } from "@/components/language-provider";
+import { DEFAULT_UI_LOCALE, UI_LOCALE_META } from "@/lib/i18n/ui-copy";
 
 import "./globals.css";
 
@@ -44,7 +45,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ko">
+    <html lang={UI_LOCALE_META[DEFAULT_UI_LOCALE].htmlLang}>
       <body>
         <LanguageProvider>
           {children}

@@ -16,6 +16,9 @@ describe("Language selector placement", () => {
     );
 
     expect(markup).toContain('id="global-language-selector"');
+    expect(markup).toContain(
+      '<option value="en" lang="en" selected="">English</option>',
+    );
     expect(markup).toContain("min-h-11");
     expect(markup).not.toContain("fixed");
     expect(markup).not.toContain("bottom-");

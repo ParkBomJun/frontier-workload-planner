@@ -43,7 +43,7 @@ describe("Checkpoint 8 resource preset recovery", () => {
 
     expect(markup).toContain('id="add-resource-select"');
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.presetSelectPlaceholder,
+      BEST_FIT_UI_COPY.en.resources.presetSelectPlaceholder,
     );
     expect(markup).not.toContain("border-dashed");
   });
@@ -68,9 +68,9 @@ describe("Checkpoint 8 resource preset recovery", () => {
       ),
     );
 
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.conditionalStatus);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.relinkTitle);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.relinkPlaceholder);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.conditionalStatus);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.relinkTitle);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.relinkPlaceholder);
     expect(markup).toContain("github-copilot-like-credits");
     expect(markup).toContain("claude-subscription");
     expect(markup).toContain("gemini-subscription");
@@ -108,25 +108,25 @@ describe("Checkpoint 8 resource preset recovery", () => {
       ),
     );
 
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.description);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.description);
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.presetSelectPlaceholder,
+      BEST_FIT_UI_COPY.en.resources.presetSelectPlaceholder,
     );
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.conditionalStatus);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.conditionalStatus);
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.usageSnapshot.metricLabels
+      BEST_FIT_UI_COPY.en.resources.usageSnapshot.metricLabels
         .creditRemainingPercent,
     );
     expect(markup).not.toContain('id="resource-quota-kind-resource-2"');
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.opaqueDescriptionLabel);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.opaqueDescriptionLabel);
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).toContain('aria-controls="subscription-quota-guide"');
     expect(markup).toContain('id="subscription-quota-guide"');
     expect(markup).toContain(
       'aria-labelledby="subscription-quota-guide-title"',
     );
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.quotaGuide.open);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.quotaGuide.title);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.quotaGuide.open);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.quotaGuide.title);
     expect(markup).toContain('href="https://github.com/settings/billing"');
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');
@@ -139,7 +139,7 @@ describe("Checkpoint 8 resource preset recovery", () => {
       presetId: "gemini-code-assist",
     });
     const guide =
-      BEST_FIT_UI_COPY.ko.resources.quotaGuide.presets[
+      BEST_FIT_UI_COPY.en.resources.quotaGuide.presets[
         "gemini-code-assist"
       ];
     const markup = renderToStaticMarkup(
@@ -237,7 +237,7 @@ describe("Checkpoint 8 resource preset recovery", () => {
     );
 
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.sharedGooglePlanWarningTitle,
+      BEST_FIT_UI_COPY.en.resources.sharedGooglePlanWarningTitle,
     );
     expect(markup).toContain('role="alert"');
   });
@@ -276,9 +276,9 @@ describe("Checkpoint 8 resource preset recovery", () => {
     expect(markup).toContain('id="resource-surface-resource-5"');
     expect(markup).not.toContain('id="resource-fee-resource-5"');
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.organizationCostTitle,
+      BEST_FIT_UI_COPY.en.resources.organizationCostTitle,
     );
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.usageSnapshot.title);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.usageSnapshot.title);
   });
 
   it("makes a malformed restored organization fee recoverable instead of hiding it", () => {
@@ -318,7 +318,7 @@ describe("Checkpoint 8 resource preset recovery", () => {
       'id="resource-fee-resource-malformed-organization"',
     );
     expect(markup).not.toContain(
-      BEST_FIT_UI_COPY.ko.resources.organizationCostTitle,
+      BEST_FIT_UI_COPY.en.resources.organizationCostTitle,
     );
   });
 
@@ -346,21 +346,21 @@ describe("Checkpoint 8 resource preset recovery", () => {
       ),
     );
 
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.fieldsToCheck);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.surfaceLabel);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.currentFeeLabel);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.requirementHelp);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.availabilityHelp);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.fieldsToCheck);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.surfaceLabel);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.currentFeeLabel);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.requirementHelp);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.availabilityHelp);
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.enums.availability.unavailable,
+      BEST_FIT_UI_COPY.en.enums.availability.unavailable,
     );
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.requiredField);
-    expect(markup).toContain(BEST_FIT_UI_COPY.ko.resources.optionalField);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.requiredField);
+    expect(markup).toContain(BEST_FIT_UI_COPY.en.resources.optionalField);
     expect(markup).toContain('id="resource-card-resource-3"');
     expect(markup).toContain('id="resource-surface-resource-3" required=""');
     expect(markup).toContain('id="resource-fee-resource-3" required=""');
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.usageSnapshot.metricLabels
+      BEST_FIT_UI_COPY.en.resources.usageSnapshot.metricLabels
         .fiveHourRemainingPercent,
     );
     expect(markup).not.toContain('id="resource-reset-kind-resource-3"');
@@ -417,10 +417,10 @@ describe("Checkpoint 8 resource preset recovery", () => {
       /id="resource-usage-modelWeeklyRemainingPercent-resource-8"[^>]*value="18"/,
     );
     expect(markup).toContain(
-      BEST_FIT_UI_COPY.ko.resources.usageSnapshot.bottleneck(18),
+      BEST_FIT_UI_COPY.en.resources.usageSnapshot.bottleneck(18),
     );
     expect(markup).toContain(
-      `aria-label="${BEST_FIT_UI_COPY.ko.resources.usageSnapshot.metricLabels.fiveHourRemainingPercent}: ${BEST_FIT_UI_COPY.ko.resources.usageSnapshot.clear}"`,
+      `aria-label="${BEST_FIT_UI_COPY.en.resources.usageSnapshot.metricLabels.fiveHourRemainingPercent}: ${BEST_FIT_UI_COPY.en.resources.usageSnapshot.clear}"`,
     );
     expect(markup).toContain('value="Model shown in Usage"');
     expect(markup).toContain('value="Checked now."');
@@ -456,6 +456,8 @@ describe("Checkpoint 8 resource preset recovery", () => {
 
     expect(surfaceSelect).toContain('option value="chat"');
     expect(surfaceSelect).not.toContain('option value="ide-cli"');
-    expect(markup).toContain("CLI 이용 권한으로 계산하지 않습니다");
+    expect(markup).toContain(
+      BEST_FIT_UI_COPY.en.resources.presets["gemini-subscription"].description,
+    );
   });
 });

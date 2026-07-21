@@ -286,7 +286,8 @@ The form discloses this automatic plaintext save before its submit button, while
 
 ## Interface locale contract
 
-The single-page interface supports `ko`, `en`, and `ja`, with Korean as the server-rendered default.
+The single-page interface supports `ko`, `en`, and `ja`, with English as the server-rendered default
+for a fresh browser so the public judging path opens without a language-selection step.
 The selected locale is stored independently under `frontier-workload-planner:locale`; it is not part
 of recent-scenario schema v4 and does not trigger analysis, pricing, or allocation work. A valid
 stored locale updates the interface and `<html lang>` after hydration. Invalid values and storage

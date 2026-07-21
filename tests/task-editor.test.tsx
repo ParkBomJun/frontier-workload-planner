@@ -35,7 +35,7 @@ describe("Personal-user task editor", () => {
         }),
       ),
     );
-    const common = UI_COPY.ko.common;
+    const common = UI_COPY.en.common;
     const nameLabel = markup.match(
       /<label for="task-name-task-1"[\s\S]*?<\/label>/,
     )?.[0] ?? "";
@@ -109,9 +109,9 @@ describe("Personal-user task editor", () => {
       ),
     );
 
-    expect(markup).toContain(UI_COPY.ko.taskEditor.settingsHelp);
+    expect(markup).toContain(UI_COPY.en.taskEditor.settingsHelp);
     expect(markup).not.toContain(
-      `class="sr-only">${UI_COPY.ko.taskEditor.settingsHelp}`,
+      `class="sr-only">${UI_COPY.en.taskEditor.settingsHelp}`,
     );
   });
 });
