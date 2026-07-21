@@ -52,20 +52,26 @@ The repository slug, public URL, preview-image filename, and existing browser st
 
 ## Submission status
 
-The captured application release is
-`97c30de29a520e15b6439bb514179418736b9180`. At capture time the clean local checkout, GitHub
-`main`, and the verified deployment metadata matched that SHA. From that exact release, one
-locally enabled Live request returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the
-`best-fit-analysis-v2` contract, and the requested task identity. The public deployment remains
-sample-first: a fresh public Live request on 2026-07-21 returned the documented sanitized
-`403 LIVE_ANALYSIS_DISABLED` response with `Cache-Control: no-store`.
+The current public application release is
+`185ae7a588d3448675a0e16de4f9953b991397f1`. At deployment time the clean local checkout,
+GitHub `main`, and verified Vercel metadata matched that SHA. A fresh `ko-KR` browser context still
+opened in English, completed the three-task sample plan, and kept Korean and Japanese available as
+language choices. A fresh public Live request remained fail-closed with the documented sanitized
+`403 LIVE_ANALYSIS_DISABLED` response and `Cache-Control: no-store`.
+
+The protected Live and video evidence were captured from
+`97c30de29a520e15b6439bb514179418736b9180`. From that exact evidence release, one locally enabled
+Live request returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the `best-fit-analysis-v2`
+contract, and the requested task identity. The current public release changes only the fresh-browser
+default from Korean to English, together with its tests and documentation; it does not change the
+planner, API route, storage schema, or privacy boundary.
 
 The [final public video](https://youtu.be/iI3lDYjBCUc) is 2:40.37 with English narration and
 published English captions. Later commits may update submission documentation only; they do not
-change the captured application release above. Devpost registration, eligibility, the primary
-Codex `/feedback` Session ID, terms, final preview, and the Submit action remain human-owned gates
-in `SUBMISSION_CHECKLIST.md`. See the [locally enabled Live record](./docs/submission/LIVE_VALIDATION.md)
-and [production QA report](./docs/submission/PRODUCTION_QA_REPORT_KO.md).
+change the public application release above. Eligibility, terms, and other personal confirmations
+remain human-owned gates in `SUBMISSION_CHECKLIST.md`. See the
+[locally enabled Live record](./docs/submission/LIVE_VALIDATION.md) and
+[production QA report](./docs/submission/PRODUCTION_QA_REPORT_KO.md).
 
 ## The problem
 

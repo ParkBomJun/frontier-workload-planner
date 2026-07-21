@@ -124,11 +124,16 @@ with the same contract shape, so judges can test planning without a key or usage
 - Public demo: <https://frontier-workload-planner.vercel.app>
 - Public video: <https://youtu.be/iI3lDYjBCUc> (2:40.37, English narration and captions)
 
-The captured application release is
-`97c30de29a520e15b6439bb514179418736b9180`. At capture time the clean local checkout, GitHub
-`main`, and verified deployment metadata matched that SHA. The production sample flow passed, and
-a fresh public Live request remained fail-closed with HTTP `403`, `LIVE_ANALYSIS_DISABLED`, and
-`Cache-Control: no-store`. From the same application release, one locally enabled Live request
-returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the `best-fit-analysis-v2` contract, and the
-requested task identity. Later repository commits may update submission documentation only; they do
-not change the captured application release.
+The current public application release is
+`185ae7a588d3448675a0e16de4f9953b991397f1`. At deployment time the clean local checkout, GitHub
+`main`, and verified Vercel metadata matched that SHA. A fresh browser opened in English, the
+production sample flow passed, and a public Live request remained fail-closed with HTTP `403`,
+`LIVE_ANALYSIS_DISABLED`, and `Cache-Control: no-store`.
+
+The protected Live and video evidence remain tied to
+`97c30de29a520e15b6439bb514179418736b9180`. From that exact evidence release, one locally enabled
+Live request returned HTTP `200`, `mode: live`, model `gpt-5.6-sol`, the `best-fit-analysis-v2`
+contract, and the requested task identity. The current public release changes only the
+fresh-browser default from Korean to English and the associated tests and documentation; planner,
+API, storage, and privacy behavior are unchanged. Later repository commits may update submission
+documentation only without changing the public application release.

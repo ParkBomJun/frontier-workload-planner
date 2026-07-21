@@ -4,7 +4,8 @@
 - 공개 URL: <https://frontier-workload-planner.vercel.app>
 - 결함을 발견한 기준 production 커밋: `235732bafd53c40fe9f4eaa7989cb64ef757a8ef`
 - 기준 병합: [PR #2](https://github.com/ParkBomJun/frontier-workload-planner/pull/2)
-- 최종 수정 릴리스: 이 보고서가 포함된 `main` 커밋을 Vercel `sourceCommitSha`와 대조
+- 현재 공개 애플리케이션 릴리스:
+  `185ae7a588d3448675a0e16de4f9953b991397f1`; 이 보고서의 후속 문서 전용 커밋과 구분
 
 이 문서는 위 기준 배포본을 실제 사용자 흐름으로 점검하고, 발견된 위험을 이 보고서가 포함된
 최종 릴리스에서 어떻게 처리했는지 기록합니다. 비밀값, 개인 작업 내용, 계정 식별자, 로컬
@@ -35,9 +36,33 @@
   `Cache-Control: no-store`로 종료되어 공개 fail-closed 경계를 다시 확인했습니다.
 - 최종 영상은 <https://youtu.be/iI3lDYjBCUc>에 Public로 게시됐습니다. 길이는 2:40.37이고
   embed 재생 가능 상태이며 수동 English 자막과 자동 English 자막이 모두 게시됐습니다.
-- 이 뒤의 제출 문서 전용 커밋은 위 애플리케이션 릴리스의 동작을 변경하지 않습니다.
-- 남은 게이트는 Devpost 등록·자격 사실, 주 작업 Codex 세션의 `/feedback` Session ID, 약관,
+- 이 캡처 뒤 `a2fcd4d51d2fa2270ed7856de41826dc908d6a0e`까지의 후속 커밋은 제출 문서
+  전용이었습니다. 그 다음 초기 언어 변경은 아래 별도 공개 릴리스로 기록합니다.
+- 당시 남은 게이트는 Devpost 등록·자격 사실, 주 작업 Codex 세션의 `/feedback` Session ID, 약관,
   최종 미리보기와 Submit, 그리고 로컬 키와 임시 Live 프로세스의 사용자 확인입니다.
+
+## 2026-07-21 영어 기본 공개 릴리스
+
+- 현재 공개 애플리케이션 릴리스는
+  `185ae7a588d3448675a0e16de4f9953b991397f1`입니다.
+- Vercel production 배포 `dpl_HmdwNkfQXRVjM8A47zZa6Ab99hKm`은 `READY`였고,
+  `sourceCommitSha`와 `githubCommitSha`가 위 SHA, 두 branch 메타데이터가 `main`으로
+  일치했으며 기존 공개 URL로 alias되었습니다.
+- 런타임 변경은 저장값이 없는 새 브라우저의 기본 언어를 한국어에서 영어로 바꾼 것뿐입니다.
+  한국어·일본어 선택과 저장, 계획 엔진, API 경로, 저장 스키마, 개인정보 경계는 변경하지
+  않았습니다.
+- 전체 54개 테스트 파일의 534개 테스트, ESLint, TypeScript, `ENABLE_LIVE_ANALYSIS=false`
+  production build, `git diff --check`를 통과했습니다.
+- `ko-KR`로 설정한 완전히 새 Chromium 컨텍스트에서도 `<html lang="en">`, English 선택,
+  영어 첫 화면을 확인했습니다. 샘플 3개 불러오기, 예산 확인, 예시 계획 만들기를 실행해
+  `Planned 3 · waiting 0 · no matching option 0` 결과에 도달했습니다.
+- 같은 컨텍스트에서 한국어로 전환하면 UI와 `<html lang>`이 `ko`로 바뀌고 언어 저장값이
+  기록됐습니다. 저장소가 비어 있는 별도 새 컨텍스트는 다시 영어로 시작했습니다.
+- 공개 Live 합성 요청은 HTTP `403`, `LIVE_ANALYSIS_DISABLED`, `Cache-Control: no-store`로
+  종료됐습니다.
+- 보호된 Live 요청과 최종 영상 증거는 기존 증거 릴리스
+  `97c30de29a520e15b6439bb514179418736b9180`에 그대로 귀속됩니다. 새 공개 릴리스에서
+  보호된 요청을 다시 실행했다고 주장하지 않습니다.
 
 ## 공개 데스크톱 흐름
 
@@ -132,9 +157,11 @@ API 키 패턴, 환경 변수명에 연결된 값, 로컬 경로, `file://` 주�
 이는 [Vercel의 Node.js 버전 선택 규칙](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)에
 따른 조치입니다.
 
-최종 production 배포에는 `sourceCommitSha=<full SHA>`와 `sourceBranch=main` 메타데이터를
-명시합니다. 배포 후 GitHub `main`, 로컬 clean `main`, Vercel의 `sourceCommitSha`가 모두 같은
-값인지 다시 읽어 확인하며, 공개 URL의 샘플 흐름과 disabled-Live 응답을 한 번 더 검사합니다.
+production 배포에는 `sourceCommitSha=<full SHA>`와 `sourceBranch=main` 메타데이터를
+명시합니다. 영어 기본 애플리케이션 릴리스 배포 시 로컬 clean `main`, GitHub `main`,
+Vercel의 `sourceCommitSha`가 모두 `185ae7a588d3448675a0e16de4f9953b991397f1`로 일치했습니다.
+그 뒤 제출 문서 전용 커밋은 GitHub `main`만 전진시키며, Vercel 메타데이터는 실제로 배포된
+애플리케이션 SHA를 계속 가리킵니다.
 
 ## 최종 자동 검증
 
